@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>PDF Splitter with Thumbnails</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        textarea, input {
+            width: 100%;
+            margin: 10px 0;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #status, #pageCount {
+            margin-top: 10px;
+            color: #666;
+        }
+        #thumbnails {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .thumbnail {
+            border: 2px solid #ccc;
+            padding: 5px;
+            text-align: center;
+        }
+        .thumbnail canvas {
+            max-width: 100px;
+        }
+        .thumbnail .page-num {
+            margin: 2px 0;
+        }
+        .thumbnail .file-info {
+            font-size: 10px;
+            color: #333;
+        }
+        #legend {
+            margin-bottom: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            font-size: 12px;
+            column-count: 3;
+            column-gap: 20px;
+        }
+        .legend-item {
+            margin: 3px 0;
+            break-inside: avoid;
+        }
+        .color-box {
+            display: inline-block;
+            width: 15px;
+            height: 8px;
+            margin-right: 8px;
+            vertical-align: middle;
+        }
+        .group-0 { border-color: #ff0000; }
+        .group-1 { border-color: #00ff00; }
+        .group-2 { border-color: #0000ff; }
+        .group-3 { border-color: #ff00ff; }
+        .group-4 { border-color: #ffff00; }
+        .group-5 { border-color: #00ffff; }
+        .group-6 { border-color: #800080; }
+        .group-7 { border-color: #ffa500; }
+        .group-8 { border-color: #008000; }
+        .group-9 { border-color: #ff4500; }
+    </style>
+</head>
+<body>
+    <h1>PDF Splitter with Thumbnails</h1>
+    <p>Upload a PDF and enter page ranges (e.g., "1,3-5;2" or use newlines instead of semicolons)</p>
+    
+    <input type="file" id="pdfInput" accept=".pdf" onchange="loadPDF()">
+    <div id="pageCount"></div>
+    <textarea id="rangeInput" placeholder="Enter page ranges (e.g., 1,3-5;2 or\n1,3-5\n2)" rows="4" oninput="updateHighlights()"></textarea>
+    <button onclick="splitPDF()">Split PDF</button>
+    <div id="status"></div>
+    <div id="legend"></div>
+    <div id="thumbnails"></div>
+
+    <script src="js/pdf-lib.js"></script>
+    <script src="js/pdf.js"></script>
+    <script>
+        let totalPages = 0;
+        let originalFileName = '';
+        let pdfDoc = null;
+        const colors = [
+            '#ff0000', '#00ff00', '#0000ff', '#ff00ff',
+            '#ffff00', '#00ffff', '#800080', '#ffa500',
+            '#008000', '#ff4500'
+        ];
+
+        async function loadPDF() {
+            const fileInput = document.getElementById('pdfInput');
+            const pageCountDiv = document.getElementById('pageCount');
+            const thumbnailsDiv = document.getElementById('thumbnails');
+            const status = document.getElementById('status');
+
+            thumbnailsDiv.innerHTML = '';
+            document.getElementById('legend').innerHTML = '';
+            if (!fileInput.files[0]) {
+                pageCountDiv.textContent = '';
+                return;
+            }
+
+            try {
+                status.textContent = 'Loading PDF...';
+                const file = fileInput.files[0];
+                originalFileName = file.name.replace('.pdf', '');
+                const arrayBuffer = await file.arrayBuffer();
+
+                pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                totalPages = pdfDoc.getPageCount();
+                pageCountDiv.textContent = `Total pages in PDF: ${totalPages}`;
+
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                for (let i = 1; i <= totalPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const viewport = page.getViewport({ scale: 0.2 });
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    const context = canvas.getContext('2d');
+                    
+                    await page.render({
+                        canvasContext: context,
+                        viewport: viewport
+                    }).promise;
+
+                    const div = document.createElement('div');
+                    div.className = 'thumbnail';
+                    div.dataset.page = i;
+                    div.innerHTML = `
+                        <p class="page-num">Page ${i}</p>
+                        <div class="file-info"></div>
+                    `;
+                    div.insertBefore(canvas, div.querySelector('.file-info'));
+                    thumbnailsDiv.appendChild(div);
+                }
+
+                status.textContent = '';
+                updateHighlights();
+            } catch (error) {
+                status.textContent = `Error loading PDF: ${error.message}`;
+                pageCountDiv.textContent = '';
+            }
+        }
+
+        function updateHighlights() {
+            const rangeInput = document.getElementById('rangeInput').value.trim();
+            const thumbnails = document.querySelectorAll('.thumbnail');
+            const legend = document.getElementById('legend');
+            
+            thumbnails.forEach(thumb => {
+                thumb.className = 'thumbnail';
+                thumb.querySelector('.file-info').textContent = '';
+            });
+            legend.innerHTML = '';
+
+            if (!rangeInput) return;
+
+            try {
+                const rangeGroups = rangeInput.split(/;|\n/).map(group => group.trim()).filter(group => group);
+                const pageAssignments = new Map();
+                
+                rangeGroups.forEach((group, index) => {
+                    const pages = [];
+                    const segments = group.split(',').map(s => s.trim());
+                    
+                    for (const segment of segments) {
+                        if (segment.includes('-')) {
+                            const [start, end] = segment.split('-').map(Number);
+                            for (let i = start; i <= end; i++) {
+                                pages.push(i);
+                                const currentFiles = pageAssignments.get(i) || [];
+                                currentFiles.push(index + 1);
+                                pageAssignments.set(i, currentFiles);
+                            }
+                        } else {
+                            const page = Number(segment);
+                            pages.push(page);
+                            const currentFiles = pageAssignments.get(page) || [];
+                            currentFiles.push(index + 1);
+                            pageAssignments.set(page, currentFiles);
+                        }
+                    }
+                });
+
+                pageAssignments.forEach((fileNumbers, page) => {
+                    const thumb = document.querySelector(`.thumbnail[data-page="${page}"]`);
+                    if (thumb) {
+                        const primaryGroup = fileNumbers[0] - 1;
+                        thumb.classList.add(`group-${primaryGroup % colors.length}`);
+                        thumb.querySelector('.file-info').textContent = 
+                            `File ${fileNumbers.join(', ')}`;
+                    }
+                });
+
+                // Removed the 'Legend' title
+                rangeGroups.forEach((group, index) => {
+                    const div = document.createElement('div');
+                    div.className = 'legend-item';
+                    div.innerHTML = `
+                        <span class="color-box" style="background-color: ${colors[index % colors.length]}"></span>
+                        File ${index + 1} - Pages ${group}
+                    `;
+                    legend.appendChild(div);
+                });
+            } catch (error) {
+                // Silent fail for invalid input during typing
+            }
+        }
+
+        async function splitPDF() {
+            const status = document.getElementById('status');
+            status.textContent = 'Processing...';
+            
+            try {
+                const fileInput = document.getElementById('pdfInput');
+                if (!fileInput.files[0]) {
+                    throw new Error('Please select a PDF file');
+                }
+                
+                const rangeInput = document.getElementById('rangeInput').value.trim();
+                if (!rangeInput) {
+                    throw new Error('Please enter page ranges');
+                }
+
+                const rangeGroups = rangeInput.split(/;|\n/).map(group => group.trim()).filter(group => group);
+                const pageGroups = rangeGroups.map(group => {
+                    const pages = [];
+                    const segments = group.split(',').map(s => s.trim());
+                    
+                    for (const segment of segments) {
+                        if (segment.includes('-')) {
+                            const [start, end] = segment.split('-').map(Number);
+                            if (isNaN(start) || isNaN(end) || start < 1 || end > totalPages || start > end) {
+                                throw new Error(`Invalid range: ${segment}`);
+                            }
+                            for (let i = start; i <= end; i++) {
+                                pages.push(i - 1);
+                            }
+                        } else {
+                            const page = Number(segment);
+                            if (isNaN(page) || page < 1 || page > totalPages) {
+                                throw new Error(`Invalid page number: ${segment}`);
+                            }
+                            pages.push(page - 1);
+                        }
+                    }
+                    return pages;
+                });
+
+                for (let i = 0; i < pageGroups.length; i++) {
+                    const pages = pageGroups[i];
+                    if (pages.length === 0) continue;
+
+                    const newPdf = await PDFLib.PDFDocument.create();
+                    const copiedPages = await newPdf.copyPages(pdfDoc, pages);
+                    copiedPages.forEach(page => newPdf.addPage(page));
+
+                    const rangeText = rangeGroups[i].replace(/,/g, '_');
+                    const fileName = `${originalFileName}_split_${rangeText}.pdf`;
+
+                    const pdfBytes = await newPdf.save();
+                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    const link = document.createElement('a');
+                    link.href = url;
+                    link.download = fileName;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }
+
+                status.textContent = `Successfully split PDF into ${pageGroups.length} files`;
+            } catch (error) {
+                status.textContent = `Error: ${error.message}`;
+                console.error(error);
+            }
+        }
+    </script>
+</body>
+</html>
