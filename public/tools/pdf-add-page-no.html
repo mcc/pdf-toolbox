@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Page Number Adder</title>
+    <script src="js/pdf-lib.js"></script>
+    <script src="js/jszip.js"></script>
+    <script src="js/FileSaver.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .container {
+            text-align: center;
+        }
+        input[type="file"] {
+            margin: 20px 0;
+        }
+        button {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #preview {
+            margin-top: 20px;
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+        }
+        .options {
+            margin: 15px 0;
+        }
+        #previewSelect {
+            margin: 10px 0;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>PDF Page Number Adder</h1>
+        <p>Upload one or more PDFs to add page numbers</p>
+        
+        <input type="file" id="pdfInput" accept=".pdf" multiple>
+        <div class="options">
+            <label for="position">Page Number Position:</label>
+            <select id="position">
+                <option value="bottom-right">Bottom Right</option>
+                <option value="bottom-middle">Bottom Middle</option>
+                <option value="bottom-left">Bottom Left</option>
+                <option value="top-right">Top Right</option>
+                <option value="top-middle">Top Middle</option>
+                <option value="top-left">Top Left</option>
+            </select>
+            <br>
+            <label>
+                <input type="checkbox" id="includeFilename" checked>
+                Include Filename in Footer
+            </label>
+        </div>
+        <button id="processBtn" disabled>Process PDFs</button>
+        <button id="downloadZipBtn" disabled>Download as ZIP</button>
+        <button id="downloadIndividualBtn" disabled>Download Individually</button>
+        <br>
+        <select id="previewSelect" disabled></select>
+        <iframe id="preview"></iframe>
+    </div>
+
+    <script>
+        const pdfInput = document.getElementById('pdfInput');
+        const processBtn = document.getElementById('processBtn');
+        const downloadZipBtn = document.getElementById('downloadZipBtn');
+        const downloadIndividualBtn = document.getElementById('downloadIndividualBtn');
+        const preview = document.getElementById('preview');
+        const previewSelect = document.getElementById('previewSelect');
+        const positionSelect = document.getElementById('position');
+        const includeFilenameCheckbox = document.getElementById('includeFilename');
+        let processedPdfs = [];
+
+        // Enable process button when files are selected
+        pdfInput.addEventListener('change', () => {
+            processBtn.disabled = pdfInput.files.length === 0;
+            downloadZipBtn.disabled = true;
+            downloadIndividualBtn.disabled = true;
+            preview.src = '';
+            previewSelect.innerHTML = '<option value="">Select a PDF to preview</option>';
+            previewSelect.disabled = true;
+            processedPdfs = [];
+        });
+
+        // Process PDFs when button is clicked
+        processBtn.addEventListener('click', async () => {
+            try {
+                processBtn.disabled = true;
+                processBtn.textContent = 'Processing...';
+                downloadZipBtn.disabled = true;
+                downloadIndividualBtn.disabled = true;
+                processedPdfs = [];
+                previewSelect.innerHTML = '<option value="">Select a PDF to preview</option>';
+
+                const files = Array.from(pdfInput.files);
+                for (const file of files) {
+                    const arrayBuffer = await file.arrayBuffer();
+                    const pdfDoc = await PDFLib.PDFDocument.load(arrayBuffer);
+                    const originalFileName = file.name.replace('.pdf', '');
+                    const pages = pdfDoc.getPages();
+                    const pageCount = pages.length;
+                    
+                    let font;
+                    try {
+                        font = await pdfDoc.embedFont(PDFLib.StandardFonts.TimesRoman);
+                    } catch (fontError) {
+                        console.warn('Font embedding failed, falling back to Helvetica:', fontError);
+                        font = await pdfDoc.embedFont(PDFLib.StandardFonts.Helvetica);
+                    }
+
+                    const position = positionSelect.value;
+
+                    pages.forEach((page, index) => {
+                        const { width, height } = page.getSize();
+                        const fontSize = 10;
+                        let footerText = includeFilenameCheckbox.checked 
+                            ? `${originalFileName} - Page ${index + 1} of ${pageCount}`
+                            : `Page ${index + 1} of ${pageCount}`;
+
+                        if (!font.encoder) {
+                            footerText = footerText.replace(/[^\x00-\x7F]/g, '*');
+                        }
+
+                        const textWidth = font.widthOfTextAtSize(footerText, fontSize);
+                        let x, y;
+                        const margin = 30;
+
+                        switch (position) {
+                            case 'top-right':
+                                x = width - textWidth - margin;
+                                y = height - margin;
+                                break;
+                            case 'top-middle':
+                                x = (width - textWidth) / 2;
+                                y = height - margin;
+                                break;
+                            case 'top-left':
+                                x = margin;
+                                y = height - margin;
+                                break;
+                            case 'bottom-right':
+                                x = width - textWidth - margin;
+                                y = margin;
+                                break;
+                            case 'bottom-middle':
+                                x = (width - textWidth) / 2;
+                                y = margin;
+                                break;
+                            case 'bottom-left':
+                                x = margin;
+                                y = margin;
+                                break;
+                        }
+
+                        page.drawText(footerText, {
+                            x,
+                            y,
+                            size: fontSize,
+                            font: font,
+                            color: PDFLib.rgb(0, 0, 0)
+                        });
+                    });
+
+                    const pdfBytes = await pdfDoc.save();
+                    const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+                    processedPdfs.push({
+                        blob,
+                        url,
+                        filename: `${originalFileName}-with-page-number.pdf`
+                    });
+
+                    // Add to preview dropdown
+                    const option = document.createElement('option');
+                    option.value = url;
+                    option.textContent = originalFileName;
+                    previewSelect.appendChild(option);
+                }
+
+                // Preview the first processed PDF and enable controls
+                if (processedPdfs.length > 0) {
+                    preview.src = processedPdfs[0].url;
+                    previewSelect.value = processedPdfs[0].url;
+                    previewSelect.disabled = false;
+                }
+                downloadZipBtn.disabled = false;
+                downloadIndividualBtn.disabled = false;
+
+            } catch (error) {
+                console.error('Error processing PDFs:', error);
+                alert('An error occurred while processing the PDFs');
+            } finally {
+                processBtn.disabled = false;
+                processBtn.textContent = 'Process PDFs';
+            }
+        });
+
+        // Preview selection handler
+        previewSelect.addEventListener('change', () => {
+            preview.src = previewSelect.value || '';
+        });
+
+        // Download as ZIP button handler
+        downloadZipBtn.addEventListener('click', async () => {
+            if (processedPdfs.length === 1) {
+                const link = document.createElement('a');
+                link.href = processedPdfs[0].url;
+                link.download = processedPdfs[0].filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } else if (processedPdfs.length > 1) {
+                const zip = new JSZip();
+                for (const pdf of processedPdfs) {
+                    const pdfData = await pdf.blob.arrayBuffer();
+                    zip.file(pdf.filename, pdfData);
+                }
+                
+                const zipBlob = await zip.generateAsync({ type: 'blob' });
+                saveAs(zipBlob, 'modified-pdfs.zip');
+            }
+        });
+
+        // Download Individually button handler
+        downloadIndividualBtn.addEventListener('click', () => {
+            processedPdfs.forEach(pdf => {
+                const link = document.createElement('a');
+                link.href = pdf.url;
+                link.download = pdf.filename;
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            });
+        });
+    </script>
+</body>
+</html>
