@@ -4,152 +4,261 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Working Day Calculator</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
     <style>
-        body {
-            font-family: Arial, sans-serif;
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 20px;
-            display: flex;
-            gap: 20px;
-        }
-        .calculator, .holidays {
-            padding: 20px;
-        }
-        .calculator {
-            flex: 2;
-        }
         .holidays {
-            flex: 1;
-            border-left: 1px solid #ccc;
+            position: relative;
+            width: 50%;
         }
-        .checkbox-group {
-            margin: 10px 0;
+        .holidays-header {
+            position: sticky;
+            top: 0;
+            background-color: white;
+            z-index: 10;
+            padding-bottom: 1rem;
         }
-        .result {
-            margin-top: 20px;
-            padding: 10px;
-            border: 1px solid #ccc;
+        .holiday-list-container {
+            max-height: 80vh;
+            overflow-y: auto;
         }
-        .highlight {
+        .confirmed-highlight {
             background-color: #ffff99;
         }
-        .holiday-list {
-            list-style: none;
-            padding: 0;
+        .tentative-highlight {
+            background-color: #ffcccb;
         }
         .holiday-item {
-            margin: 10px 0;
-            padding: 5px;
-            border-bottom: 1px solid #eee;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
-        .holiday-date {
-            font-weight: bold;
-            margin-right: 10px;
+        .flatpickr-input {
+            border: 1px solid #e5e7eb;
+            border-radius: 0.25rem;
+            padding: 0.5rem;
+            width: 12rem;
         }
-        .holiday-weekday {
-            color: #666;
-            font-style: italic;
-            margin-right: 10px;
+        .result-table th, .result-table td {
+            padding: 0.5rem;
+            text-align: left;
+        }
+        .result-table th {
+            background-color: #f3f4f6;
+        }
+        .highlight-working-days {
+            background-color: #e6ffe6; /* Light green highlight */
         }
     </style>
 </head>
-<body>
-    <div class="calculator">
-        <h1>Working Day Calculator</h1>
+<body class="font-sans max-w-7xl mx-auto p-5 flex gap-5">
+    <div class="calculator flex-2">
+        <h1 class="text-2xl font-bold mb-4">Working Day Calculator</h1>
         
         <div>
-            <label>Start Date: <input type="date" id="startDate"></label><br><br>
-            <label>End Date: <input type="date" id="endDate"></label><br><br>
-            
-            <div class="checkbox-group">
-                <h3>Exclude Days:</h3>
-                <label><input type="checkbox" id="excludeMon"> Monday</label>
-                <label><input type="checkbox" id="excludeTue"> Tuesday</label>
-                <label><input type="checkbox" id="excludeWed"> Wednesday</label>
-                <label><input type="checkbox" id="excludeThu"> Thursday</label>
-                <label><input type="checkbox" id="excludeFri"> Friday</label>
-                <label><input type="checkbox" id="excludeSat" checked> Saturday</label>
-                <label><input type="checkbox" id="excludeSun" checked> Sunday</label>
-                <label><input type="checkbox" id="excludeHoliday" checked> Public Holidays</label>
+            <div class="mb-4">
+                <label class="block mb-2">Start Date: 
+                    <input type="text" id="startDate" placeholder="YYYY-MM-DD">
+                </label>
+                <label class="block mb-2">End Date: 
+                    <input type="text" id="endDate" placeholder="YYYY-MM-DD">
+                </label>
             </div>
+            
+            <div class="mb-4">
+                <h3 class="text-lg font-semibold mb-2">Exclude Days:</h3>
+                <div class="grid grid-cols-5 gap-2">
+                    <label><input type="checkbox" id="excludeMon"> Monday</label>
+                    <label><input type="checkbox" id="excludeTue"> Tuesday</label>
+                    <label><input type="checkbox" id="excludeWed"> Wednesday</label>
+                    <label><input type="checkbox" id="excludeThu"> Thursday</label>
+                    <label><input type="checkbox" id="excludeFri"> Friday</label>
+                </div>
+                <div class="grid grid-cols-3 gap-2 mt-2">
+                    <label><input type="checkbox" id="excludeSat" checked> Saturday</label>
+                    <label><input type="checkbox" id="excludeSun" checked> Sunday</label>
+                    <label><input type="checkbox" id="excludeHoliday" checked> Public Holidays</label>
+                </div>
+            </div>
+            <button id="shareButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-2">
+                Share
+            </button>
         </div>
         
-        <div id="result" class="result" style="display: none;"></div>
+        <div id="result" class="border p-4 mt-4 hidden"></div>
     </div>
 
-    <div class="holidays">
-        <h2>Public Holidays</h2>
-        <ul id="holidayList" class="holiday-list"></ul>
+    <div class="holidays border-l pl-5">
+        <div class="holidays-header">
+            <h2 class="text-xl font-semibold mb-2">Public Holidays</h2>
+            <p id="holidayInfo" class="text-sm text-gray-600"></p>
+        </div>
+        <div class="holiday-list-container">
+            <ul id="holidayList" class="list-none p-0"></ul>
+        </div>
     </div>
 
     <script src="js/holiday.js"></script>
+    <script src="js/tbc-holiday.js"></script>
     <script>
         let holidays = [];
         let maxHolidayYear = 0;
-        let dataSource = '';
+        let maxTentativeYear = 0;
         const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
-        // Fetch and preload holiday data
-        async function loadHolidays() {
-            try {
-                const response = await fetch('https://www.1823.gov.hk/common/ical/tc.json');
-                if (!response.ok) throw new Error('Network response was not ok');
-                const data = await response.json();
-                processHolidayData(data);
-                dataSource = 'remote';
-            } catch (error) {
-                console.error('Error loading remote holidays:', error);
-                if (typeof localHolidays !== 'undefined') {
-                    processHolidayData(localHolidays);
-                    dataSource = 'local';
-                    alert('Using local holiday data as remote source is unavailable');
-                } else {
-                    alert('Failed to load holiday data from both remote and local sources');
-                    return;
-                }
+        const startPicker = flatpickr("#startDate", {
+            dateFormat: "Y-m-d",
+            onChange: () => calculateDays()
+        });
+        const endPicker = flatpickr("#endDate", {
+            dateFormat: "Y-m-d",
+            onChange: () => calculateDays()
+        });
+
+        function loadHolidays() {
+            if (typeof localHolidays !== 'undefined') {
+                const confirmed = processHolidayData(localHolidays, false);
+                holidays = holidays.concat(confirmed);
+            } else {
+                console.error('Confirmed holiday data (js/holiday.js) not found');
             }
 
-            // Sort holidays in descending order
+            if (typeof tbcHolidays !== 'undefined') {
+                const tentative = processHolidayData(tbcHolidays, true);
+                const tentativeToAdd = tentative.filter(h => 
+                    parseInt(h.date.slice(0,4)) > maxHolidayYear
+                );
+                holidays = holidays.concat(tentativeToAdd);
+                tentativeToAdd.forEach(h => {
+                    const year = parseInt(h.date.slice(0, 4));
+                    if (year > maxTentativeYear) maxTentativeYear = year;
+                });
+            }
+
             holidays.sort((a, b) => b.date.localeCompare(a.date));
 
-            // Populate holiday list with weekdays
             const holidayList = document.getElementById('holidayList');
             holidayList.innerHTML = holidays.map(h => {
                 const date = new Date(h.date.slice(0,4), h.date.slice(4,6) - 1, h.date.slice(6,8));
                 const weekday = weekdays[date.getDay()];
                 const formattedDate = `${h.date.slice(0,4)}-${h.date.slice(4,6)}-${h.date.slice(6,8)}`;
-                return `<li id="holiday-${h.date}" class="holiday-item">
-                    <span class="holiday-date">${formattedDate}</span>
-                    <span class="holiday-weekday">(${weekday})</span>
-                    <span>${h.name}</span>
+                return `<li id="holiday-${h.date}" class="holiday-item ${h.isTentative ? 'tentative' : 'confirmed'} mb-2 p-2 border-b">
+                    <span>
+                        <span class="font-bold mr-2">${formattedDate}</span>
+                        <span class="text-gray-600 italic mr-2">(${weekday})</span>
+                        <span>${h.name}</span>
+                    </span>
+                    <span id="annotation-${h.date}" class="text-sm text-gray-700"></span>
                 </li>`;
             }).join('');
+
+            const holidayInfo = document.getElementById('holidayInfo');
+            const yearInfo = maxTentativeYear > maxHolidayYear 
+                ? `Confirmed holidays up to ${maxHolidayYear}, Tentative up to ${maxTentativeYear}`
+                : `Confirmed holidays up to ${maxHolidayYear}`;
+            holidayInfo.textContent = yearInfo;
             
-            alert(`Holiday information loaded up to year ${maxHolidayYear} from ${dataSource} source`);
-            
-            // Perform initial calculation after loading holidays
+            loadFromUrl();
             calculateDays();
         }
 
-        function processHolidayData(data) {
-            holidays = data.vcalendar[0].vevent.map(event => ({
-                date: event.dtstart[0], // YYYYMMDD format
-                name: event.summary
+        function processHolidayData(data, isTentative) {
+            const processed = data.vcalendar[0].vevent.map(event => ({
+                date: event.dtstart[0],
+                name: event.summary,
+                isTentative: isTentative
             }));
 
-            holidays.forEach(h => {
+            processed.forEach(h => {
                 const year = parseInt(h.date.slice(0, 4));
-                if (year > maxHolidayYear) maxHolidayYear = year;
+                if (!isTentative && year > maxHolidayYear) maxHolidayYear = year;
+                if (isTentative && year > maxTentativeYear) maxTentativeYear = year;
             });
+
+            return processed;
         }
 
         function setDefaultDates() {
             const today = new Date();
             const yearEnd = new Date(today.getFullYear(), 11, 31);
             
-            document.getElementById('startDate').value = today.toISOString().slice(0,10);
-            document.getElementById('endDate').value = yearEnd.toISOString().slice(0,10);
+            startPicker.setDate(today);
+            endPicker.setDate(yearEnd);
+        }
+
+        function findNearestEndHoliday(startDate, endDate) {
+            const startStr = startDate.toISOString().slice(0,10).replace(/-/g, '');
+            const endStr = endDate.toISOString().slice(0,10).replace(/-/g, '');
+            
+            const relevantHolidays = holidays.filter(h => {
+                return h.date >= startStr && h.date <= endStr;
+            });
+            
+            if (relevantHolidays.length > 0) {
+                return relevantHolidays[0].date;
+            }
+            
+            const allDates = holidays.map(h => h.date);
+            const nearest = allDates.reduce((prev, curr) => {
+                if (curr > endStr) return prev;
+                return parseInt(curr) > parseInt(prev) ? curr : prev;
+            }, allDates[allDates.length - 1]);
+            return nearest;
+        }
+
+        function scrollToHoliday(holidayDate) {
+            const holidayElement = document.getElementById(`holiday-${holidayDate}`);
+            if (holidayElement) {
+                setTimeout(() => {
+                    holidayElement.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'start' 
+                    });
+                }, 100);
+            }
+        }
+
+        function generateShareUrl() {
+            const startDate = document.getElementById('startDate').value;
+            const endDate = document.getElementById('endDate').value;
+            const exclude = {
+                mon: document.getElementById('excludeMon').checked,
+                tue: document.getElementById('excludeTue').checked,
+                wed: document.getElementById('excludeWed').checked,
+                thu: document.getElementById('excludeThu').checked,
+                fri: document.getElementById('excludeFri').checked,
+                sat: document.getElementById('excludeSat').checked,
+                sun: document.getElementById('excludeSun').checked,
+                hol: document.getElementById('excludeHoliday').checked
+            };
+
+            const params = new URLSearchParams({
+                start: startDate,
+                end: endDate,
+                ...Object.entries(exclude).reduce((acc, [key, value]) => {
+                    if (value) acc[key] = '1';
+                    return acc;
+                }, {})
+            });
+
+            const baseUrl = window.location.origin + window.location.pathname;
+            return `${baseUrl}?${params.toString()}`;
+        }
+
+        function loadFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('start')) startPicker.setDate(params.get('start'));
+            if (params.has('end')) endPicker.setDate(params.get('end'));
+            
+            document.getElementById('excludeMon').checked = params.has('mon');
+            document.getElementById('excludeTue').checked = params.has('tue');
+            document.getElementById('excludeWed').checked = params.has('wed');
+            document.getElementById('excludeThu').checked = params.has('thu');
+            document.getElementById('excludeFri').checked = params.has('fri');
+            document.getElementById('excludeSat').checked = params.has('sat') || !params.size;
+            document.getElementById('excludeSun').checked = params.has('sun') || !params.size;
+            document.getElementById('excludeHoliday').checked = params.has('hol') || !params.size;
         }
 
         function calculateDays() {
@@ -174,16 +283,19 @@
 
             let workingDays = 0;
             let totalDays = 0;
-            let saturdays = 0;
-            let sundays = 0;
-            let holidaysCount = 0;
-            let usedHolidays = new Set();
+            let excludedDays = {
+                mon: 0, tue: 0, wed: 0, thu: 0, fri: 0, sat: 0, sun: 0
+            };
+            let confirmedHolidaysCount = 0;
+            let tentativeHolidaysCount = 0;
+            let usedHolidays = [];
             let currentDate = new Date(startDate);
             
-            // Reset all holiday highlights
             holidays.forEach(h => {
                 const el = document.getElementById(`holiday-${h.date}`);
-                if (el) el.classList.remove('highlight');
+                const annotation = document.getElementById(`annotation-${h.date}`);
+                if (el) el.classList.remove('confirmed-highlight', 'tentative-highlight');
+                if (annotation) annotation.textContent = '';
             });
 
             while (currentDate <= endDate) {
@@ -194,15 +306,30 @@
                 const holiday = holidays.find(h => h.date === dateStr);
                 const isHoliday = excludeHolidays && holiday;
                 const isExcludedDay = excludeDays[dayOfWeek];
-                
-                if (dayOfWeek === 6) saturdays++;
-                if (dayOfWeek === 0) sundays++;
-                if (isHoliday && !excludeDays[dayOfWeek]) holidaysCount++;
+
+                if (excludeDays[dayOfWeek]) {
+                    switch(dayOfWeek) {
+                        case 1: excludedDays.mon++; break;
+                        case 2: excludedDays.tue++; break;
+                        case 3: excludedDays.wed++; break;
+                        case 4: excludedDays.thu++; break;
+                        case 5: excludedDays.fri++; break;
+                        case 6: excludedDays.sat++; break;
+                        case 0: excludedDays.sun++; break;
+                    }
+                }
+
+                if (isHoliday && !excludeDays[dayOfWeek]) {
+                    if (holiday.isTentative) tentativeHolidaysCount++;
+                    else confirmedHolidaysCount++;
+                    usedHolidays.push(holiday);
+                }
                 
                 if (isHoliday && excludeHolidays) {
-                    usedHolidays.add(dateStr);
                     const holidayEl = document.getElementById(`holiday-${dateStr}`);
-                    if (holidayEl) holidayEl.classList.add('highlight');
+                    if (holidayEl) {
+                        holidayEl.classList.add(holiday.isTentative ? 'tentative-highlight' : 'confirmed-highlight');
+                    }
                 }
                 
                 if (!isHoliday && !isExcludedDay) {
@@ -212,32 +339,84 @@
                 currentDate.setDate(currentDate.getDate() + 1);
             }
 
+            usedHolidays.forEach((holiday, index) => {
+                const annotation = document.getElementById(`annotation-${holiday.date}`);
+                if (annotation) annotation.textContent = `#${index + 1}`;
+            });
+
+            let calcSteps = `${totalDays}`;
+            if (excludeDays[1]) calcSteps += ` - ${excludedDays.mon}`;
+            if (excludeDays[2]) calcSteps += ` - ${excludedDays.tue}`;
+            if (excludeDays[3]) calcSteps += ` - ${excludedDays.wed}`;
+            if (excludeDays[4]) calcSteps += ` - ${excludedDays.thu}`;
+            if (excludeDays[5]) calcSteps += ` - ${excludedDays.fri}`;
+            if (excludeDays[6]) calcSteps += ` - ${excludedDays.sat}`;
+            if (excludeDays[0]) calcSteps += ` - ${excludedDays.sun}`;
+            if (confirmedHolidaysCount > 0) calcSteps += ` - ${confirmedHolidaysCount}`;
+            if (tentativeHolidaysCount > 0) calcSteps += ` - ${tentativeHolidaysCount}`;
+            calcSteps += ` = ${workingDays}`;
+
             const resultDiv = document.getElementById('result');
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `
-                <h3>Result:</h3>
-                <p>Period: ${startDate.toDateString()} to ${endDate.toDateString()}</p>
-                <p>Total calendar days: ${totalDays}</p>
-                <p>Saturdays excluded: ${saturdays}</p>
-                <p>Sundays excluded: ${sundays}</p>
-                <p>Holidays excluded (excl. Sat/Sun): ${holidaysCount}</p>
-                <p><strong>Working days: ${workingDays}</strong></p>
-                <p>Note: Holiday data from ${dataSource} source up to ${maxHolidayYear}</p>
+                <div class="flex items-center mb-2">
+                    <h3 class="text-lg font-semibold">Result</h3>
+                    <span class="ml-4 text-lg font-bold text-green-600">${workingDays} Working Days</span>
+                </div>
+                <table class="result-table w-full border-collapse">
+                    <tr>
+                        <th>Period</th>
+                        <td>${startDate.toLocaleDateString('en-CA')} to ${endDate.toLocaleDateString('en-CA')}</td>
+                    </tr>
+                    <tr>
+                        <th>Total calendar days</th>
+                        <td>${totalDays}</td>
+                    </tr>
+                    ${excludeDays[1] ? `<tr><th>Mondays excluded</th><td>${excludedDays.mon}</td></tr>` : ''}
+                    ${excludeDays[2] ? `<tr><th>Tuesdays excluded</th><td>${excludedDays.tue}</td></tr>` : ''}
+                    ${excludeDays[3] ? `<tr><th>Wednesdays excluded</th><td>${excludedDays.wed}</td></tr>` : ''}
+                    ${excludeDays[4] ? `<tr><th>Thursdays excluded</th><td>${excludedDays.thu}</td></tr>` : ''}
+                    ${excludeDays[5] ? `<tr><th>Fridays excluded</th><td>${excludedDays.fri}</td></tr>` : ''}
+                    ${excludeDays[6] ? `<tr><th>Saturdays excluded</th><td>${excludedDays.sat}</td></tr>` : ''}
+                    ${excludeDays[0] ? `<tr><th>Sundays excluded</th><td>${excludedDays.sun}</td></tr>` : ''}
+                    ${confirmedHolidaysCount > 0 ? `<tr><th>Confirmed holidays excluded</th><td>${confirmedHolidaysCount}</td></tr>` : ''}
+                    ${tentativeHolidaysCount > 0 ? `<tr><th>Tentative holidays excluded</th><td>${tentativeHolidaysCount}</td></tr>` : ''}
+                    <tr class="highlight-working-days">
+                        <th>Working days</th>
+                        <td><strong>${workingDays}</strong></td>
+                    </tr>
+                    <tr>
+                        <th>Calculation</th>
+                        <td>${calcSteps}</td>
+                    </tr>
+                </table>
+                <p class="text-sm text-gray-600 mt-2">Note: Confirmed up to ${maxHolidayYear}${maxTentativeYear > maxHolidayYear ? `, Tentative up to ${maxTentativeYear}` : ''}</p>
             `;
+
+            const nearestEndHoliday = findNearestEndHoliday(startDate, endDate);
+            scrollToHoliday(nearestEndHoliday);
         }
 
-        // Add event listeners for auto-update
         function addEventListeners() {
-            const inputs = document.querySelectorAll('input');
+            const inputs = document.querySelectorAll('input[type="checkbox"]');
             inputs.forEach(input => {
-                input.addEventListener('change', calculateDays);
+                input.addEventListener('change', () => calculateDays());
+            });
+
+            document.getElementById('shareButton').addEventListener('click', () => {
+                const shareUrl = generateShareUrl();
+                navigator.clipboard.writeText(shareUrl).then(() => {
+                    alert('Share link copied to clipboard!');
+                }).catch(err => {
+                    console.error('Failed to copy: ', err);
+                    alert('Failed to copy link. URL: ' + shareUrl);
+                });
             });
         }
 
-        // Initialize
-        window.onload = async () => {
+        window.onload = () => {
             setDefaultDates();
-            await loadHolidays(); // Wait for holidays to load before proceeding
+            loadHolidays();
             addEventListeners();
         };
     </script>
