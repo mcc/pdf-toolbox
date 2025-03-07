@@ -10,7 +10,6 @@
     <style>
         .holidays {
             position: relative;
-            width: 50%;
         }
         .holidays-header {
             position: sticky;
@@ -38,7 +37,8 @@
             border: 1px solid #e5e7eb;
             border-radius: 0.25rem;
             padding: 0.5rem;
-            width: 12rem;
+            width: 100%;
+            max-width: 12rem;
         }
         .result-table th, .result-table td {
             padding: 0.5rem;
@@ -48,12 +48,35 @@
             background-color: #f3f4f6;
         }
         .highlight-working-days {
-            background-color: #e6ffe6; /* Light green highlight */
+            background-color: #e6ffe6;
+        }
+        @media (max-width: 768px) {
+            body {
+                flex-direction: column;
+                padding: 1rem;
+            }
+            .calculator, .holidays {
+                width: 100%;
+                border-left: none;
+            }
+            .holidays {
+                margin-top: 1rem;
+            }
+            .grid-cols-5, .grid-cols-3 {
+                grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+            }
+            .result-table th, .result-table td {
+                display: block;
+                width: 100%;
+            }
+            .result-table tr {
+                margin-bottom: 0.5rem;
+            }
         }
     </style>
 </head>
 <body class="font-sans max-w-7xl mx-auto p-5 flex gap-5">
-    <div class="calculator flex-2">
+    <div class="calculator">
         <h1 class="text-2xl font-bold mb-4">Working Day Calculator</h1>
         
         <div>
@@ -69,19 +92,19 @@
             <div class="mb-4">
                 <h3 class="text-lg font-semibold mb-2">Exclude Days:</h3>
                 <div class="grid grid-cols-5 gap-2">
-                    <label><input type="checkbox" id="excludeMon"> Monday</label>
-                    <label><input type="checkbox" id="excludeTue"> Tuesday</label>
-                    <label><input type="checkbox" id="excludeWed"> Wednesday</label>
-                    <label><input type="checkbox" id="excludeThu"> Thursday</label>
-                    <label><input type="checkbox" id="excludeFri"> Friday</label>
+                    <label><input type="checkbox" id="excludeMon"> Mon</label>
+                    <label><input type="checkbox" id="excludeTue"> Tue</label>
+                    <label><input type="checkbox" id="excludeWed"> Wed</label>
+                    <label><input type="checkbox" id="excludeThu"> Thu</label>
+                    <label><input type="checkbox" id="excludeFri"> Fri</label>
                 </div>
                 <div class="grid grid-cols-3 gap-2 mt-2">
-                    <label><input type="checkbox" id="excludeSat" checked> Saturday</label>
-                    <label><input type="checkbox" id="excludeSun" checked> Sunday</label>
+                    <label><input type="checkbox" id="excludeSat" checked> Sat</label>
+                    <label><input type="checkbox" id="excludeSun" checked> Sun</label>
                     <label><input type="checkbox" id="excludeHoliday" checked> Public Holidays</label>
                 </div>
             </div>
-            <button id="shareButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-2">
+            <button id="shareButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mt-2 w-full sm:w-auto">
                 Share
             </button>
         </div>
@@ -105,7 +128,7 @@
         let holidays = [];
         let maxHolidayYear = 0;
         let maxTentativeYear = 0;
-        const weekdays = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+        const weekdays = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
         const startPicker = flatpickr("#startDate", {
             dateFormat: "Y-m-d",
@@ -359,9 +382,9 @@
             const resultDiv = document.getElementById('result');
             resultDiv.style.display = 'block';
             resultDiv.innerHTML = `
-                <div class="flex items-center mb-2">
+                <div class="flex items-center mb-2 flex-col sm:flex-row">
                     <h3 class="text-lg font-semibold">Result</h3>
-                    <span class="ml-4 text-lg font-bold text-green-600">${workingDays} Working Days</span>
+                    <span class="ml-0 sm:ml-4 text-lg font-bold text-green-600">${workingDays} Working Days</span>
                 </div>
                 <table class="result-table w-full border-collapse">
                     <tr>
@@ -372,13 +395,13 @@
                         <th>Total calendar days</th>
                         <td>${totalDays}</td>
                     </tr>
-                    ${excludeDays[1] ? `<tr><th>Mondays excluded</th><td>${excludedDays.mon}</td></tr>` : ''}
-                    ${excludeDays[2] ? `<tr><th>Tuesdays excluded</th><td>${excludedDays.tue}</td></tr>` : ''}
-                    ${excludeDays[3] ? `<tr><th>Wednesdays excluded</th><td>${excludedDays.wed}</td></tr>` : ''}
-                    ${excludeDays[4] ? `<tr><th>Thursdays excluded</th><td>${excludedDays.thu}</td></tr>` : ''}
-                    ${excludeDays[5] ? `<tr><th>Fridays excluded</th><td>${excludedDays.fri}</td></tr>` : ''}
-                    ${excludeDays[6] ? `<tr><th>Saturdays excluded</th><td>${excludedDays.sat}</td></tr>` : ''}
-                    ${excludeDays[0] ? `<tr><th>Sundays excluded</th><td>${excludedDays.sun}</td></tr>` : ''}
+                    ${excludeDays[1] ? `<tr><th>Mon excluded</th><td>${excludedDays.mon}</td></tr>` : ''}
+                    ${excludeDays[2] ? `<tr><th>Tue excluded</th><td>${excludedDays.tue}</td></tr>` : ''}
+                    ${excludeDays[3] ? `<tr><th>Wed excluded</th><td>${excludedDays.wed}</td></tr>` : ''}
+                    ${excludeDays[4] ? `<tr><th>Thu excluded</th><td>${excludedDays.thu}</td></tr>` : ''}
+                    ${excludeDays[5] ? `<tr><th>Fri excluded</th><td>${excludedDays.fri}</td></tr>` : ''}
+                    ${excludeDays[6] ? `<tr><th>Sat excluded</th><td>${excludedDays.sat}</td></tr>` : ''}
+                    ${excludeDays[0] ? `<tr><th>Sun excluded</th><td>${excludedDays.sun}</td></tr>` : ''}
                     ${confirmedHolidaysCount > 0 ? `<tr><th>Confirmed holidays excluded</th><td>${confirmedHolidaysCount}</td></tr>` : ''}
                     ${tentativeHolidaysCount > 0 ? `<tr><th>Tentative holidays excluded</th><td>${tentativeHolidaysCount}</td></tr>` : ''}
                     <tr class="highlight-working-days">
