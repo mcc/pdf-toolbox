@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake Personal Information Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: #333;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+        .toast.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center py-6">
+    <div class="container mx-auto max-w-3xl">
+        <!-- Generator Section -->
+        <div class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8 mb-6">
+            <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Fake Personal Information Generator</h1>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+                <div>
+                    <label class="block text-gray-700 text-sm font-semibold mb-2" for="min-age">Minimum Age</label>
+                    <input class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" id="min-age" type="number" value="18" min="0">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-semibold mb-2" for="max-age">Maximum Age</label>
+                    <input class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" id="max-age" type="number" value="65" min="0">
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-semibold mb-2" for="hkid-prefix">HKID Prefix (1-2 letters)</label>
+                    <input class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" id="hkid-prefix" type="text" value="A" maxlength="2">
+                </div>
+                <div class="flex items-center space-x-4">
+                    <div class="flex items-center">
+                        <input id="random-prefix" type="checkbox" class="mr-2" checked>
+                        <label class="text-gray-700 text-sm font-semibold" for="random-prefix">Random Prefix</label>
+                    </div>
+                    <div class="flex items-center">
+                        <input id="sequential-mode" type="checkbox" class="mr-2">
+                        <label class="text-gray-700 text-sm font-semibold" for="sequential-mode">Sequential</label>
+                        <input id="start-number" type="number" class="ml-2 shadow border rounded py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-32" value="100000" min="0" max="999999" disabled>
+                    </div>
+                </div>
+            </div>
+            <button id="generate-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">Generate New Profile</button>
+        </div>
+
+        <!-- Results Section -->
+        <div id="result" class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8 mb-6">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Generated Profile</h2>
+            <div class="space-y-4">
+                <p class="flex items-center justify-between">
+                    <span class="text-gray-700 font-medium w-32">HKID:</span>
+                    <span id="hkid" class="font-mono text-gray-900 flex-1"></span>
+                    <span class="flex items-center space-x-2">
+                        <input id="hkid-parens" type="checkbox" class="mr-1"><label for="hkid-parens" class="text-sm">With ()</label>
+                        <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="hkid">Copy</button>
+                    </span>
+                </p>
+                <p class="flex items-center justify-between">
+                    <span class="text-gray-700 font-medium w-32">English Name:</span>
+                    <span id="english-name" class="text-gray-900 flex-1"></span>
+                    <span class="flex items-center space-x-2">
+                        <input id="name-comma" type="checkbox" class="mr-1"><label for="name-comma" class="text-sm">With ,</label>
+                        <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="english-name">Copy</button>
+                    </span>
+                </p>
+                <p class="flex items-center justify-between">
+                    <span class="text-gray-700 font-medium w-32">Chinese Name:</span>
+                    <span id="chinese-name" class="text-gray-900 flex-1"></span>
+                    <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="chinese-name">Copy</button>
+                </p>
+                <p class="flex items-center justify-between">
+                    <span class="text-gray-700 font-medium w-32">Gender:</span>
+                    <span id="gender" class="text-gray-900 flex-1"></span>
+                    <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="gender">Copy</button>
+                </p>
+                <p class="flex items-center justify-between">
+                    <span class="text-gray-700 font-medium w-32">Date of Birth:</span>
+                    <span id="dob" class="text-gray-900 flex-1"></span>
+                    <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="dob">Copy</button>
+                </p>
+                <p class="flex items-center justify-between">
+                    <span class="text-gray-700 font-medium w-32">Age:</span>
+                    <span id="age" class="text-gray-900 flex-1"></span>
+                    <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="age">Copy</button>
+                </p>
+            </div>
+        </div>
+
+        <!-- Log Table Section -->
+        <div class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8">
+            <h2 class="text-xl font-semibold text-gray-800 mb-4">Generated Records</h2>
+            <table id="log-table" class="w-full text-left text-gray-700">
+                <thead>
+                    <tr class="bg-gray-100">
+                        <th class="py-2 px-4">HKID</th>
+                        <th class="py-2 px-4">English Name</th>
+                        <th class="py-2 px-4">Chinese Name</th>
+                        <th class="py-2 px-4">Gender</th>
+                        <th class="py-2 px-4">DOB</th>
+                        <th class="py-2 px-4">Age</th>
+                    </tr>
+                </thead>
+                <tbody></tbody>
+            </table>
+            <div class="mt-4 flex space-x-4">
+                <button id="copy-table-btn" class="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Copy Table (Tab-Separated)</button>
+                <button id="download-csv-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200">Download CSV</button>
+            </div>
+        </div>
+    </div>
+    <div id="toast" class="toast"></div>
+
+    <script>
+        // Sample name lists (expand to 100 as needed)
+        const surnames = [
+            { chinese: "陳", english: "Chan" }, { chinese: "李", english: "Lee" }, { chinese: "張", english: "Cheung" },
+            { chinese: "黃", english: "Wong" }, { chinese: "王", english: "Wong" }, { chinese: "劉", english: "Lau" },
+            { chinese: "吳", english: "Ng" }, { chinese: "林", english: "Lam" }, { chinese: "鄭", english: "Cheng" },
+            { chinese: "楊", english: "Yeung" }
+        ];
+        const maleGivenNames = [
+            { chinese: "偉文", english: "Wai Man" }, { chinese: "志明", english: "Chi Ming" }, { chinese: "家豪", english: "Ka Ho" },
+            { chinese: "俊傑", english: "Chun Kit" }, { chinese: "建華", english: "Kin Wah" }, { chinese: "國強", english: "Kwok Keung" },
+            { chinese: "永康", english: "Wing Hong" }, { chinese: "浩然", english: "Ho Yin" }, { chinese: "文傑", english: "Man Kit" },
+            { chinese: "智勇", english: "Chi Yung" }
+        ];
+        const femaleGivenNames = [
+            { chinese: "美玲", english: "Mei Ling" }, { chinese: "小芳", english: "Siu Fong" }, { chinese: "嘉欣", english: "Ka Yan" },
+            { chinese: "詠珊", english: "Wing Shan" }, { chinese: "淑儀", english: "Shuk Yi" }, { chinese: "麗華", english: "Lai Wah" },
+            { chinese: "雅婷", english: "Nga Ting" }, { chinese: "慧敏", english: "Wai Man" }, { chinese: "佩珊", english: "Pui Shan" },
+            { chinese: "靜雯", english: "Ching Man" }
+        ];
+
+        let currentNumber = null;
+
+        // Toggle prefix and sequential inputs
+        document.getElementById('random-prefix').addEventListener('change', (e) => {
+            document.getElementById('hkid-prefix').disabled = e.target.checked;
+        });
+        document.getElementById('sequential-mode').addEventListener('change', (e) => {
+            document.getElementById('start-number').disabled = !e.target.checked;
+            if (!e.target.checked) currentNumber = null;
+        });
+
+        // Generate HKID
+        function generateHKID(prefix, number) {
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            let hkidPrefix = prefix.toUpperCase();
+            if (document.getElementById('random-prefix').checked) {
+                const len = Math.random() < 0.5 ? 1 : 2;
+                hkidPrefix = len === 1 ? letters[Math.floor(Math.random() * 26)] : 
+                    letters[Math.floor(Math.random() * 26)] + letters[Math.floor(Math.random() * 26)];
+            }
+            if (!/^[A-Z]{1,2}$/.test(hkidPrefix)) return null;
+            const digits = number ? String(number).padStart(6, '0') : Array.from({ length: 6 }, () => Math.floor(Math.random() * 10)).join('');
+            let sum = 0;
+            const weights = hkidPrefix.length === 1 ? [8, 7, 6, 5, 4, 3, 2] : [9, 8, 7, 6, 5, 4, 3, 2];
+            const chars = (hkidPrefix + digits).split('');
+            chars.forEach((char, i) => {
+                sum += (i < hkidPrefix.length ? (char.charCodeAt(0) - 64) : parseInt(char)) * weights[i];
+            });
+            const checkDigitNum = (11 - (sum % 11)) % 11;
+            const checkDigit = checkDigitNum === 10 ? 'A' : checkDigitNum.toString();
+            return `${hkidPrefix}${digits}(${checkDigit})`;
+        }
+
+        // Corrected randomDate function (provided by you)
+        function randomDate(minAge, maxAge) {
+            const today = new Date();
+            const age = Math.floor(Math.random() * (maxAge - minAge + 1)) + minAge;
+            const startDate = new Date(today.getFullYear() - (age + 1), today.getMonth(), today.getDate());
+            const endDate = new Date(today.getFullYear() - age, today.getMonth(), today.getDate());
+            const randomTime = startDate.getTime() + Math.random() * (endDate.getTime() - startDate.getTime());
+            const randomBirthdate = new Date(randomTime);
+            return randomBirthdate;
+        }
+
+        // Calculate age from DOB
+        function calculateAge(dob) {
+            const today = new Date();
+            let age = today.getFullYear() - dob.getFullYear();
+            const monthDiff = today.getMonth() - dob.getMonth();
+            const dayDiff = today.getDate() - dob.getDate();
+            if (monthDiff < 0 || (monthDiff === 0 && dayDiff < 0)) age--;
+            return age;
+        }
+
+        // Show toast message
+        function showToast(message) {
+            const toast = document.getElementById('toast');
+            toast.textContent = message;
+            toast.classList.add('show');
+            setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // Generate fake info
+        function generateInfo() {
+            const minAge = parseInt(document.getElementById('min-age').value) || 18;
+            const maxAge = parseInt(document.getElementById('max-age').value) || 65;
+            if (minAge > maxAge) {
+                showToast('Minimum age must be less than or equal to maximum age.');
+                return;
+            }
+            const prefix = document.getElementById('hkid-prefix').value || 'A';
+            const sequential = document.getElementById('sequential-mode').checked;
+            let hkid;
+            if (sequential) {
+                if (currentNumber === null) currentNumber = parseInt(document.getElementById('start-number').value) || 0;
+                hkid = generateHKID(prefix, currentNumber);
+                currentNumber++;
+                if (currentNumber > 999999) currentNumber = 0;
+            } else {
+                hkid = generateHKID(prefix);
+            }
+            if (!hkid) {
+                showToast('Invalid HKID prefix. Use 1-2 letters.');
+                return;
+            }
+            const gender = Math.random() < 0.5 ? 'Male' : 'Female';
+            const surname = surnames[Math.floor(Math.random() * surnames.length)];
+            const givenName = gender === 'Male' ? maleGivenNames[Math.floor(Math.random() * maleGivenNames.length)] : femaleGivenNames[Math.floor(Math.random() * femaleGivenNames.length)];
+            const chineseName = surname.chinese + givenName.chinese;
+            const englishName = `${surname.english}, ${givenName.english}`;
+            const dob = randomDate(minAge, maxAge);
+            const dobString = dob.toISOString().split('T')[0];
+            const age = calculateAge(dob);
+
+            // Update display
+            document.getElementById('hkid').textContent = hkid;
+            document.getElementById('english-name').textContent = englishName;
+            document.getElementById('chinese-name').textContent = chineseName;
+            document.getElementById('gender').textContent = gender;
+            document.getElementById('dob').textContent = dobString;
+            document.getElementById('age').textContent = age;
+
+            // Log to table
+            const tbody = document.querySelector('#log-table tbody');
+            const row = document.createElement('tr');
+            row.innerHTML = `<td class="py-2 px-4">${hkid}</td><td class="py-2 px-4">${englishName}</td><td class="py-2 px-4">${chineseName}</td><td class="py-2 px-4">${gender}</td><td class="py-2 px-4">${dobString}</td><td class="py-2 px-4">${age}</td>`;
+            tbody.insertBefore(row, tbody.firstChild);
+        }
+
+        // Event listeners
+        document.getElementById('generate-btn').addEventListener('click', generateInfo);
+        generateInfo(); // Auto-generate on load
+
+        document.querySelectorAll('.copy-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const targetId = btn.getAttribute('data-target');
+                let text = document.getElementById(targetId).textContent;
+                if (targetId === 'hkid') {
+                    const withParens = document.getElementById('hkid-parens').checked;
+                    text = withParens ? text : text.replace(/[()]/g, '');
+                } else if (targetId === 'english-name') {
+                    const withComma = document.getElementById('name-comma').checked;
+                    text = withComma ? text : text.replace(/, /g, ' ');
+                }
+                if (text) {
+                    navigator.clipboard.writeText(text).then(() => {
+                        showToast(`Copied: ${text}`);
+                    }).catch(err => showToast('Failed to copy: ' + err));
+                }
+            });
+        });
+
+        document.getElementById('copy-table-btn').addEventListener('click', () => {
+            const rows = Array.from(document.querySelectorAll('#log-table tbody tr'));
+            const data = rows.map(row => Array.from(row.cells).map(cell => cell.textContent).join('\t')).join('\n');
+            const header = 'HKID\tEnglish Name\tChinese Name\tGender\tDOB\tAge\n';
+            navigator.clipboard.writeText(header + data).then(() => showToast('Table copied to clipboard!'));
+        });
+
+        document.getElementById('download-csv-btn').addEventListener('click', () => {
+            const rows = Array.from(document.querySelectorAll('#log-table tbody tr'));
+            const data = rows.map(row => Array.from(row.cells).map(cell => `"${cell.textContent}"`).join(',')).join('\n');
+            const header = 'HKID,English Name,Chinese Name,Gender,DOB,Age\n';
+            const csv = header + data;
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'generated_profiles.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        });
+    </script>
+</body>
+</html>

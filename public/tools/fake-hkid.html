@@ -1,0 +1,718 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake Personal Information Generator</title>
+    <link href="https://cdn.jsdelivr.net/npm/flowbite@1.6.5/dist/flowbite.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --primary-color: #5D5CDE;
+            --text-light: #333333;
+            --text-dark: #F0F0F0;
+            --bg-light: #FFFFFF;
+            --bg-dark: #181818;
+            --card-light: #F5F5F5;
+            --card-dark: #2A2A2A;
+            --border-light: #E2E2E2;
+            --border-dark: #3A3A3A;
+        }
+
+        body {
+            font-family: 'Arial', sans-serif;
+            margin: 0;
+            padding: 0;
+            transition: background-color 0.3s, color 0.3s;
+        }
+
+        body.light-mode {
+            background-color: var(--bg-light);
+            color: var(--text-light);
+        }
+
+        body.dark-mode {
+            background-color: var(--bg-dark);
+            color: var(--text-dark);
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .card {
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            transition: background-color 0.3s, border-color 0.3s;
+        }
+
+        .light-mode .card {
+            background-color: var(--card-light);
+            border: 1px solid var(--border-light);
+        }
+
+        .dark-mode .card {
+            background-color: var(--card-dark);
+            border: 1px solid var(--border-dark);
+        }
+
+        .info-row {
+            display: flex;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .info-label {
+            font-weight: bold;
+            width: 150px;
+            flex-shrink: 0;
+        }
+
+        .info-value {
+            flex-grow: 1;
+            padding: 8px 12px;
+            border-radius: 5px;
+            font-size: 16px;
+            margin-left: 10px;
+            transition: background-color 0.3s, border-color 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .light-mode .info-value {
+            background-color: var(--bg-light);
+            border: 1px solid var(--border-light);
+        }
+
+        .dark-mode .info-value {
+            background-color: var(--bg-dark);
+            border: 1px solid var(--border-dark);
+        }
+        
+        .value-text {
+            flex-grow: 1;
+        }
+        
+        .copy-btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 4px;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-left: 10px;
+            font-size: 14px;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            opacity: 0.9;
+            transform: scale(1.05);
+        }
+        
+        .copy-btn:active {
+            transform: scale(0.95);
+        }
+
+        button {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: opacity 0.3s;
+        }
+
+        button:hover {
+            opacity: 0.9;
+        }
+
+        @media (max-width: 600px) {
+            .info-row {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            
+            .info-value {
+                width: 100%;
+                margin-left: 0;
+                margin-top: 5px;
+                box-sizing: border-box;
+            }
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            margin-bottom: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Fake Personal Information Generator</h1>
+            <p>Generate random but realistic-looking personal information for Hong Kong residents</p>
+        </div>
+
+        <div class="card">
+            <div class="info-row">
+                <div class="info-label">HKID:</div>
+                <div class="info-value">
+                    <span id="hkid" class="value-text">-</span>
+                    <button class="copy-btn" onclick="copyToClipboard('hkid')">📋</button>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">English Name:</div>
+                <div class="info-value">
+                    <span id="englishName" class="value-text">-</span>
+                    <button class="copy-btn" onclick="copyToClipboard('englishName')">📋</button>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Chinese Name:</div>
+                <div class="info-value">
+                    <span id="chineseName" class="value-text">-</span>
+                    <button class="copy-btn" onclick="copyToClipboard('chineseName')">📋</button>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Cantonese Name:</div>
+                <div class="info-value">
+                    <span id="cantoneseName" class="value-text">-</span>
+                    <button class="copy-btn" onclick="copyToClipboard('cantoneseName')">📋</button>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Gender:</div>
+                <div class="info-value">
+                    <span id="gender" class="value-text">-</span>
+                    <button class="copy-btn" onclick="copyToClipboard('gender')">📋</button>
+                </div>
+            </div>
+            <div class="info-row">
+                <div class="info-label">Date of Birth:</div>
+                <div class="info-value">
+                    <span id="dob" class="value-text">-</span>
+                    <button class="copy-btn" onclick="copyToClipboard('dob')">📋</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="card">
+            <div class="info-row">
+                <div class="info-label">Age Range:</div>
+                <div class="age-range-container" style="display: flex; flex-grow: 1; gap: 10px; align-items: center;">
+                    <input type="number" id="minAge" min="1" max="120" value="18" class="info-value" style="width: 70px; text-align: center;">
+                    <span>to</span>
+                    <input type="number" id="maxAge" min="1" max="120" value="80" class="info-value" style="width: 70px; text-align: center;">
+                    <span>years</span>
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <button id="generateBtn">Generate New Information</button>
+        </div>
+    </div>
+
+    <script>
+        // Set theme based on user preference
+        function setTheme() {
+            const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+            document.body.classList.add(prefersDark ? 'dark-mode' : 'light-mode');
+        }
+        
+        setTheme();
+        window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', setTheme);
+
+        // Name data
+        const englishFirstNames = {
+            male: ["Aaron", "Adam", "Alex", "Andrew", "Anthony", "Benjamin", "Brandon", "Brian", "Charles", "Chris", "Daniel", "David", "Edward", "Eric", "Ethan", "Frank", "Gary", "George", "Henry", "Ian", "Jack", "Jackie", "James", "Jason", "John", "Joseph", "Justin", "Keith", "Kenneth", "Kevin", "Lawrence", "Louis", "Mark", "Matthew", "Michael", "Nicholas", "Patrick", "Paul", "Peter", "Raymond", "Richard", "Robert", "Ryan", "Samuel", "Sean", "Simon", "Stephen", "Steven", "Thomas", "Timothy", "Tony", "Victor", "Vincent", "Walter", "William"],
+            female: ["Alice", "Amber", "Amy", "Angela", "Anna", "Ashley", "Betty", "Bonnie", "Candy", "Carol", "Cathy", "Cindy", "Claire", "Crystal", "Daisy", "Debbie", "Diana", "Doris", "Elaine", "Elizabeth", "Emily", "Emma", "Fiona", "Flora", "Grace", "Helen", "Irene", "Ivy", "Jacqueline", "Jane", "Janet", "Jennifer", "Jessica", "Joyce", "Julia", "Karen", "Kelly", "Kitty", "Laura", "Linda", "Lisa", "Lucy", "Maggie", "Maria", "Mary", "May", "Michelle", "Nancy", "Nicole", "Olivia", "Pamela", "Patricia", "Rachel", "Rebecca", "Ruby", "Sally", "Samantha", "Sandra", "Sarah", "Sharon", "Shirley", "Sophia", "Stella", "Stephanie", "Susan", "Tiffany", "Tracy", "Vanessa", "Vera", "Victoria", "Vivian", "Wendy", "Winnie", "Yvonne"]
+        };
+
+        // Cantonese romanization mapping
+        const cantoneseMapping = {
+            // Last names
+            "陳": "Chan",
+            "張": "Cheung",
+            "鄭": "Cheng",
+            "周": "Chow",
+            "朱": "Chu",
+            "方": "Fong",
+            "馮": "Fung",
+            "何": "Ho",
+            "許": "Hui",
+            "葉": "Yip",
+            "郭": "Kwok",
+            "鄺": "Kwong",
+            "林": "Lam",
+            "劉": "Lau",
+            "李": "Lee",
+            "梁": "Leung",
+            "盧": "Lo",
+            "馬": "Ma",
+            "麥": "Mak",
+            "吳": "Ng",
+            "潘": "Poon",
+            "蕭": "Siu",
+            "蘇": "So",
+            "鄧": "Tang",
+            "唐": "Tong",
+            "曾": "Tsang",
+            "謝": "Tse",
+            "溫": "Wan",
+            "黃": "Wong",
+            "胡": "Wu",
+            "楊": "Yeung",
+            "姚": "Yiu",
+            "余": "Yu",
+            "歐": "Au",
+            
+            // Common first name characters
+            "志": "Chi",
+            "偉": "Wai",
+            "文": "Man",
+            "明": "Ming",
+            "建": "Kin",
+            "東": "Tung",
+            "華": "Wah",
+            "强": "Keung",
+            "輝": "Fai",
+            "國": "Kwok",
+            "英": "Ying",
+            "傑": "Kit",
+            "軍": "Kwan",
+            "平": "Ping",
+            "浩": "Ho",
+            "鵬": "Pang",
+            "新": "San",
+            "楠": "Nam",
+            "光": "Kwong",
+            "宇": "Yu",
+            "秀": "Sau",
+            "美": "Mei",
+            "娟": "Kuen",
+            "婷": "Ting",
+            "潔": "Kit",
+            "穎": "Wing",
+            "佳": "Kai",
+            "雯": "Man",
+            "怡": "Yi",
+            "婉": "Yuen",
+            "嘉": "Ka",
+            "玲": "Ling",
+            "莉": "Lei",
+            "婧": "Ching",
+            "瑩": "Ying",
+            "雪": "Suet",
+            "彤": "Tung",
+            "琳": "Lam",
+            "靜": "Ching",
+            "欣": "Yan",
+            "亞": "Ah",
+            "愛": "Oi",
+            "麗": "Lai",
+            "天": "Tin",
+            "傑": "Kit",
+            "家": "Ka",
+            "詠": "Wing",
+            "詩": "Sze",
+            "德": "Tak",
+            "倫": "Lun",
+            "思": "Sze",
+            "永": "Wing",
+            "俊": "Chun",
+            "嬌": "Kiu",
+            "惠": "Wai",
+            "健": "Kin",
+            "安": "On",
+            "尚": "Seung",
+            "祖": "Cho",
+            "毓": "Yuk"
+        };
+
+        const englishLastNames = ["Au", "Chan", "Cheung", "Cheng", "Chow", "Chu", "Fong", "Fung", "Ho", "Hui", "Ip", "Kwok", "Kwong", "Lam", "Lau", "Lee", "Leung", "Li", "Lin", "Liu", "Lo", "Ma", "Mak", "Ng", "Poon", "Siu", "So", "Tang", "Tong", "Tsang", "Tse", "Wan", "Wong", "Wu", "Yeung", "Yip", "Yiu", "Yu"];
+
+        // Mapping between English and Chinese names (simplified for demonstration)
+        const nameMapping = {
+            "Chan": "陳",
+            "Cheung": "張",
+            "Cheng": "鄭",
+            "Chow": "周",
+            "Chu": "朱",
+            "Fong": "方",
+            "Fung": "馮",
+            "Ho": "何",
+            "Hui": "許",
+            "Ip": "葉",
+            "Kwok": "郭",
+            "Kwong": "鄺",
+            "Lam": "林",
+            "Lau": "劉",
+            "Lee": "李",
+            "Leung": "梁",
+            "Li": "李",
+            "Lin": "林",
+            "Liu": "劉",
+            "Lo": "盧",
+            "Ma": "馬",
+            "Mak": "麥",
+            "Ng": "吳",
+            "Poon": "潘",
+            "Siu": "蕭",
+            "So": "蘇",
+            "Tang": "鄧",
+            "Tong": "唐",
+            "Tsang": "曾",
+            "Tse": "謝",
+            "Wan": "溫",
+            "Wong": "黃",
+            "Wu": "胡",
+            "Yeung": "楊",
+            "Yip": "葉",
+            "Yiu": "姚",
+            "Yu": "余",
+            "Au": "歐",
+            
+            // First names mappings (simplified for common names)
+            "Aaron": "亞倫",
+            "Adam": "亞當",
+            "Alex": "亞力",
+            "Andrew": "安德魯",
+            "Ben": "本",
+            "Brian": "布萊恩",
+            "Chris": "克里斯",
+            "Daniel": "丹尼爾",
+            "David": "大衛",
+            "Edward": "愛德華",
+            "Eric": "艾力",
+            "Frank": "法蘭克",
+            "George": "佐治",
+            "Henry": "亨利",
+            "Ian": "伊恩",
+            "Jack": "傑克",
+            "Jackie": "杰基",
+            "James": "詹姆斯",
+            "Jason": "積臣",
+            "John": "約翰",
+            "Kevin": "凱文",
+            "Louis": "路易斯",
+            "Mark": "馬克",
+            "Michael": "麥可",
+            "Peter": "彼得",
+            "Richard": "理查德",
+            "Sam": "山姆",
+            "Simon": "西蒙",
+            "Thomas": "湯瑪斯",
+            "William": "威廉",
+            
+            "Alice": "愛麗絲",
+            "Amy": "艾美",
+            "Angela": "安琪拉",
+            "Anna": "安娜",
+            "Betty": "貝蒂",
+            "Carol": "卡羅爾",
+            "Cathy": "凱西",
+            "Crystal": "晶晶",
+            "Daisy": "黛西",
+            "Diana": "黛安娜",
+            "Elaine": "伊蓮",
+            "Emily": "艾美莉",
+            "Emma": "艾瑪",
+            "Fiona": "菲奧娜",
+            "Grace": "格雷絲",
+            "Helen": "海倫",
+            "Irene": "艾琳",
+            "Ivy": "艾薇",
+            "Jane": "簡",
+            "Janet": "珍妮特",
+            "Jennifer": "珍妮弗",
+            "Jessica": "潔西卡",
+            "Joyce": "喬伊絲",
+            "Karen": "卡倫",
+            "Kelly": "凱莉",
+            "Linda": "琳達",
+            "Lisa": "麗莎",
+            "Lucy": "露西",
+            "Maggie": "瑪姬",
+            "Maria": "瑪麗亞",
+            "Mary": "瑪麗",
+            "Michelle": "米歇爾",
+            "Nancy": "南希",
+            "Nicole": "妮可",
+            "Olivia": "奧利維亞",
+            "Rachel": "雷切爾",
+            "Rebecca": "麗貝卡",
+            "Ruby": "露比",
+            "Sarah": "莎拉",
+            "Sharon": "莎朗",
+            "Sophia": "索菲亞",
+            "Susan": "蘇珊",
+            "Tiffany": "蒂芬妮",
+            "Victoria": "維多利亞",
+            "Vivian": "薇薇安",
+            "Wendy": "溫蒂",
+            "Winnie": "詠妮"
+        };
+
+        // HKID check digit algorithm
+        function generateHKID() {
+            const letters = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            const firstChar = letters.charAt(Math.floor(Math.random() * letters.length));
+            
+            // Randomly decide if we want a second character
+            let secondChar = "";
+            if (Math.random() > 0.7) {
+                secondChar = letters.charAt(Math.floor(Math.random() * letters.length));
+            }
+            
+            // Generate 6 random digits for the middle part
+            let digits = "";
+            for (let i = 0; i < 6; i++) {
+                digits += Math.floor(Math.random() * 10);
+            }
+            
+            // Calculate check digit
+            const prefix = secondChar ? firstChar + secondChar : firstChar;
+            const checkValue = calculateHKIDCheckDigit(prefix, digits);
+            
+            // Format HKID
+            return secondChar ? 
+                `${firstChar}${secondChar}${digits}(${checkValue === 10 ? 'A' : checkValue})` : 
+                `${firstChar}${digits}(${checkValue === 10 ? 'A' : checkValue})`;
+        }
+
+        function calculateHKIDCheckDigit(prefix, digits) {
+            // Convert prefix to values (A=10, B=11, etc.)
+            let sum = 0;
+            let weight = prefix.length + digits.length + 1;
+            
+            // Process prefix
+            for (let i = 0; i < prefix.length; i++) {
+                const charCode = prefix.charCodeAt(i) - 64; // A=1, B=2, etc.
+                sum += charCode * (weight - i);
+            }
+            
+            // Process digits
+            for (let i = 0; i < digits.length; i++) {
+                sum += parseInt(digits[i]) * (weight - prefix.length - i);
+            }
+            
+            // Calculate check digit
+            const remainder = sum % 11;
+            return remainder === 0 ? 0 : 11 - remainder;
+        }
+
+        // Generate random date of birth based on customizable age range
+        function generateDOB() {
+            const now = new Date();
+            
+            // Get custom age range from inputs
+            let minAge = parseInt(document.getElementById('minAge').value);
+            let maxAge = parseInt(document.getElementById('maxAge').value);
+            
+            // Validate inputs
+            if (isNaN(minAge) || minAge < 0) minAge = 18;
+            if (isNaN(maxAge) || maxAge < minAge) maxAge = minAge + 1;
+            if (maxAge > 120) maxAge = 120;
+            
+            const minYear = now.getFullYear() - maxAge;
+            const maxYear = now.getFullYear() - minAge;
+            
+            const year = minYear + Math.floor(Math.random() * (maxYear - minYear + 1));
+            const month = 1 + Math.floor(Math.random() * 12);
+            
+            // Account for different days in each month
+            let maxDays = 31;
+            if ([4, 6, 9, 11].includes(month)) {
+                maxDays = 30;
+            } else if (month === 2) {
+                maxDays = (year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0)) ? 29 : 28;
+            }
+            
+            const day = 1 + Math.floor(Math.random() * maxDays);
+            
+            // Format as DD/MM/YYYY
+            return `${day.toString().padStart(2, '0')}/${month.toString().padStart(2, '0')}/${year}`;
+        }
+
+        // Generate Chinese name based on English name
+        function generateChineseName(englishFirstName, englishLastName, gender) {
+            let chineseLastName = nameMapping[englishLastName] || "李"; // Default fallback
+            let chineseFirstName = nameMapping[englishFirstName] || "";
+            
+            // If no mapping exists, generate a random Chinese first name
+            if (!chineseFirstName) {
+                // Common Chinese characters for names
+                const maleChars = ["志", "偉", "文", "明", "建", "東", "華", "强", "輝", "國", "英", "傑", "軍", "平", "浩", "鵬", "新", "楠", "光", "宇"];
+                const femaleChars = ["秀", "美", "娟", "婷", "潔", "穎", "佳", "雯", "怡", "婉", "嘉", "玲", "莉", "婧", "瑩", "雪", "彤", "琳", "靜", "欣"];
+                
+                const chars = gender === "Male" ? maleChars : femaleChars;
+                
+                // Generate 1-2 characters for first name
+                const nameLength = Math.random() > 0.5 ? 2 : 1;
+                for (let i = 0; i < nameLength; i++) {
+                    chineseFirstName += chars[Math.floor(Math.random() * chars.length)];
+                }
+            }
+            
+            return chineseLastName + chineseFirstName;
+        }
+
+        // Generate Cantonese romanization of Chinese name
+        function generateCantoneseName(chineseName) {
+            // For a Chinese name like "李大明", we need to romanize each character
+            // and format as "LEE Tai Ming" (last name first, capitalized, then given name)
+            
+            // Separate first character (last name) from the rest (given name)
+            const lastName = chineseName.charAt(0);
+            const givenName = chineseName.substring(1);
+            
+            // Romanize the last name (default to "LEE" if mapping not found)
+            let cantoneseLastName = cantoneseMapping[lastName] || "Lee";
+            cantoneseLastName = cantoneseLastName.toUpperCase();
+            
+            // Romanize the given name, character by character
+            let cantoneseGivenName = "";
+            for (let i = 0; i < givenName.length; i++) {
+                const char = givenName.charAt(i);
+                // Get Cantonese romanization for this character, or use a placeholder
+                const romanChar = cantoneseMapping[char] || "X";
+                
+                // Capitalize first letter, lowercase the rest
+                cantoneseGivenName += romanChar.charAt(0).toUpperCase() + romanChar.slice(1).toLowerCase();
+                
+                // Add space between given name characters
+                if (i < givenName.length - 1) {
+                    cantoneseGivenName += " ";
+                }
+            }
+            
+            // Format as "LAST Given"
+            return `${cantoneseLastName} ${cantoneseGivenName}`;
+        }
+        
+        // Generate all information
+        function generatePersonInfo() {
+            // Determine gender
+            const gender = Math.random() > 0.5 ? "Male" : "Female";
+            
+            // Generate name
+            const englishFirstName = englishFirstNames[gender.toLowerCase()][Math.floor(Math.random() * englishFirstNames[gender.toLowerCase()].length)];
+            const englishLastName = englishLastNames[Math.floor(Math.random() * englishLastNames.length)];
+            const englishFullName = `${englishFirstName} ${englishLastName}`;
+            
+            // Generate Chinese name
+            const chineseName = generateChineseName(englishFirstName, englishLastName, gender);
+            
+            // Generate Cantonese name (romanized from Chinese name)
+            const cantoneseName = generateCantoneseName(chineseName);
+            
+            // Generate HKID
+            const hkid = generateHKID();
+            
+            // Generate DOB
+            const dob = generateDOB();
+            
+            return {
+                hkid,
+                englishName: englishFullName,
+                chineseName,
+                cantoneseName,
+                gender,
+                dob
+            };
+        }
+
+        // Function to copy text to clipboard
+        function copyToClipboard(elementId) {
+            const text = document.getElementById(elementId).textContent;
+            if (!text || text === '-') return;
+            
+            // Create a temporary textarea element to use for copying
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                // Execute the copy command
+                const success = document.execCommand('copy');
+                if (success) {
+                    // Give visual feedback that copying worked
+                    const button = event.currentTarget;
+                    const originalText = button.textContent;
+                    button.textContent = '✓';
+                    
+                    // Reset button after a short delay
+                    setTimeout(() => {
+                        button.textContent = originalText;
+                    }, 1000);
+                }
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+            } finally {
+                // Clean up
+                document.body.removeChild(textarea);
+            }
+        }
+        
+        // Update UI with generated information
+        function updateUI(info) {
+            document.getElementById('hkid').textContent = info.hkid;
+            document.getElementById('englishName').textContent = info.englishName;
+            document.getElementById('chineseName').textContent = info.chineseName;
+            document.getElementById('cantoneseName').textContent = info.cantoneseName;
+            document.getElementById('gender').textContent = info.gender;
+            document.getElementById('dob').textContent = info.dob;
+        }
+
+        // Initial generation
+        updateUI(generatePersonInfo());
+
+        // Age range input handlers
+        document.getElementById('minAge').addEventListener('change', function() {
+            // Ensure minAge doesn't exceed maxAge
+            const minAge = parseInt(this.value);
+            const maxAge = parseInt(document.getElementById('maxAge').value);
+            
+            if (minAge < 0) this.value = 0;
+            if (minAge > 120) this.value = 120;
+            if (minAge > maxAge) document.getElementById('maxAge').value = minAge;
+        });
+        
+        document.getElementById('maxAge').addEventListener('change', function() {
+            // Ensure maxAge isn't less than minAge
+            const maxAge = parseInt(this.value);
+            const minAge = parseInt(document.getElementById('minAge').value);
+            
+            if (maxAge < 0) this.value = 0;
+            if (maxAge > 120) this.value = 120;
+            if (maxAge < minAge) this.value = minAge;
+        });
+        
+        // Button click handler
+        document.getElementById('generateBtn').addEventListener('click', () => {
+            updateUI(generatePersonInfo());
+        });
+    </script>
+</body>
+</html>
