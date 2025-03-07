@@ -19,8 +19,9 @@
             padding-bottom: 1rem;
         }
         .holiday-list-container {
-            max-height: 80vh;
+            height: 50vh;
             overflow-y: auto;
+            -webkit-overflow-scrolling: touch;
         }
         .confirmed-highlight {
             background-color: #ffff99;
@@ -71,6 +72,9 @@
             }
             .result-table tr {
                 margin-bottom: 0.5rem;
+            }
+            .holiday-list-container {
+                height: 40vh;
             }
         }
     </style>
@@ -219,7 +223,7 @@
             });
             
             if (relevantHolidays.length > 0) {
-                return relevantHolidays[0].date;
+                return relevantHolidays[0].date; // Latest in range (first in descending list)
             }
             
             const allDates = holidays.map(h => h.date);
@@ -232,13 +236,21 @@
 
         function scrollToHoliday(holidayDate) {
             const holidayElement = document.getElementById(`holiday-${holidayDate}`);
-            if (holidayElement) {
+            const container = document.querySelector('.holiday-list-container');
+            if (holidayElement && container) {
                 setTimeout(() => {
-                    holidayElement.scrollIntoView({ 
-                        behavior: 'smooth', 
-                        block: 'start' 
-                    });
-                }, 100);
+                    const elementRect = holidayElement.getBoundingClientRect();
+                    const containerRect = container.getBoundingClientRect();
+                    const scrollPosition = holidayElement.offsetTop - container.offsetTop;
+
+                    // Only scroll if the element is not already near the top (within 50px)
+                    if (scrollPosition > container.scrollTop + 50 || scrollPosition < container.scrollTop) {
+                        container.scrollTo({
+                            top: scrollPosition,
+                            behavior: 'smooth'
+                        });
+                    }
+                }, 200); // Increased delay to 200ms
             }
         }
 
