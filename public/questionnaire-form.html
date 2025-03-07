@@ -1,0 +1,110 @@
+<!-- form_creator.html -->
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Word Form Creator</title>
+    <style>
+        .question-block { margin: 20px 0; padding: 10px; border: 1px solid #ccc; }
+        .option { margin-left: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Form Creator</h1>
+    
+    <div id="formContainer">
+        <label>Form Title: <input type="text" id="formTitle"></label>
+        <div id="questionsContainer"></div>
+        <button onclick="addQuestion()">Add Question</button>
+        <button onclick="generateForm()">Generate Form</button>
+    </div>
+
+    <script>
+        let questionCount = 0;
+
+        function addQuestion() {
+            questionCount++;
+            const container = document.getElementById('questionsContainer');
+            const qDiv = document.createElement('div');
+            qDiv.className = 'question-block';
+            qDiv.innerHTML = `
+                <label>Question ${questionCount}: 
+                    <input type="text" class="q-title" data-qid="q${questionCount}">
+                </label>
+                <select class="q-type" onchange="updateQuestionType(this, 'q${questionCount}')">
+                    <option value="radio">Multiple Choice</option>
+                    <option value="text">Single Line Text</option>
+                    <option value="textarea">Multi Line Text</option>
+                </select>
+                <div class="options" data-qid="q${questionCount}">
+                    <div><input type="text" class="option-input"> 
+                        <button onclick="addOption('q${questionCount}')">Add Option</button>
+                    </div>
+                </div>
+            `;
+            container.appendChild(qDiv);
+        }
+
+        function updateQuestionType(select, qid) {
+            const optionsDiv = document.querySelector(`.options[data-qid="${qid}"]`);
+            optionsDiv.style.display = select.value === 'radio' ? 'block' : 'none';
+        }
+
+        function addOption(qid) {
+            const optionsDiv = document.querySelector(`.options[data-qid="${qid}"]`);
+            const newOption = document.createElement('div');
+            newOption.innerHTML = `<input type="text" class="option-input">`;
+            optionsDiv.appendChild(newOption);
+        }
+
+        function generateForm() {
+            const title = document.getElementById('formTitle').value;
+            let html = `
+                <html xmlns:o='urn:schemas-microsoft-com:office:office' 
+                      xmlns:w='urn:schemas-microsoft-com:office:word'>
+                <head><meta charset='UTF-8'></head>
+                <body>
+                    <h1>${title}</h1>
+                    <form>
+            `;
+
+            document.querySelectorAll('.question-block').forEach(block => {
+                const qTitle = block.querySelector('.q-title').value;
+                const qType = block.querySelector('.q-type').value;
+                const qid = block.querySelector('.q-title').dataset.qid;
+
+                html += `<p>${qTitle}</p>`;
+                
+                if (qType === 'radio') {
+                    const options = block.querySelectorAll('.option-input');
+                    options.forEach((opt, index) => {
+                        if (opt.value) {
+                            html += `
+                                <input type="radio" name="${qid}" 
+                                       formfield="${qid}_${index}" value="${opt.value}">
+                                ${opt.value}<br>
+                            `;
+                        }
+                    });
+                } else if (qType === 'text') {
+                    html += `<input type="text" formfield="${qid}"><br>`;
+                } else {
+                    html += `<textarea formfield="${qid}"></textarea><br>`;
+                }
+            });
+
+            html += `
+                    </form>
+                </body>
+                </html>
+            `;
+
+            // Create download
+            const blob = new Blob([html], { type: 'application/msword' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = `${title || 'form'}.doc`;
+            link.click();
+        }
+    </script>
+</body>
+</html>
