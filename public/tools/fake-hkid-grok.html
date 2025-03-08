@@ -20,6 +20,29 @@
         .toast.show {
             opacity: 1;
         }
+        .name-part, .hkid-part, .table-cell {
+            cursor: pointer;
+            position: relative;
+        }
+        .copy-hint {
+            display: none;
+            position: absolute;
+            bottom: -1.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #000;
+            color: #fff;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            white-space: nowrap;
+        }
+        .group:hover .copy-hint {
+            display: block;
+        }
+        #log-table th, #log-table td {
+            min-width: 80px; /* Ensure columns don’t collapse too small */
+        }
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen flex flex-col items-center py-6">
@@ -51,8 +74,24 @@
                         <input id="start-number" type="number" class="ml-2 shadow border rounded py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500 w-32" value="100000" min="0" max="999999" disabled>
                     </div>
                 </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-semibold mb-2" for="theme">Name Theme</label>
+                    <select id="theme" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <!-- Options populated dynamically -->
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-gray-700 text-sm font-semibold mb-2" for="mutator-type">Name Mutator</label>
+                    <select id="mutator-type" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <option value="numbers">Numbers (一 to 十)</option>
+                        <option value="colors">Colors (紅 to 紫)</option>
+                    </select>
+                </div>
             </div>
-            <button id="generate-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">Generate New Profile</button>
+            <div class="flex space-x-4">
+                <button id="generate-btn" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">Generate New Profile</button>
+                <button id="clear-storage-btn" class="flex-1 bg-red-600 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-red-500 transition duration-200">Clear Local Storage</button>
+            </div>
         </div>
 
         <!-- Results Section -->
@@ -61,24 +100,56 @@
             <div class="space-y-4">
                 <p class="flex items-center justify-between">
                     <span class="text-gray-700 font-medium w-32">HKID:</span>
-                    <span id="hkid" class="font-mono text-gray-900 flex-1"></span>
-                    <span class="flex items-center space-x-2">
-                        <input id="hkid-parens" type="checkbox" class="mr-1"><label for="hkid-parens" class="text-sm">With ()</label>
-                        <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="hkid">Copy</button>
+                    <span class="font-mono text-gray-900 flex-1">
+                        <span class="group">
+                            <span id="hkid-main" class="hkid-part"></span>
+                            <span class="copy-hint">Click to copy HKID Main</span>
+                        </span>
+                        <span class="group">
+                            <span id="hkid-check" class="hkid-part"></span>
+                            <span class="copy-hint">Click to copy Check Digit</span>
+                        </span>
+                    </span>
+                    <span class="flex items-center space-x-2 group">
+                        <input id="hkid-parens" type="checkbox" class="mr-1" checked><label for="hkid-parens" class="text-sm">With ()</label>
+                        <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="hkid">Copy All</button>
+                        <span class="copy-hint">Copy full HKID</span>
                     </span>
                 </p>
                 <p class="flex items-center justify-between">
                     <span class="text-gray-700 font-medium w-32">English Name:</span>
-                    <span id="english-name" class="text-gray-900 flex-1"></span>
-                    <span class="flex items-center space-x-2">
-                        <input id="name-comma" type="checkbox" class="mr-1"><label for="name-comma" class="text-sm">With ,</label>
-                        <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="english-name">Copy</button>
+                    <span class="text-gray-900 flex-1">
+                        <span class="group">
+                            <span id="english-surname" class="name-part"></span>
+                            <span class="copy-hint">Click to copy Surname</span>
+                        </span>, 
+                        <span class="group">
+                            <span id="english-givenname" class="name-part"></span>
+                            <span class="copy-hint">Click to copy Given Name</span>
+                        </span>
+                    </span>
+                    <span class="flex items-center space-x-2 group">
+                        <input id="name-comma" type="checkbox" class="mr-1" checked><label for="name-comma" class="text-sm">With ,</label>
+                        <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="english-name">Copy All</button>
+                <span class="copy-hint">Copy full English Name</span>
                     </span>
                 </p>
                 <p class="flex items-center justify-between">
                     <span class="text-gray-700 font-medium w-32">Chinese Name:</span>
-                    <span id="chinese-name" class="text-gray-900 flex-1"></span>
-                    <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="chinese-name">Copy</button>
+                    <span class="text-gray-900 flex-1">
+                        <span class="group">
+                            <span id="chinese-surname" class="name-part"></span>
+                            <span class="copy-hint">Click to copy Surname</span>
+                        </span>
+                        <span class="group">
+                            <span id="chinese-givenname" class="name-part"></span>
+                            <span class="copy-hint">Click to copy Given Name</span>
+                        </span>
+                    </span>
+                    <span class="group">
+                        <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="chinese-name">Copy All</button>
+                        <span class="copy-hint">Copy full Chinese Name</span>
+                    </span>
                 </p>
                 <p class="flex items-center justify-between">
                     <span class="text-gray-700 font-medium w-32">Gender:</span>
@@ -99,14 +170,17 @@
         </div>
 
         <!-- Log Table Section -->
-        <div class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8">
+        <div class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8 overflow-x-auto">
             <h2 class="text-xl font-semibold text-gray-800 mb-4">Generated Records</h2>
-            <table id="log-table" class="w-full text-left text-gray-700">
+            <table id="log-table" class="w-full text-left text-gray-700 table-auto">
                 <thead>
                     <tr class="bg-gray-100">
-                        <th class="py-2 px-4">HKID</th>
-                        <th class="py-2 px-4">English Name</th>
-                        <th class="py-2 px-4">Chinese Name</th>
+                        <th class="py-2 px-4">HKID Main</th>
+                        <th class="py-2 px-4">Check Digit</th>
+                        <th class="py-2 px-4">Surname (CN)</th>
+                        <th class="py-2 px-4">Given Name (CN)</th>
+                        <th class="py-2 px-4">Surname (EN)</th>
+                        <th class="py-2 px-4">Given Name (EN)</th>
                         <th class="py-2 px-4">Gender</th>
                         <th class="py-2 px-4">DOB</th>
                         <th class="py-2 px-4">Age</th>
@@ -123,27 +197,112 @@
     <div id="toast" class="toast"></div>
 
     <script>
-        // Sample name lists (expand to 100 as needed)
-        const surnames = [
-            { chinese: "陳", english: "Chan" }, { chinese: "李", english: "Lee" }, { chinese: "張", english: "Cheung" },
-            { chinese: "黃", english: "Wong" }, { chinese: "王", english: "Wong" }, { chinese: "劉", english: "Lau" },
-            { chinese: "吳", english: "Ng" }, { chinese: "林", english: "Lam" }, { chinese: "鄭", english: "Cheng" },
-            { chinese: "楊", english: "Yeung" }
-        ];
-        const maleGivenNames = [
-            { chinese: "偉文", english: "Wai Man" }, { chinese: "志明", english: "Chi Ming" }, { chinese: "家豪", english: "Ka Ho" },
-            { chinese: "俊傑", english: "Chun Kit" }, { chinese: "建華", english: "Kin Wah" }, { chinese: "國強", english: "Kwok Keung" },
-            { chinese: "永康", english: "Wing Hong" }, { chinese: "浩然", english: "Ho Yin" }, { chinese: "文傑", english: "Man Kit" },
-            { chinese: "智勇", english: "Chi Yung" }
-        ];
-        const femaleGivenNames = [
-            { chinese: "美玲", english: "Mei Ling" }, { chinese: "小芳", english: "Siu Fong" }, { chinese: "嘉欣", english: "Ka Yan" },
-            { chinese: "詠珊", english: "Wing Shan" }, { chinese: "淑儀", english: "Shuk Yi" }, { chinese: "麗華", english: "Lai Wah" },
-            { chinese: "雅婷", english: "Nga Ting" }, { chinese: "慧敏", english: "Wai Man" }, { chinese: "佩珊", english: "Pui Shan" },
-            { chinese: "靜雯", english: "Ching Man" }
-        ];
+        // Naming themes (simplified for brevity)
+        const namingThemes = {
+            themes: [
+                {
+                    "themeName": "Hong Kong Common Names",
+                    "givenNameList": [
+                        { chinese: "偉文", english: "Wai Man" },
+                        { chinese: "美玲", english: "Mei Ling" },
+                        { chinese: "家豪", english: "Ka Ho" }
+                    ],
+                    "surnameList": [
+                        { chinese: "陳", english: "Chan" },
+                        { chinese: "李", english: "Lee" },
+                        { chinese: "張", english: "Cheung" }
+                    ]
+                }
+            ]
+        };
+
+        // Mutator lists
+        const mutators = {
+            numbers: [
+                { chinese: "一", english: "One" },
+                { chinese: "二", english: "Two" },
+                { chinese: "三", english: "Three" },
+                { chinese: "四", english: "Four" },
+                { chinese: "五", english: "Five" },
+                { chinese: "六", english: "Six" },
+                { chinese: "七", english: "Seven" },
+                { chinese: "八", english: "Eight" },
+                { chinese: "九", english: "Nine" },
+                { chinese: "十", english: "Ten" }
+            ],
+            colors: [
+                { chinese: "紅", english: "Red" },
+                { chinese: "橙", english: "Orange" },
+                { chinese: "黃", english: "Yellow" },
+                { chinese: "綠", english: "Green" },
+                { chinese: "藍", english: "Blue" },
+                { chinese: "靛", english: "Indigo" },
+                { chinese: "紫", english: "Purple" }
+            ]
+        };
+
+        // Commonly used Chinese characters and English sequences for fallback
+        const commonChineseChars = ["中", "華", "天", "地", "人", "和", "福", "祿", "壽", "喜"];
+        const englishSequences = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J"];
 
         let currentNumber = null;
+
+        // Populate theme dropdown
+        const themeSelect = document.getElementById('theme');
+        namingThemes.themes.forEach((theme, index) => {
+            const option = document.createElement('option');
+            option.value = index;
+            option.textContent = theme.themeName;
+            themeSelect.appendChild(option);
+        });
+
+        // Load from localStorage
+        function loadFromLocalStorage() {
+            const config = JSON.parse(localStorage.getItem('generatorConfig')) || {};
+            document.getElementById('min-age').value = config.minAge || 18;
+            document.getElementById('max-age').value = config.maxAge || 65;
+            document.getElementById('hkid-prefix').value = config.hkidPrefix || 'A';
+            document.getElementById('random-prefix').checked = config.randomPrefix !== false;
+            document.getElementById('sequential-mode').checked = config.sequentialMode || false;
+            document.getElementById('start-number').value = config.startNumber || 100000;
+            document.getElementById('start-number').disabled = !config.sequentialMode;
+            document.getElementById('theme').value = config.theme || 0;
+            document.getElementById('mutator-type').value = config.mutatorType || 'numbers';
+
+            const logs = JSON.parse(localStorage.getItem('generatorLogs')) || [];
+            const tbody = document.querySelector('#log-table tbody');
+            logs.forEach(log => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td class="py-2 px-4 table-cell">${log.hkidMain}</td>
+                    <td class="py-2 px-4 table-cell">${log.hkidCheck}</td>
+                    <td class="py-2 px-4 table-cell">${log.chineseSurname}</td>
+                    <td class="py-2 px-4 table-cell">${log.chineseGivenName}</td>
+                    <td class="py-2 px-4 table-cell">${log.englishSurname}</td>
+                    <td class="py-2 px-4 table-cell">${log.englishGivenName}</td>
+                    <td class="py-2 px-4">${log.gender}</td>
+                    <td class="py-2 px-4">${log.dob}</td>
+                    <td class="py-2 px-4">${log.age}</td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        // Save to localStorage
+        function saveToLocalStorage(logs) {
+            const config = {
+                minAge: document.getElementById('min-age').value,
+                maxAge: document.getElementById('max-age').value,
+                hkidPrefix: document.getElementById('hkid-prefix').value,
+                randomPrefix: document.getElementById('random-prefix').checked,
+                sequentialMode: document.getElementById('sequential-mode').checked,
+                startNumber: document.getElementById('start-number').value,
+                theme: document.getElementById('theme').value,
+                mutatorType: document.getElementById('mutator-type').value
+            };
+            localStorage.setItem('generatorConfig', JSON.stringify(config));
+            localStorage.setItem('generatorLogs', JSON.stringify(logs));
+        }
 
         // Toggle prefix and sequential inputs
         document.getElementById('random-prefix').addEventListener('change', (e) => {
@@ -173,21 +332,20 @@
             });
             const checkDigitNum = (11 - (sum % 11)) % 11;
             const checkDigit = checkDigitNum === 10 ? 'A' : checkDigitNum.toString();
-            return `${hkidPrefix}${digits}(${checkDigit})`;
+            return { full: `${hkidPrefix}${digits}(${checkDigit})`, prefix: hkidPrefix, digits: parseInt(digits) };
         }
 
-        // Corrected randomDate function (provided by you)
+        // Random DOB
         function randomDate(minAge, maxAge) {
             const today = new Date();
             const age = Math.floor(Math.random() * (maxAge - minAge + 1)) + minAge;
             const startDate = new Date(today.getFullYear() - (age + 1), today.getMonth(), today.getDate());
             const endDate = new Date(today.getFullYear() - age, today.getMonth(), today.getDate());
             const randomTime = startDate.getTime() + Math.random() * (endDate.getTime() - startDate.getTime());
-            const randomBirthdate = new Date(randomTime);
-            return randomBirthdate;
+            return new Date(randomTime);
         }
 
-        // Calculate age from DOB
+        // Calculate age
         function calculateAge(dob) {
             const today = new Date();
             let age = today.getFullYear() - dob.getFullYear();
@@ -197,12 +355,50 @@
             return age;
         }
 
-        // Show toast message
+        // Show toast
         function showToast(message) {
             const toast = document.getElementById('toast');
             toast.textContent = message;
             toast.classList.add('show');
             setTimeout(() => toast.classList.remove('show'), 2000);
+        }
+
+        // Generate unique names with full mutator logic
+        function getUniqueNames(surname, givenName, existingNames, mutatorType) {
+            let chineseName = surname.chinese + givenName.chinese;
+            let englishName = `${surname.english}, ${givenName.english}`;
+            if (!existingNames.includes(chineseName)) {
+                return { chinese: chineseName, english: englishName };
+            }
+
+            const mutatorList = mutators[mutatorType];
+
+            // Single mutator
+            for (let m1 of mutatorList) {
+                const mutatedChinese = surname.chinese + givenName.chinese + m1.chinese;
+                if (!existingNames.includes(mutatedChinese)) {
+                    const mutatedEnglish = `${surname.english}, ${givenName.english} ${m1.english}`;
+                    return { chinese: mutatedChinese, english: mutatedEnglish };
+                }
+            }
+
+            // Two mutators
+            for (let m1 of mutatorList) {
+                for (let m2 of mutatorList) {
+                    const mutatedChinese = surname.chinese + givenName.chinese + m1.chinese + m2.chinese;
+                    if (!existingNames.includes(mutatedChinese)) {
+                        const mutatedEnglish = `${surname.english}, ${givenName.english} ${m1.english} ${m2.english}`;
+                        return { chinese: mutatedChinese, english: mutatedEnglish };
+                    }
+                }
+            }
+
+            // Random fallback
+            const randomChinese = commonChineseChars[Math.floor(Math.random() * commonChineseChars.length)];
+            const randomEnglish = englishSequences[Math.floor(Math.random() * englishSequences.length)];
+            const fallbackChinese = surname.chinese + givenName.chinese + randomChinese;
+            const fallbackEnglish = `${surname.english}, ${givenName.english} ${randomEnglish}`;
+            return { chinese: fallbackChinese, english: fallbackEnglish };
         }
 
         // Generate fake info
@@ -215,77 +411,145 @@
             }
             const prefix = document.getElementById('hkid-prefix').value || 'A';
             const sequential = document.getElementById('sequential-mode').checked;
-            let hkid;
+            let hkidResult;
             if (sequential) {
                 if (currentNumber === null) currentNumber = parseInt(document.getElementById('start-number').value) || 0;
-                hkid = generateHKID(prefix, currentNumber);
-                currentNumber++;
+                hkidResult = generateHKID(prefix, currentNumber);
+                currentNumber = hkidResult.digits + 1;
                 if (currentNumber > 999999) currentNumber = 0;
+                document.getElementById('start-number').value = currentNumber;
             } else {
-                hkid = generateHKID(prefix);
+                hkidResult = generateHKID(prefix);
             }
-            if (!hkid) {
-                showToast('Invalid HKID prefix. Use 1-2 letters.');
+            if (!hkidResult) {
+                showToast('Invalid HKID prefix.');
                 return;
             }
+            const hkid = hkidResult.full;
             const gender = Math.random() < 0.5 ? 'Male' : 'Female';
-            const surname = surnames[Math.floor(Math.random() * surnames.length)];
-            const givenName = gender === 'Male' ? maleGivenNames[Math.floor(Math.random() * maleGivenNames.length)] : femaleGivenNames[Math.floor(Math.random() * femaleGivenNames.length)];
-            const chineseName = surname.chinese + givenName.chinese;
-            const englishName = `${surname.english}, ${givenName.english}`;
-            const dob = randomDate(minAge, maxAge);
-            const dobString = dob.toISOString().split('T')[0];
-            const age = calculateAge(dob);
+            const themeIndex = parseInt(document.getElementById('theme').value);
+            const selectedTheme = namingThemes.themes[themeIndex];
+            const surname = selectedTheme.surnameList[Math.floor(Math.random() * selectedTheme.surnameList.length)];
+            const givenName = selectedTheme.givenNameList[Math.floor(Math.random() * selectedTheme.givenNameList.length)];
+            const existingNames = Array.from(document.querySelectorAll('#log-table tbody tr td:nth-child(3)')).map(cell => cell.textContent + document.querySelectorAll('#log-table tbody tr td:nth-child(4)')[cell.parentElement.rowIndex - 1].textContent);
+            const mutatorType = document.getElementById('mutator-type').value;
+            const names = getUniqueNames(surname, givenName, existingNames, mutatorType);
+
+            // Split HKID
+            const hkidMain = hkid.slice(0, -3); // e.g., "A123456"
+            const hkidCheck = hkid.slice(-2, -1); // e.g., "3"
+
+            // Split names
+            const chineseSurname = surname.chinese;
+            const chineseGivenName = names.chinese.slice(surname.chinese.length);
+            const englishParts = names.english.split(', ');
+            const englishSurname = englishParts[0];
+            const englishGivenName = englishParts[1];
 
             // Update display
-            document.getElementById('hkid').textContent = hkid;
-            document.getElementById('english-name').textContent = englishName;
-            document.getElementById('chinese-name').textContent = chineseName;
+            document.getElementById('hkid-main').textContent = hkidMain;
+            document.getElementById('hkid-check').textContent = `(${hkidCheck})`;
+            document.getElementById('english-surname').textContent = englishSurname;
+            document.getElementById('english-givenname').textContent = englishGivenName;
+            document.getElementById('chinese-surname').textContent = chineseSurname;
+            document.getElementById('chinese-givenname').textContent = chineseGivenName;
             document.getElementById('gender').textContent = gender;
-            document.getElementById('dob').textContent = dobString;
-            document.getElementById('age').textContent = age;
+            const dob = randomDate(minAge, maxAge).toISOString().split('T')[0];
+            document.getElementById('dob').textContent = dob;
+            document.getElementById('age').textContent = calculateAge(new Date(dob));
 
             // Log to table
             const tbody = document.querySelector('#log-table tbody');
             const row = document.createElement('tr');
-            row.innerHTML = `<td class="py-2 px-4">${hkid}</td><td class="py-2 px-4">${englishName}</td><td class="py-2 px-4">${chineseName}</td><td class="py-2 px-4">${gender}</td><td class="py-2 px-4">${dobString}</td><td class="py-2 px-4">${age}</td>`;
+            row.innerHTML = `
+                <td class="py-2 px-4 table-cell">${hkidMain}</td>
+                <td class="py-2 px-4 table-cell">${hkidCheck}</td>
+                <td class="py-2 px-4 table-cell">${chineseSurname}</td>
+                <td class="py-2 px-4 table-cell">${chineseGivenName}</td>
+                <td class="py-2 px-4 table-cell">${englishSurname}</td>
+                <td class="py-2 px-4 table-cell">${englishGivenName}</td>
+                <td class="py-2 px-4 table-cell">${gender}</td>
+                <td class="py-2 px-4 table-cell">${dob}</td>
+                <td class="py-2 px-4 table-cell">${document.getElementById('age').textContent}</td>
+            `;
             tbody.insertBefore(row, tbody.firstChild);
+
+            // Update localStorage
+            const logs = Array.from(tbody.children).map(row => ({
+                hkidMain: row.cells[0].textContent,
+                hkidCheck: row.cells[1].textContent,
+                chineseSurname: row.cells[2].textContent,
+                chineseGivenName: row.cells[3].textContent,
+                englishSurname: row.cells[4].textContent,
+                englishGivenName: row.cells[5].textContent,
+                gender: row.cells[6].textContent,
+                dob: row.cells[7].textContent,
+                age: row.cells[8].textContent
+            }));
+            saveToLocalStorage(logs);
+
+            // Add click events for copying parts
+            document.getElementById('hkid-main').onclick = () => copyText(hkidMain, 'HKID Main copied!');
+            document.getElementById('hkid-check').onclick = () => copyText(hkidCheck, 'Check Digit copied!');
+            document.getElementById('english-surname').onclick = () => copyText(englishSurname, 'English Surname copied!');
+            document.getElementById('english-givenname').onclick = () => copyText(englishGivenName, 'English Given Name copied!');
+            document.getElementById('chinese-surname').onclick = () => copyText(chineseSurname, 'Chinese Surname copied!');
+            document.getElementById('chinese-givenname').onclick = () => copyText(chineseGivenName, 'Chinese Given Name copied!');
+        }
+
+        // Copy text
+        function copyText(text, message) {
+            navigator.clipboard.writeText(text).then(() => showToast(message)).catch(err => showToast('Failed to copy: ' + err));
         }
 
         // Event listeners
         document.getElementById('generate-btn').addEventListener('click', generateInfo);
-        generateInfo(); // Auto-generate on load
+        loadFromLocalStorage();
+        generateInfo();
 
         document.querySelectorAll('.copy-btn').forEach(btn => {
             btn.addEventListener('click', () => {
                 const targetId = btn.getAttribute('data-target');
-                let text = document.getElementById(targetId).textContent;
+                let text;
                 if (targetId === 'hkid') {
+                    text = document.getElementById('hkid-main').textContent + document.getElementById('hkid-check').textContent;
                     const withParens = document.getElementById('hkid-parens').checked;
                     text = withParens ? text : text.replace(/[()]/g, '');
                 } else if (targetId === 'english-name') {
+                    text = `${document.getElementById('english-surname').textContent}, ${document.getElementById('english-givenname').textContent}`;
                     const withComma = document.getElementById('name-comma').checked;
                     text = withComma ? text : text.replace(/, /g, ' ');
+                } else if (targetId === 'chinese-name') {
+                    text = document.getElementById('chinese-surname').textContent + document.getElementById('chinese-givenname').textContent;
+                } else {
+                    text = document.getElementById(targetId).textContent;
                 }
-                if (text) {
-                    navigator.clipboard.writeText(text).then(() => {
-                        showToast(`Copied: ${text}`);
-                    }).catch(err => showToast('Failed to copy: ' + err));
-                }
+                copyText(text, `Copied: ${text}`);
             });
+        });
+
+        // Table copy
+        document.getElementById('log-table').addEventListener('click', (e) => {
+            const cell = e.target;
+            if (cell.classList.contains('table-cell')) {
+                const columnHeaders = ['HKID Main', 'Check Digit', 'Surname (CN)', 'Given Name (CN)', 'Surname (EN)', 'Given Name (EN)', 'Gender', 'DOB', 'Age'];
+                const columnIndex = cell.cellIndex;
+                const message = `${columnHeaders[columnIndex]} copied!`;
+                copyText(cell.textContent, message);
+            }
         });
 
         document.getElementById('copy-table-btn').addEventListener('click', () => {
             const rows = Array.from(document.querySelectorAll('#log-table tbody tr'));
             const data = rows.map(row => Array.from(row.cells).map(cell => cell.textContent).join('\t')).join('\n');
-            const header = 'HKID\tEnglish Name\tChinese Name\tGender\tDOB\tAge\n';
-            navigator.clipboard.writeText(header + data).then(() => showToast('Table copied to clipboard!'));
+            const header = 'HKID Main\tCheck Digit\tSurname (CN)\tGiven Name (CN)\tSurname (EN)\tGiven Name (EN)\tGender\tDOB\tAge\n';
+            copyText(header + data, 'Table copied to clipboard!');
         });
 
         document.getElementById('download-csv-btn').addEventListener('click', () => {
             const rows = Array.from(document.querySelectorAll('#log-table tbody tr'));
             const data = rows.map(row => Array.from(row.cells).map(cell => `"${cell.textContent}"`).join(',')).join('\n');
-            const header = 'HKID,English Name,Chinese Name,Gender,DOB,Age\n';
+            const header = 'HKID Main,Check Digit,Surname (CN),Given Name (CN),Surname (EN),Given Name (EN),Gender,DOB,Age\n';
             const csv = header + data;
             const blob = new Blob([csv], { type: 'text/csv' });
             const url = URL.createObjectURL(blob);
@@ -294,6 +558,12 @@
             a.download = 'generated_profiles.csv';
             a.click();
             URL.revokeObjectURL(url);
+        });
+
+        document.getElementById('clear-storage-btn').addEventListener('click', () => {
+            localStorage.clear();
+            document.querySelector('#log-table tbody').innerHTML = '';
+            showToast('Local storage cleared!');
         });
     </script>
 </body>
