@@ -20,7 +20,7 @@
         .toast.show {
             opacity: 1;
         }
-        .name-part, .hkid-part, .table-cell {
+        .name-part, .hkid-part, .table-cell, .clickable-value {
             cursor: pointer;
             position: relative;
         }
@@ -61,7 +61,7 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
             <!-- Generator Section (Left Column) -->
             <div class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8">
-                <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Generation Settings</h1>
+                <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">Fake ID Generator</h1>
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
                     <div>
                         <label class="block text-gray-700 text-sm font-semibold mb-2" for="min-age">Minimum Age</label>
@@ -71,24 +71,29 @@
                         <label class="block text-gray-700 text-sm font-semibold mb-2" for="max-age">Maximum Age</label>
                         <input class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" id="max-age" type="number" value="65" min="0">
                     </div>
-                    <div class="flex items-end space-x-4">
-                        <div class="flex-1">
-                            <label class="block text-gray-700 text-sm font-semibold mb-2" for="hkid-prefix">HKID Prefix</label>
-                            <input class="shadow border rounded w-20 py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" id="hkid-prefix" type="text" value="A" maxlength="2">
+                    <div class="flex items-end space-x-2">
+                        <div>
+                            <label class="block text-gray-700 text-sm font-semibold mb-2" for="prefix-mode">HKID Prefix</label>
+                            <select id="prefix-mode" class="shadow border rounded py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="random">Random</option>
+                                <option value="manual">Manual</option>
+                            </select>
                         </div>
-                        <div class="flex items-center mb-2">
-                            <input id="random-prefix" type="checkbox" class="mr-2" checked>
-                            <label class="text-gray-700 text-sm font-semibold" for="random-prefix">Random</label>
+                        <div class="flex-1">
+                            <label class="block text-gray-700 text-sm font-semibold mb-2" for="hkid-prefix"> </label>
+                            <input class="shadow border rounded w-20 py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" id="hkid-prefix" type="text" value="A" maxlength="2" disabled>
                         </div>
                     </div>
-                    <div class="flex items-end space-x-4">
-                        <div class="flex items-center mb-2">
-                            <input id="sequential-mode" type="checkbox" class="mr-2">
-                            <label class="text-gray-700 text-sm font-semibold" for="sequential-mode">Sequential</label>
-                        </div>
-                        <div class="flex-1">
-                            <label class="block text-gray-700 text-sm font-semibold mb-2" for="start-number">Start Number</label>
-                            <input id="start-number" type="number" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" value="100000" min="0" max="999999" disabled>
+                    <div class="space-y-2">
+                        <div class="text-gray-700 text-sm font-semibold">HKID Suffix</div>
+                        <div class="flex items-center space-x-2">
+                            <select id="suffix-mode" class="shadow border rounded py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                <option value="random">Random</option>
+                                <option value="sequential">Sequential</option>
+                            </select>
+                            <div class="flex-1">
+                                <input id="start-number" type="number" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" value="100000" min="0" max="999999" disabled>
+                            </div>
                         </div>
                     </div>
                     <div>
@@ -100,21 +105,19 @@
                     <div>
                         <label class="block text-gray-700 text-sm font-semibold mb-2" for="mutator-type">Name Mutator</label>
                         <select id="mutator-type" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
-                            <option value="numbers">Numbers (一 to 十)</option>
-                            <option value="colors">Colors (紅 to 紫)</option>
+                            <!-- Options populated dynamically -->
                         </select>
                     </div>
                 </div>
-                <button id="generate-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200">Generate New Profile</button>
             </div>
 
             <!-- Results Section (Right Column) -->
             <div id="result" class="bg-white shadow-lg rounded-lg px-8 pt-6 pb-8">
-                <h2 class="text-xl font-semibold text-gray-800 mb-4 sm:block hidden">Generated Profile</h2>
+                <button id="generate-btn" class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition duration-200 mb-4">Generate New Profile</button>
                 <div class="space-y-4 relative">
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between relative">
                         <span class="text-gray-700 font-medium w-full sm:w-32 mb-1 sm:mb-0 sm:block hidden">HKID:</span>
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:flex-1">
+                        <div class="flex flex-row items-center sm:flex-1">
                             <span class="font-mono text-gray-900 flex-1 relative">
                                 <span class="group">
                                     <span id="hkid-main" class="hkid-part"></span>
@@ -126,7 +129,7 @@
                                 </span>
                                 <span class="mobile-annotation sm:hidden">HKID</span>
                             </span>
-                            <span class="group mt-2 sm:mt-0 sm:ml-2">
+                            <span class="group ml-2">
                                 <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="hkid">Copy All</button>
                                 <span class="copy-hint">Copy full HKID</span>
                             </span>
@@ -134,7 +137,7 @@
                     </div>
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between relative">
                         <span class="text-gray-700 font-medium w-full sm:w-32 mb-1 sm:mb-0 sm:block hidden">English Name:</span>
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:flex-1">
+                        <div class="flex flex-row items-center sm:flex-1">
                             <span class="text-gray-900 flex-1 relative">
                                 <span class="group">
                                     <span id="english-surname" class="name-part"></span>
@@ -146,7 +149,7 @@
                                 </span>
                                 <span class="mobile-annotation sm:hidden">English Name</span>
                             </span>
-                            <span class="group mt-2 sm:mt-0 sm:ml-2">
+                            <span class="group ml-2">
                                 <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="english-name">Copy All</button>
                                 <span class="copy-hint">Copy full English Name</span>
                             </span>
@@ -154,7 +157,7 @@
                     </div>
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between relative">
                         <span class="text-gray-700 font-medium w-full sm:w-32 mb-1 sm:mb-0 sm:block hidden">Chinese Name:</span>
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:flex-1">
+                        <div class="flex flex-row items-center sm:flex-1">
                             <span class="text-gray-900 flex-1 relative">
                                 <span class="group">
                                     <span id="chinese-surname" class="name-part"></span>
@@ -166,7 +169,7 @@
                                 </span>
                                 <span class="mobile-annotation sm:hidden">Chinese Name</span>
                             </span>
-                            <span class="group mt-2 sm:mt-0 sm:ml-2">
+                            <span class="group ml-2">
                                 <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200" data-target="chinese-name">Copy All</button>
                                 <span class="copy-hint">Copy full Chinese Name</span>
                             </span>
@@ -174,29 +177,26 @@
                     </div>
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between relative">
                         <span class="text-gray-700 font-medium w-full sm:w-32 mb-1 sm:mb-0 sm:block hidden">Gender:</span>
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:flex-1">
-                            <span id="gender" class="text-gray-900 flex-1 relative">
+                        <div class="flex flex-row items-center sm:flex-1">
+                            <span id="gender" class="text-gray-900 flex-1 relative clickable-value">
                                 <span class="mobile-annotation sm:hidden">Gender</span>
                             </span>
-                            <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200 mt-2 sm:mt-0 sm:ml-2" data-target="gender">Copy</button>
                         </div>
                     </div>
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between relative">
                         <span class="text-gray-700 font-medium w-full sm:w-32 mb-1 sm:mb-0 sm:block hidden">Date of Birth:</span>
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:flex-1">
-                            <span id="dob" class="text-gray-900 flex-1 relative">
+                        <div class="flex flex-row items-center sm:flex-1">
+                            <span id="dob" class="text-gray-900 flex-1 relative clickable-value">
                                 <span class="mobile-annotation sm:hidden">Date of Birth</span>
                             </span>
-                            <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200 mt-2 sm:mt-0 sm:ml-2" data-target="dob">Copy</button>
                         </div>
                     </div>
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between relative">
                         <span class="text-gray-700 font-medium w-full sm:w-32 mb-1 sm:mb-0 sm:block hidden">Age:</span>
-                        <div class="flex flex-col sm:flex-row sm:items-center sm:flex-1">
-                            <span id="age" class="text-gray-900 flex-1 relative">
+                        <div class="flex flex-row items-center sm:flex-1">
+                            <span id="age" class="text-gray-900 flex-1 relative clickable-value">
                                 <span class="mobile-annotation sm:hidden">Age</span>
                             </span>
-                            <button class="copy-btn bg-gray-200 hover:bg-gray-300 text-gray-800 font-semibold py-1 px-3 rounded-lg transition duration-200 mt-2 sm:mt-0 sm:ml-2" data-target="age">Copy</button>
                         </div>
                     </div>
                     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between relative">
@@ -247,9 +247,11 @@
     </div>
     <div id="toast" class="toast"></div>
 
+    <script src="js/fake-name/pokemon.js"></script>
+    <script src="js/config.js"></script>
     <script>
-        // Naming themes (simplified)
-        const namingThemes = {
+        // Fallback config if js/config.js fails to load
+        const FALLBACK_NAMING_THEMES = {
             themes: [
                 {
                     "themeName": "Hong Kong Common Names",
@@ -266,31 +268,20 @@
                 }
             ]
         };
-
-        // Mutator lists
-        const mutators = {
+        const FALLBACK_MUTATORS = {
             numbers: [
                 { chinese: "一", english: "One" },
                 { chinese: "二", english: "Two" },
-                { chinese: "三", english: "Three" },
-                { chinese: "四", english: "Four" },
-                { chinese: "五", english: "Five" },
-                { chinese: "六", english: "Six" },
-                { chinese: "七", english: "Seven" },
-                { chinese: "八", english: "Eight" },
-                { chinese: "九", english: "Nine" },
-                { chinese: "十", english: "Ten" }
+                { chinese: "三", english: "Three" }
             ],
             colors: [
                 { chinese: "紅", english: "Red" },
                 { chinese: "橙", english: "Orange" },
-                { chinese: "黃", english: "Yellow" },
-                { chinese: "綠", english: "Green" },
-                { chinese: "藍", english: "Blue" },
-                { chinese: "靛", english: "Indigo" },
-                { chinese: "紫", english: "Purple" }
+                { chinese: "黃", english: "Yellow" }
             ]
         };
+        const namingThemes = CONFIG_NAMING_THEMES || FALLBACK_NAMING_THEMES;
+        const mutators = CONFIG_MUTATORS || FALLBACK_MUTATORS;
 
         // Fallback characters
         const commonChineseChars = ["中", "華", "天", "地", "人", "和", "福", "祿", "壽", "喜"];
@@ -307,18 +298,28 @@
             themeSelect.appendChild(option);
         });
 
+        // Populate mutator dropdown
+        const mutatorSelect = document.getElementById('mutator-type');
+        Object.keys(mutators).forEach(key => {
+            const option = document.createElement('option');
+            option.value = key;
+            option.textContent = key.charAt(0).toUpperCase() + key.slice(1);
+            mutatorSelect.appendChild(option);
+        });
+
         // Load from localStorage
         function loadFromLocalStorage() {
             const config = JSON.parse(localStorage.getItem('generatorConfig')) || {};
             document.getElementById('min-age').value = config.minAge || 18;
             document.getElementById('max-age').value = config.maxAge || 65;
             document.getElementById('hkid-prefix').value = config.hkidPrefix || 'A';
-            document.getElementById('random-prefix').checked = config.randomPrefix !== false;
-            document.getElementById('sequential-mode').checked = config.sequentialMode || false;
+            document.getElementById('prefix-mode').value = config.prefixMode || 'random';
+            document.getElementById('hkid-prefix').disabled = config.prefixMode !== 'manual';
+            document.getElementById('suffix-mode').value = config.suffixMode || 'random';
             document.getElementById('start-number').value = config.startNumber || 100000;
-            document.getElementById('start-number').disabled = !config.sequentialMode;
+            document.getElementById('start-number').disabled = config.suffixMode !== 'sequential';
             document.getElementById('theme').value = config.theme || 0;
-            document.getElementById('mutator-type').value = config.mutatorType || 'numbers';
+            document.getElementById('mutator-type').value = config.mutatorType || Object.keys(mutators)[0];
 
             const logs = JSON.parse(localStorage.getItem('generatorLogs')) || [];
             const tbody = document.querySelector('#log-table tbody');
@@ -346,8 +347,8 @@
                 minAge: document.getElementById('min-age').value,
                 maxAge: document.getElementById('max-age').value,
                 hkidPrefix: document.getElementById('hkid-prefix').value,
-                randomPrefix: document.getElementById('random-prefix').checked,
-                sequentialMode: document.getElementById('sequential-mode').checked,
+                prefixMode: document.getElementById('prefix-mode').value,
+                suffixMode: document.getElementById('suffix-mode').value,
                 startNumber: document.getElementById('start-number').value,
                 theme: document.getElementById('theme').value,
                 mutatorType: document.getElementById('mutator-type').value
@@ -356,20 +357,20 @@
             localStorage.setItem('generatorLogs', JSON.stringify(logs));
         }
 
-        // Toggle inputs
-        document.getElementById('random-prefix').addEventListener('change', (e) => {
-            document.getElementById('hkid-prefix').disabled = e.target.checked;
+        // Toggle inputs based on selection
+        document.getElementById('prefix-mode').addEventListener('change', (e) => {
+            document.getElementById('hkid-prefix').disabled = e.target.value === 'random';
         });
-        document.getElementById('sequential-mode').addEventListener('change', (e) => {
-            document.getElementById('start-number').disabled = !e.target.checked;
-            if (!e.target.checked) currentNumber = null;
+        document.getElementById('suffix-mode').addEventListener('change', (e) => {
+            document.getElementById('start-number').disabled = e.target.value === 'random';
+            if (e.target.value !== 'sequential') currentNumber = null;
         });
 
         // Generate HKID
         function generateHKID(prefix, number) {
             const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
             let hkidPrefix = prefix.toUpperCase();
-            if (document.getElementById('random-prefix').checked) {
+            if (document.getElementById('prefix-mode').value === 'random') {
                 const len = Math.random() < 0.5 ? 1 : 2;
                 hkidPrefix = len === 1 ? letters[Math.floor(Math.random() * 26)] : 
                     letters[Math.floor(Math.random() * 26)] + letters[Math.floor(Math.random() * 26)];
@@ -459,9 +460,9 @@
                 return;
             }
             const prefix = document.getElementById('hkid-prefix').value || 'A';
-            const sequential = document.getElementById('sequential-mode').checked;
+            const suffixMode = document.getElementById('suffix-mode').value;
             let hkidResult;
-            if (sequential) {
+            if (suffixMode === 'sequential') {
                 if (currentNumber === null) currentNumber = parseInt(document.getElementById('start-number').value) || 0;
                 hkidResult = generateHKID(prefix, currentNumber);
                 currentNumber = hkidResult.digits + 1;
@@ -532,13 +533,16 @@
             // Update localStorage
             updateLocalStorage();
 
-            // Add click events
+            // Add click events for copyable fields
             document.getElementById('hkid-main').onclick = () => copyText(hkidMain, 'HKID Main copied!');
             document.getElementById('hkid-check').onclick = () => copyText(hkidCheck, 'Check Digit copied!');
             document.getElementById('english-surname').onclick = () => copyText(englishSurname, 'English Surname copied!');
             document.getElementById('english-givenname').onclick = () => copyText(englishGivenName, 'English Given Name copied!');
             document.getElementById('chinese-surname').onclick = () => copyText(chineseSurname, 'Chinese Surname copied!');
             document.getElementById('chinese-givenname').onclick = () => copyText(chineseGivenName, 'Chinese Given Name copied!');
+            document.getElementById('gender').onclick = () => copyText(gender, 'Gender copied!');
+            document.getElementById('dob').onclick = () => copyText(dob, 'Date of Birth copied!');
+            document.getElementById('age').onclick = () => copyText(document.getElementById('age').textContent, 'Age copied!');
         }
 
         // Update localStorage with current table data
