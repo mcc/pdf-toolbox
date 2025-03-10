@@ -35,10 +35,27 @@
             height: calc(100vh - 40px);
             align-self: flex-start;
         }
-        select {
+        .input-container {
+            position: relative;
+            display: flex;
+            align-items: center;
+        }
+        #routeInput {
             padding: 8px;
             margin: 5px 0;
             width: 100%;
+            box-sizing: border-box;
+        }
+        #dropdownBtn {
+            padding: 8px;
+            margin: 5px 0 5px 5px;
+            cursor: pointer;
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #dropdownBtn:hover {
+            background-color: #e0e0e0;
         }
         #results {
             margin-top: 20px;
@@ -70,6 +87,25 @@
         #refreshTimer:hover {
             background-color: #e0e0e0;
         }
+        #autocompleteList {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            background: white;
+            border: 1px solid #ccc;
+            max-height: 200px;
+            overflow-y: auto;
+            width: calc(100% - 42px);
+            z-index: 1000;
+            display: none;
+        }
+        .autocomplete-item {
+            padding: 8px;
+            cursor: pointer;
+        }
+        .autocomplete-item:hover, .autocomplete-item.selected {
+            background-color: #f0f0f0;
+        }
 
         @media (max-width: 768px) {
             .container {
@@ -86,6 +122,9 @@
                 top: 0;
                 height: 400px;
             }
+            #autocompleteList {
+                width: 100%;
+            }
         }
     </style>
 </head>
@@ -99,10 +138,16 @@
     
     <div class="container">
         <div class="left-panel">
-            <label for="routeSelect" id="routeLabel">選擇路線：</label>
-            <select id="routeSelect" onchange="showETAs()">
-                <option value="">-- 選擇路線 --</option>
-            </select>
+            <label for="routeInput" id="routeLabel">選擇路線：</label>
+            <div class="input-container">
+                <input type="text" id="routeInput" placeholder="輸入路線號或名稱" 
+                       oninput="showAutocomplete()" 
+                       onkeydown="navigateAutocomplete(event)" 
+                       onclick="clearInputForNewSearch()"
+                       onblur="restoreStateIfEmpty()">
+                <button id="dropdownBtn" onclick="toggleDropdown()">▼</button>
+                <div id="autocompleteList"></div>
+            </div>
             <div id="results"></div>
         </div>
         <div class="right-panel">
@@ -116,7 +161,9 @@
         let isChinese = true;
         let map, markers = [], infoWindows = [];
         let refreshInterval, countdown = 60;
-        let currentRouteData = null; // Store current route data to avoid re-fetching
+        let currentRouteData = null;
+        let selectedIndex = -1;
+        let previousRouteValue = ''; // Store previous route for restoration
 
         const texts = {
             en: {
@@ -127,7 +174,8 @@
                 share: "Share",
                 next: "Next bus at",
                 secondNext: "2nd next bus at",
-                refresh: "Refresh in"
+                refresh: "Refresh in",
+                placeholder: "Enter route number or name"
             },
             zh: {
                 title: "九巴到站時間",
@@ -137,7 +185,8 @@
                 share: "分享",
                 next: "下班車於",
                 secondNext: "下下班車於",
-                refresh: "刷新於"
+                refresh: "刷新於",
+                placeholder: "輸入路線號或名稱"
             }
         };
 
@@ -146,7 +195,7 @@
                 const response = await fetch('https://data.etabus.gov.hk/v1/transport/kmb/route/');
                 const data = await response.json();
                 routes = data.data;
-                updateRouteSelect();
+                updateRouteInput();
             } catch (error) {
                 console.error('Error loading routes:', error);
             }
@@ -162,17 +211,119 @@
             }
         }
 
-        function updateRouteSelect() {
-            const routeSelect = document.getElementById('routeSelect');
-            const currentValue = routeSelect.value;
-            routeSelect.innerHTML = `<option value="">-- ${texts[isChinese ? 'zh' : 'en'].routeLabel} --</option>`;
-            routes.forEach(route => {
-                const option = document.createElement('option');
-                option.value = `${route.route}|${route.bound}`;
-                option.textContent = `${route.route} (${route.bound === 'I' ? 'Inbound' : 'Outbound'}) - ${isChinese ? route.dest_tc : route.dest_en}`;
-                routeSelect.appendChild(option);
-            });
-            routeSelect.value = currentValue; // Retain selected route
+        function updateRouteInput() {
+            const routeInput = document.getElementById('routeInput');
+            routeInput.placeholder = texts[isChinese ? 'zh' : 'en'].placeholder;
+        }
+
+        function showAutocomplete(showAll = false) {
+            const input = document.getElementById('routeInput').value.toLowerCase();
+            const autocompleteList = document.getElementById('autocompleteList');
+            autocompleteList.innerHTML = '';
+            selectedIndex = -1;
+
+            const matches = showAll ? routes : routes.filter(route => 
+                route.route.toLowerCase().includes(input) ||
+                route.dest_en.toLowerCase().includes(input) ||
+                route.dest_tc.toLowerCase().includes(input)
+            );
+
+            if (matches.length > 0) {
+                matches.forEach((route, index) => {
+                    const item = document.createElement('div');
+                    item.className = 'autocomplete-item';
+                    const label = `${route.route} (${route.bound === 'I' ? 'Inbound' : 'Outbound'}) - ${isChinese ? route.dest_tc : route.dest_en}`;
+                    item.textContent = label;
+                    item.dataset.value = `${route.route}|${route.bound}`;
+                    item.dataset.label = label;
+                    item.onclick = () => selectRoute(route.route, route.bound, label);
+                    autocompleteList.appendChild(item);
+                });
+                autocompleteList.style.display = 'block';
+            } else {
+                autocompleteList.style.display = 'none';
+            }
+        }
+
+        function navigateAutocomplete(event) {
+            const autocompleteList = document.getElementById('autocompleteList');
+            const items = autocompleteList.getElementsByClassName('autocomplete-item');
+            if (!items.length) return;
+
+            if (event.key === 'ArrowDown') {
+                event.preventDefault();
+                selectedIndex = Math.min(selectedIndex + 1, items.length - 1);
+                updateSelection();
+            } else if (event.key === 'ArrowUp') {
+                event.preventDefault();
+                selectedIndex = Math.max(selectedIndex - 1, -1);
+                updateSelection();
+            } else if (event.key === 'Enter' && selectedIndex >= 0) {
+                event.preventDefault();
+                const [routeNum, bound] = items[selectedIndex].dataset.value.split('|');
+                selectRoute(routeNum, bound, items[selectedIndex].dataset.label);
+            } else if (event.key === 'Escape') {
+                event.preventDefault();
+                restorePreviousRoute();
+                hideAutocomplete();
+            }
+        }
+
+        function updateSelection() {
+            const items = document.getElementsByClassName('autocomplete-item');
+            for (let i = 0; i < items.length; i++) {
+                items[i].classList.toggle('selected', i === selectedIndex);
+                if (i === selectedIndex) items[i].scrollIntoView({ block: 'nearest' });
+            }
+        }
+
+        function selectRoute(routeNum, bound, label) {
+            const routeInput = document.getElementById('routeInput');
+            routeInput.value = label; // Show label instead of value
+            routeInput.dataset.value = `${routeNum}|${bound}`; // Store value in dataset
+            previousRouteValue = label; // Update previous value
+            hideAutocomplete();
+            showETAs();
+        }
+
+        function toggleDropdown() {
+            const autocompleteList = document.getElementById('autocompleteList');
+            if (autocompleteList.style.display === 'block') {
+                hideAutocomplete();
+            } else {
+                showAutocomplete(true);
+            }
+        }
+
+        function hideAutocomplete() {
+            const autocompleteList = document.getElementById('autocompleteList');
+            autocompleteList.style.display = 'none';
+            selectedIndex = -1;
+        }
+
+        function clearInputForNewSearch() {
+            const routeInput = document.getElementById('routeInput');
+            if (routeInput.value && !routeInput.dataset.isNewSearch) {
+                routeInput.value = '';
+                routeInput.dataset.isNewSearch = 'true';
+            }
+        }
+
+        function restoreStateIfEmpty() {
+            const routeInput = document.getElementById('routeInput');
+            if (!routeInput.value && previousRouteValue) {
+                routeInput.value = previousRouteValue;
+                showETAs();
+            }
+            delete routeInput.dataset.isNewSearch;
+        }
+
+        function restorePreviousRoute() {
+            const routeInput = document.getElementById('routeInput');
+            if (previousRouteValue) {
+                routeInput.value = previousRouteValue;
+                showETAs();
+            }
         }
 
         function toggleLanguage() {
@@ -183,19 +334,28 @@
             document.getElementById('langToggle').textContent = texts[lang].toggle;
             document.getElementById('shareBtn').textContent = texts[lang].share;
             updateRefreshTimerText();
-            updateRouteSelect();
+            updateRouteInput();
             if (currentRouteData) {
-                renderRouteData(currentRouteData); // Re-render with current data
+                const routeInput = document.getElementById('routeInput');
+                const [routeNum, bound] = (routeInput.dataset.value || '').split('|');
+                if (routeNum && bound) {
+                    const route = routes.find(r => r.route === routeNum && r.bound === bound);
+                    if (route) {
+                        routeInput.value = `${route.route} (${route.bound === 'I' ? 'Inbound' : 'Outbound'}) - ${isChinese ? route.dest_tc : route.dest_en}`;
+                        previousRouteValue = routeInput.value;
+                    }
+                }
+                renderRouteData(currentRouteData);
             }
         }
 
         async function showETAs() {
-            const routeSelect = document.getElementById('routeSelect');
-            const [routeNum, bound] = (routeSelect.value || '').split('|');
+            const routeInput = document.getElementById('routeInput');
+            const [routeNum, bound] = (routeInput.dataset.value || routeInput.value || '').split('|');
             const direction = bound === 'I' ? 'inbound' : 'outbound';
             const serviceType = '1';
             
-            if (!routeNum) {
+            if (!routeNum || !bound) {
                 document.getElementById('results').innerHTML = '';
                 clearMarkers();
                 stopRefreshTimer();
@@ -343,8 +503,8 @@
         }
 
         function shareRoute() {
-            const routeSelect = document.getElementById('routeSelect');
-            const [routeNum, bound] = (routeSelect.value || '').split('|');
+            const routeInput = document.getElementById('routeInput');
+            const [routeNum, bound] = (routeInput.dataset.value || routeInput.value || '').split('|');
             const highlightedStop = document.querySelector('.stop.highlighted');
             const stopId = highlightedStop ? highlightedStop.dataset.stopId : null;
 
@@ -368,9 +528,14 @@
             const route = urlParams.get('route');
             const bound = urlParams.get('bound');
             if (route && bound && routes.length > 0 && stops.length > 0) {
-                const routeSelect = document.getElementById('routeSelect');
-                routeSelect.value = `${route}|${bound}`;
-                showETAs();
+                const routeInput = document.getElementById('routeInput');
+                const routeData = routes.find(r => r.route === route && r.bound === bound);
+                if (routeData) {
+                    routeInput.value = `${route} (${bound === 'I' ? 'Inbound' : 'Outbound'}) - ${isChinese ? routeData.dest_tc : routeData.dest_en}`;
+                    routeInput.dataset.value = `${route}|${bound}`;
+                    previousRouteValue = routeInput.value;
+                    showETAs();
+                }
             }
         }
 
@@ -410,6 +575,7 @@
         window.onload = async () => {
             await Promise.all([loadRoutes(), loadStops()]);
             document.getElementById('shareBtn').textContent = texts.zh.share;
+            updateRouteInput();
             loadFromQueryString();
         };
     </script>
