@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>What to Eat Today</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        #map {
+            height: 400px;
+            width: 100%;
+            margin: 20px 0;
+        }
+        .restaurant-card {
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin: 10px 0;
+            background: #fff;
+        }
+        .new-restaurant {
+            background: #e6ffe6;
+        }
+        button {
+            margin: 5px;
+            padding: 5px 10px;
+        }
+        #debugList {
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ccc;
+            padding: 10px;
+            margin-top: 20px;
+        }
+        .error {
+            color: red;
+            padding: 10px;
+            border: 1px solid red;
+        }
+    </style>
+</head>
+<body>
+    <h1>What to Eat Today</h1>
+    
+    <div>
+        <button onclick="getCurrentLocation()">Use My Location</button>
+        <button onclick="initMapPicker()">Pick Location on Map</button>
+        <input id="searchInput" type="text" placeholder="Search location">
+        <button onclick="searchLocation()">Search</button>
+    </div>
+
+    <div id="map"></div>
+    
+    <div id="currentPick"></div>
+    <div>
+        <button onclick="pickRandomRestaurant()">Pick Random</button>
+        <button onclick="markAsToday()">Eat This Today</button>
+        <button onclick="nextRandom()">Not This One</button>
+        <button onclick="hideRestaurant()">Don't Show Again</button>
+    </div>
+
+    <h2>History</h2>
+    <div id="history"></div>
+
+    <h2>Debug: Restaurant List</h2>
+    <div id="debugList"></div>
+
+    <script>
+        let map;
+        let service;
+        let currentLocation;
+        let restaurants = [];
+        let currentRestaurant;
+        let history = JSON.parse(localStorage.getItem('eatHistory')) || [];
+        let hiddenRestaurants = JSON.parse(localStorage.getItem('hiddenRestaurants')) || [];
+        let markers = [];
+        const API_KEY = 'AIzaSyBSdxYZf872NOwMc9eE4Xmr42mCRhKCZEA'; // Replace with your actual key
+
+        function loadGoogleMaps() {
+            const script = document.createElement('script');
+            script.src = `https://maps.googleapis.com/maps/api/js?key=${API_KEY}&callback=initMap&libraries=places`;
+            script.async = true;
+            script.onerror = () => {
+                console.error('Failed to load Google Maps API');
+                document.getElementById('debugList').innerHTML = '<div class="error">Failed to load Google Maps API. Check API key and network.</div>';
+            };
+            document.head.appendChild(script);
+        }
+
+        function initMap() {
+            try {
+                map = new google.maps.Map(document.getElementById('map'), {
+                    center: {lat: 37.7749, lng: -122.4194},
+                    zoom: 13
+                });
+                service = new google.maps.places.PlacesService(map);
+                service.nearbySearch(
+                    { location: {lat: 37.7749, lng: -122.4194}, radius: 500, type: "restaurant" },
+                    (results, status, pagination) => {
+                      if (status !== "OK" || !results) return;
+                      console.log(results);
+                      }
+                  );
+                map.addListener('dragend', function() {
+                    currentLocation = {
+                        lat: map.getCenter().lat(),
+                        lng: map.getCenter().lng()
+                    };
+                    getNearbyRestaurants(service);
+                });
+            } catch (e) {
+                console.error('Map initialization failed:', e);
+                document.getElementById('debugList').innerHTML = '<div class="error">Map initialization failed</div>';
+            }
+        }
+
+        function getCurrentLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        currentLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        map.setCenter(currentLocation);
+                        getNearbyRestaurants(service);
+                    },
+                    error => {
+                        console.error('Error getting location:', error);
+                        document.getElementById('debugList').innerHTML = '<div class="error">Failed to get location</div>';
+                    }
+                );
+            } else {
+                console.error('Geolocation not supported');
+                document.getElementById('debugList').innerHTML = '<div class="error">Geolocation not supported</div>';
+            }
+        }
+
+        function initMapPicker() {
+            google.maps.event.addListener(map, 'click', function(event) {
+                currentLocation = {
+                    lat: event.latLng.lat(),
+                    lng: event.latLng.lng()
+                };
+                map.setCenter(currentLocation);
+                getNearbyRestaurants(service);
+            });
+        }
+
+        function searchLocation() {
+            const geocoder = new google.maps.Geocoder();
+            const address = document.getElementById('searchInput').value;
+            geocoder.geocode({ 'address': address }, function(results, status) {
+                if (status === 'OK') {
+                    currentLocation = {
+                        lat: results[0].geometry.location.lat(),
+                        lng: results[0].geometry.location.lng()
+                    };
+                    map.setCenter(currentLocation);
+                    getNearbyRestaurants(service);
+                } else {
+                    console.error('Geocode failed:', status);
+                    document.getElementById('debugList').innerHTML = `<div class="error">Geocode failed: ${status}</div>`;
+                }
+            });
+        }
+
+        function getNearbyRestaurants(myservice) {
+            if (!currentLocation) {
+                console.error('No current location set');
+                document.getElementById('debugList').innerHTML = '<div class="error">Please select a location first</div>';
+                return;
+            }
+
+            if (!myservice) {
+                console.error('Places service not initialized');
+                document.getElementById('debugList').innerHTML = '<div class="error">Places service not available - API loading issue</div>';
+                return;
+            }
+
+            // Clear existing markers
+            markers.forEach(marker => marker.setMap(null));
+            markers = [];
+            
+            const request = {
+                location: { lat: currentLocation.lat, lng: currentLocation.lng },
+                radius: '5000',
+                type: ['restaurant']
+            };
+
+            console.log('API Request:', request);
+            console.log('service', myservice);
+            
+            
+            myservice.nearbySearch(request, (results, status, pagination) => {
+                if (status === google.maps.places.PlacesServiceStatus.OK) {
+                    console.log('API Success - Found:', results.length, 'restaurants');
+                    const storedRestaurants = JSON.parse(localStorage.getItem('restaurants')) || [];
+                    restaurants = results.map(place => {
+                        try {
+                            return {
+                                id: place.place_id,
+                                name: place.name,
+                                address: place.vicinity,
+                                lat: place.geometry.location.lat(),
+                                lng: place.geometry.location.lng(),
+                                new: !storedRestaurants.some(r => r.id === place.place_id)
+                            };
+                        } catch (e) {
+                            console.error('Error processing place:', place, e);
+                            return null;
+                        }
+                    }).filter(r => r !== null);
+
+                    // Add markers
+                    restaurants.forEach(restaurant => {
+                        const marker = new google.maps.Marker({
+                            position: {lat: restaurant.lat, lng: restaurant.lng},
+                            map: map,
+                            title: restaurant.name
+                        });
+                        markers.push(marker);
+                    });
+
+                    localStorage.setItem('restaurants', JSON.stringify(restaurants));
+                    updateDebugList();
+                    pickRandomRestaurant();
+                } else {
+                    console.error('Places API failed:', status);
+                    let errorMsg = '';
+                    switch(status) {
+                        case google.maps.places.PlacesServiceStatus.ZERO_RESULTS:
+                            errorMsg = 'No restaurants found in this area';
+                            break;
+                        case google.maps.places.PlacesServiceStatus.INVALID_REQUEST:
+                            errorMsg = 'Invalid API request - check parameters';
+                            break;
+                        case google.maps.places.PlacesServiceStatus.OVER_QUERY_LIMIT:
+                            errorMsg = 'API quota exceeded';
+                            break;
+                        case google.maps.places.PlacesServiceStatus.REQUEST_DENIED:
+                            errorMsg = 'API request denied - check API key';
+                            break;
+                        default:
+                            errorMsg = `API error: ${status}`;
+                    }
+                    document.getElementById('debugList').innerHTML = `<div class="error">${errorMsg}</div>`;
+                }
+            });
+        }
+
+        function pickRandomRestaurant() {
+            const availableRestaurants = restaurants.filter(r => !hiddenRestaurants.includes(r.id));
+            if (availableRestaurants.length === 0) {
+                document.getElementById('currentPick').innerHTML = 'No restaurants available';
+                return;
+            }
+            currentRestaurant = availableRestaurants[Math.floor(Math.random() * availableRestaurants.length)];
+            displayCurrentPick();
+        }
+
+        function displayCurrentPick() {
+            if (currentRestaurant) {
+                const card = `
+                    <div class="restaurant-card ${currentRestaurant.new ? 'new-restaurant' : ''}">
+                        <h3>${currentRestaurant.name}</h3>
+                        <p>${currentRestaurant.address}</p>
+                    </div>
+                `;
+                document.getElementById('currentPick').innerHTML = card;
+            }
+        }
+
+        function markAsToday() {
+            if (currentRestaurant) {
+                history.unshift({
+                    ...currentRestaurant,
+                    date: new Date().toISOString().split('T')[0]
+                });
+                localStorage.setItem('eatHistory', JSON.stringify(history));
+                updateHistory();
+                currentRestaurant.new = false;
+                localStorage.setItem('restaurants', JSON.stringify(restaurants));
+            }
+        }
+
+        function nextRandom() {
+            pickRandomRestaurant();
+        }
+
+        function hideRestaurant() {
+            if (currentRestaurant) {
+                hiddenRestaurants.push(currentRestaurant.id);
+                localStorage.setItem('hiddenRestaurants', JSON.stringify(hiddenRestaurants));
+                const markerIndex = markers.findIndex(m => m.getTitle() === currentRestaurant.name);
+                if (markerIndex !== -1) {
+                    markers[markerIndex].setMap(null);
+                    markers.splice(markerIndex, 1);
+                }
+                pickRandomRestaurant();
+            }
+        }
+
+        function updateHistory() {
+            const historyDiv = document.getElementById('history');
+            historyDiv.innerHTML = history.map(h => `
+                <div class="restaurant-card">
+                    <h3>${h.name}</h3>
+                    <p>${h.address}</p>
+                    <p>Eaten on: ${h.date}</p>
+                </div>
+            `).join('');
+        }
+
+        function updateDebugList() {
+            const debugDiv = document.getElementById('debugList');
+            debugDiv.innerHTML = restaurants.map(r => `
+                <div>
+                    ${r.name} (${r.lat.toFixed(4)}, ${r.lng.toFixed(4)}) 
+                    ${r.new ? '[NEW]' : ''} 
+                    ${hiddenRestaurants.includes(r.id) ? '[HIDDEN]' : ''}
+                </div>
+            `).join('');
+        }
+
+        // Initialize
+        loadGoogleMaps();
+        updateHistory();
+    </script>
+</body>
+</html>
