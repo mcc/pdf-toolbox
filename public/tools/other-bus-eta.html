@@ -13,8 +13,9 @@
         }
         .header {
             display: flex;
-            justify-content: space-between;
             align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
             margin-bottom: 10px;
         }
         .container {
@@ -56,9 +57,18 @@
             height: 100%;
             width: 100%;
         }
-        button {
+        button, #refreshTimer {
             padding: 8px;
-            margin: 5px 0;
+            margin: 5px;
+            cursor: pointer;
+        }
+        #refreshTimer {
+            background-color: #f0f0f0;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        #refreshTimer:hover {
+            background-color: #e0e0e0;
         }
 
         @media (max-width: 768px) {
@@ -81,12 +91,11 @@
 </head>
 <body>
     <div class="header">
-        <div>
-            <button id="langToggle" onclick="toggleLanguage()">切換到英文</button>
-            <button id="shareBtn" onclick="shareRoute()">分享</button>
-        </div>
+        <h1 id="title" style="margin: 0;">九巴到站時間</h1>
+        <button id="langToggle" onclick="toggleLanguage()">切換到英文</button>
+        <button id="shareBtn" onclick="shareRoute()">分享</button>
+        <div id="refreshTimer" onclick="refreshETAs()">Refresh in 60s</div>
     </div>
-    <h1 id="title">九巴到站時間</h1>
     
     <div class="container">
         <div class="left-panel">
@@ -106,6 +115,8 @@
         let stops = [];
         let isChinese = true;
         let map, markers = [], infoWindows = [];
+        let refreshInterval, countdown = 60;
+        let currentRouteData = null; // Store current route data to avoid re-fetching
 
         const texts = {
             en: {
@@ -115,7 +126,8 @@
                 noETA: "No ETA available",
                 share: "Share",
                 next: "Next bus at",
-                secondNext: "2nd next bus at"
+                secondNext: "2nd next bus at",
+                refresh: "Refresh in"
             },
             zh: {
                 title: "九巴到站時間",
@@ -124,7 +136,8 @@
                 noETA: "無到站時間資料",
                 share: "分享",
                 next: "下班車於",
-                secondNext: "下下班車於"
+                secondNext: "下下班車於",
+                refresh: "刷新於"
             }
         };
 
@@ -151,6 +164,7 @@
 
         function updateRouteSelect() {
             const routeSelect = document.getElementById('routeSelect');
+            const currentValue = routeSelect.value;
             routeSelect.innerHTML = `<option value="">-- ${texts[isChinese ? 'zh' : 'en'].routeLabel} --</option>`;
             routes.forEach(route => {
                 const option = document.createElement('option');
@@ -158,6 +172,7 @@
                 option.textContent = `${route.route} (${route.bound === 'I' ? 'Inbound' : 'Outbound'}) - ${isChinese ? route.dest_tc : route.dest_en}`;
                 routeSelect.appendChild(option);
             });
+            routeSelect.value = currentValue; // Retain selected route
         }
 
         function toggleLanguage() {
@@ -167,8 +182,11 @@
             document.getElementById('routeLabel').textContent = texts[lang].routeLabel;
             document.getElementById('langToggle').textContent = texts[lang].toggle;
             document.getElementById('shareBtn').textContent = texts[lang].share;
+            updateRefreshTimerText();
             updateRouteSelect();
-            showETAs();
+            if (currentRouteData) {
+                renderRouteData(currentRouteData); // Re-render with current data
+            }
         }
 
         async function showETAs() {
@@ -180,6 +198,8 @@
             if (!routeNum) {
                 document.getElementById('results').innerHTML = '';
                 clearMarkers();
+                stopRefreshTimer();
+                currentRouteData = null;
                 return;
             }
 
@@ -188,78 +208,90 @@
                 const routeData = await routeResponse.json();
                 const routeStops = routeData.data.sort((a, b) => a.seq - b.seq);
 
-                const resultsDiv = document.getElementById('results');
-                resultsDiv.innerHTML = `<h2>${isChinese ? '巴士站及到站時間' : 'Bus Stops and ETA'} - ${routeNum}</h2>`;
-
-                clearMarkers();
+                const stopETAs = [];
                 const filteredStops = stops.filter(stop => routeStops.some(rs => rs.stop === stop.stop));
-                const urlParams = new URLSearchParams(window.location.search);
-                const highlightedStopId = urlParams.get('stop');
-
                 for (const routeStop of routeStops) {
                     const stop = filteredStops.find(s => s.stop === routeStop.stop);
                     const stopId = stop.stop;
                     const etaResponse = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/eta/${stopId}/${routeNum}/${serviceType}`);
-                    const etaData = await etaResponse.json(); // Fixed: Use etaResponse instead of response
-                    
-                    const stopDiv = document.createElement('div');
-                    stopDiv.className = 'stop';
-                    stopDiv.dataset.stopId = stopId;
-                    if (stopId === highlightedStopId) stopDiv.classList.add('highlighted');
-
-                    const matchingETAs = etaData.data
-                        .filter(eta => eta.dir === bound)
-                        .sort((a, b) => a.eta_seq - b.eta_seq);
-
-                    let etaInfo = isChinese ? texts.zh.noETA : texts.en.noETA;
-                    if (matchingETAs.length > 0) {
-                        const nextBus = matchingETAs.find(eta => eta.eta_seq === 1);
-                        const secondNextBus = matchingETAs.find(eta => eta.eta_seq === 2);
-                        
-                        let nextInfo = nextBus ? formatETA(nextBus) : '';
-                        let secondNextInfo = secondNextBus ? `${isChinese ? texts.zh.secondNext : texts.en.secondNext}: ${formatETA(secondNextBus)}` : '';
-                        etaInfo = nextInfo + (secondNextInfo ? '<br>' + secondNextInfo : '');
-                    }
-
-                    stopDiv.innerHTML = `
-                        <strong>${isChinese ? stop.name_tc : stop.name_en}</strong>
-                        <div>${etaInfo}</div>
-                    `;
-                    resultsDiv.appendChild(stopDiv);
-
-                    const marker = addMarker(
-                        { lat: parseFloat(stop.lat), lng: parseFloat(stop.long) },
-                        isChinese ? stop.name_tc : stop.name_en,
-                        stopId,
-                        etaInfo,
-                        stopId === highlightedStopId
-                    );
-
-                    stopDiv.onmouseover = () => {
-                        document.querySelectorAll('.stop').forEach(div => div.classList.remove('highlighted'));
-                        stopDiv.classList.add('highlighted');
-                        marker.setIcon('http://maps.google.com/mapfiles/ms/icons/yellow-dot.png');
-                        const latLng = new google.maps.LatLng(parseFloat(stop.lat), parseFloat(stop.long));
-                        if (!map.getBounds().contains(latLng)) {
-                            map.panTo(latLng);
-                        } else {
-                            map.panTo(latLng);
-                        }
-                    };
-                    stopDiv.onmouseout = () => {
-                        stopDiv.classList.remove('highlighted');
-                        marker.setIcon('http://maps.google.com/mapfiles/ms/icons/red-dot.png');
-                    };
-
-                    if (stopId === highlightedStopId) {
-                        map.panTo({ lat: parseFloat(stop.lat), lng: parseFloat(stop.long) });
-                        stopDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
+                    const etaData = await etaResponse.json();
+                    stopETAs.push({ stop, etaData });
                 }
+
+                currentRouteData = { routeNum, bound, routeStops, stopETAs };
+                renderRouteData(currentRouteData);
+                startRefreshTimer();
             } catch (error) {
                 console.error('Error fetching ETA data:', error);
                 document.getElementById('results').innerHTML = 'Error loading data';
             }
+        }
+
+        function renderRouteData(data) {
+            const { routeNum, bound, stopETAs } = data;
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = `<h2>${isChinese ? '巴士站及到站時間' : 'Bus Stops and ETA'} - ${routeNum}</h2>`;
+
+            clearMarkers();
+            const urlParams = new URLSearchParams(window.location.search);
+            const highlightedStopId = urlParams.get('stop');
+
+            stopETAs.forEach(({ stop, etaData }) => {
+                const stopId = stop.stop;
+                const stopDiv = document.createElement('div');
+                stopDiv.className = 'stop';
+                stopDiv.dataset.stopId = stopId;
+                if (stopId === highlightedStopId) stopDiv.classList.add('highlighted');
+
+                const matchingETAs = etaData.data
+                    .filter(eta => eta.dir === bound)
+                    .sort((a, b) => a.eta_seq - b.eta_seq);
+
+                let etaInfo = isChinese ? texts.zh.noETA : texts.en.noETA;
+                if (matchingETAs.length > 0) {
+                    const nextBus = matchingETAs.find(eta => eta.eta_seq === 1);
+                    const secondNextBus = matchingETAs.find(eta => eta.eta_seq === 2);
+                    
+                    let nextInfo = nextBus ? formatETA(nextBus) : '';
+                    let secondNextInfo = secondNextBus ? `${isChinese ? texts.zh.secondNext : texts.en.secondNext}: ${formatETA(secondNextBus)}` : '';
+                    etaInfo = nextInfo + (secondNextInfo ? '<br>' + secondNextInfo : '');
+                }
+
+                stopDiv.innerHTML = `
+                    <strong>${isChinese ? stop.name_tc : stop.name_en}</strong>
+                    <div>${etaInfo}</div>
+                `;
+                resultsDiv.appendChild(stopDiv);
+
+                const marker = addMarker(
+                    { lat: parseFloat(stop.lat), lng: parseFloat(stop.long) },
+                    isChinese ? stop.name_tc : stop.name_en,
+                    stopId,
+                    etaInfo,
+                    stopId === highlightedStopId
+                );
+
+                stopDiv.onmouseover = () => {
+                    document.querySelectorAll('.stop').forEach(div => div.classList.remove('highlighted'));
+                    stopDiv.classList.add('highlighted');
+                    marker.setIcon('http://maps.google.com/mapfiles/ms/icons/yellow-dot.png');
+                    const latLng = new google.maps.LatLng(parseFloat(stop.lat), parseFloat(stop.long));
+                    if (!map.getBounds().contains(latLng)) {
+                        map.panTo(latLng);
+                    } else {
+                        map.panTo(latLng);
+                    }
+                };
+                stopDiv.onmouseout = () => {
+                    stopDiv.classList.remove('highlighted');
+                    marker.setIcon('http://maps.google.com/mapfiles/ms/icons/red-dot.png');
+                };
+
+                if (stopId === highlightedStopId) {
+                    map.panTo({ lat: parseFloat(stop.lat), lng: parseFloat(stop.long) });
+                    stopDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }
+            });
         }
 
         function formatETA(bus) {
@@ -342,10 +374,43 @@
             }
         }
 
+        function startRefreshTimer() {
+            stopRefreshTimer();
+            countdown = 60;
+            updateRefreshTimerText();
+            refreshInterval = setInterval(() => {
+                countdown--;
+                if (countdown <= 0) {
+                    refreshETAs();
+                } else {
+                    updateRefreshTimerText();
+                }
+            }, 1000);
+        }
+
+        function stopRefreshTimer() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+                refreshInterval = null;
+            }
+            countdown = 60;
+            updateRefreshTimerText();
+        }
+
+        function updateRefreshTimerText() {
+            const refreshTimer = document.getElementById('refreshTimer');
+            refreshTimer.textContent = `${isChinese ? texts.zh.refresh : texts.en.refresh} ${countdown}s`;
+        }
+
+        function refreshETAs() {
+            countdown = 60;
+            showETAs();
+        }
+
         window.onload = async () => {
-            await Promise.all([loadRoutes(), loadStops()]); // Wait for both to complete
+            await Promise.all([loadRoutes(), loadStops()]);
             document.getElementById('shareBtn').textContent = texts.zh.share;
-            loadFromQueryString(); // Call after data is loaded
+            loadFromQueryString();
         };
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSdxYZf872NOwMc9eE4Xmr42mCRhKCZEA&callback=initMap" async defer></script>
