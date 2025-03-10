@@ -465,6 +465,8 @@
                 center: { lat: 22.3193, lng: 114.1694 },
                 zoom: 12
             });
+            const trafficLayer = new google.maps.TrafficLayer();
+            trafficLayer.setMap(map);
         }
 
         function addMarker(location, title, stopId, etaInfo, isHighlighted = false) {
