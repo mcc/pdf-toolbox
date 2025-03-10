@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HK Geodetic Converter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .section {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin: 5px 0;
+        }
+        input {
+            padding: 5px;
+            width: 200px;
+        }
+        button {
+            padding: 5px 10px;
+            margin-top: 10px;
+        }
+        #result {
+            margin-top: 10px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <h1>Hong Kong Geodetic Converter</h1>
+
+    <div class="section">
+        <h2>WGS84 to HK80 Grid</h2>
+        <label>Latitude (WGS84, degrees): <input type="number" step="any" id="wgs84Lat"></label>
+        <label>Longitude (WGS84, degrees): <input type="number" step="any" id="wgs84Lon"></label>
+        <label>Height (meters, optional): <input type="number" step="any" id="wgs84Height" value="0"></label>
+        <button onclick="convertWGS84ToHK80Grid()">Convert</button>
+        <div id="wgs84ToHK80Result"></div>
+    </div>
+
+    <div class="section">
+        <h2>HK80 Grid to WGS84</h2>
+        <label>Easting (HK80 Grid, meters): <input type="number" step="any" id="hk80Easting"></label>
+        <label>Northing (HK80 Grid, meters): <input type="number" step="any" id="hk80Northing"></label>
+        <label>Height (meters, optional): <input type="number" step="any" id="hk80Height" value="0"></label>
+        <button onclick="convertHK80GridToWGS84()">Convert</button>
+        <div id="hk80GridToWGS84Result"></div>
+    </div>
+
+    <div class="section">
+        <h2>Bookmarklet</h2>
+        <p>Drag this link to your bookmarks bar to convert Google Maps coordinates to HK80 Grid and open in Centamap:</p>
+        <a href="javascript:(function()%7Bjavascript%3A(function()%7B%0A%20%20%20%20const%20HKGeodeticConverter%3D%7B%0A%20%20%20%20%20%20%20%20WGS84_A%3A6378137%2CWGS84_F%3A1%2F298.257223563%2CHK80_A%3A6378388%2CHK80_F%3A1%2F297%2C%0A%20%20%20%20%20%20%20%20DX%3A-162.619%2CDY%3A-276.959%2CDZ%3A-171.599%2CFALSE_EASTING%3A836694.05%2CFALSE_NORTHING%3A819069.80%2C%0A%20%20%20%20%20%20%20%20CENTRAL_MERIDIAN%3A114%2B(10%2F60)%2B(42.846%2F3600)%2CLAT_ORIGIN%3A22%2B(18%2F60)%2B(43.68%2F3600)%2C%0A%20%20%20%20%20%20%20%20SCALE_FACTOR%3A1.0%2CEASTING_ADJUSTMENT%3A-512%2CNORTHING_ADJUSTMENT%3A200%2C%0A%20%20%20%20%20%20%20%20toRadians(deg)%7Breturn%20deg*Math.PI%2F180%3B%7D%2C%0A%20%20%20%20%20%20%20%20toDegrees(rad)%7Breturn%20rad*180%2FMath.PI%3B%7D%2C%0A%20%20%20%20%20%20%20%20wgs84ToHK80(lat%2Clon%2Cheight)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20phi%3Dthis.toRadians(lat)%3Bconst%20lambda%3Dthis.toRadians(lon)%3Bconst%20h%3Dheight%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20e2%3D2*this.WGS84_F-this.WGS84_F*this.WGS84_F%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20N%3Dthis.WGS84_A%2FMath.sqrt(1-e2*Math.sin(phi)*Math.sin(phi))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20X%3D(N%2Bh)*Math.cos(phi)*Math.cos(lambda)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20Y%3D(N%2Bh)*Math.cos(phi)*Math.sin(lambda)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20Z%3D(N*(1-e2)%2Bh)*Math.sin(phi)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20X_HK80%3DX%2Bthis.DX%3Bconst%20Y_HK80%3DY%2Bthis.DY%3Bconst%20Z_HK80%3DZ%2Bthis.DZ%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20e2_HK80%3D2*this.HK80_F-this.HK80_F*this.HK80_F%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20p%3DMath.sqrt(X_HK80*X_HK80%2BY_HK80*Y_HK80)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20theta%3DMath.atan2(Z_HK80*this.HK80_A%2Cp*(1-e2_HK80)*this.HK80_A)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20sinTheta%3DMath.sin(theta)%3Bconst%20cosTheta%3DMath.cos(theta)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20phi_HK80%3DMath.atan2(Z_HK80%2Be2_HK80*this.HK80_A*sinTheta*sinTheta*sinTheta%2Cp-e2_HK80*this.HK80_A*cosTheta*cosTheta*cosTheta)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20lambda_HK80%3DMath.atan2(Y_HK80%2CX_HK80)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20N_HK80%3Dthis.HK80_A%2FMath.sqrt(1-e2_HK80*Math.sin(phi_HK80)*Math.sin(phi_HK80))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20h_HK80%3Dp%2FMath.cos(phi_HK80)-N_HK80%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%7Blat%3Athis.toDegrees(phi_HK80)%2Clon%3Athis.toDegrees(lambda_HK80)%2Cheight%3Ah_HK80%7D%3B%0A%20%20%20%20%20%20%20%20%7D%2C%0A%20%20%20%20%20%20%20%20hk80ToHK80Grid(lat%2Clon)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20phi%3Dthis.toRadians(lat)%3Bconst%20lambda%3Dthis.toRadians(lon)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20lambda0%3Dthis.toRadians(this.CENTRAL_MERIDIAN)%3Bconst%20phi0%3Dthis.toRadians(this.LAT_ORIGIN)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20e2%3D2*this.HK80_F-this.HK80_F*this.HK80_F%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20N%3Dthis.HK80_A%2FMath.sqrt(1-e2*Math.sin(phi)*Math.sin(phi))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20T%3DMath.tan(phi)*Math.tan(phi)%3Bconst%20C%3De2%2F(1-e2)*Math.cos(phi)*Math.cos(phi)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20A%3D(lambda-lambda0)*Math.cos(phi)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20M%3Dthis.HK80_A*((1-e2%2F4-3*e2*e2%2F64-5*e2*e2*e2%2F256)*phi-(3*e2%2F8%2B3*e2*e2%2F32%2B45*e2*e2*e2%2F1024)*Math.sin(2*phi)%2B(15*e2*e2%2F256%2B45*e2*e2*e2%2F1024)*Math.sin(4*phi)-(35*e2*e2*e2%2F3072)*Math.sin(6*phi))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20M0%3Dthis.HK80_A*((1-e2%2F4-3*e2*e2%2F64-5*e2*e2*e2%2F256)*phi0-(3*e2%2F8%2B3*e2*e2%2F32%2B45*e2*e2*e2%2F1024)*Math.sin(2*phi0)%2B(15*e2*e2%2F256%2B45*e2*e2*e2%2F1024)*Math.sin(4*phi0)-(35*e2*e2*e2%2F3072)*Math.sin(6*phi0))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20easting%3Dthis.FALSE_EASTING%2Bthis.SCALE_FACTOR*N*(A%2B(1-T%2BC)*A*A*A%2F6%2B(5-18*T%2BT*T%2B72*C-58*e2)*A*A*A*A*A%2F120)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20northing%3Dthis.FALSE_NORTHING%2Bthis.SCALE_FACTOR*(M-M0%2BN*Math.tan(phi)*(A*A%2F2%2B(5-T%2B9*C%2B4*C*C)*A*A*A*A%2F24%2B(61-58*T%2BT*T%2B600*C-330*e2)*A*A*A*A*A*A%2F720))%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%7Beasting%2Cnorthing%7D%3B%0A%20%20%20%20%20%20%20%20%7D%2C%0A%20%20%20%20%20%20%20%20wgs84ToHK80Grid(lat%2Clon%2Cheight)%7B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20hk80%3Dthis.wgs84ToHK80(lat%2Clon%2Cheight)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20const%20grid%3Dthis.hk80ToHK80Grid(hk80.lat%2Chk80.lon)%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20grid.easting%2B%3Dthis.EASTING_ADJUSTMENT%3Bgrid.northing%2B%3Dthis.NORTHING_ADJUSTMENT%3B%0A%20%20%20%20%20%20%20%20%20%20%20%20return%20grid%3B%0A%20%20%20%20%20%20%20%20%7D%0A%20%20%20%20%7D%3B%0A%20%20%20%20const%20url%3Dwindow.location.href%3B%0A%20%20%20%20const%20match%3Durl.match(%2F%40(-%3F%5Cd%2B%5C.%5Cd%2B)%2C(-%3F%5Cd%2B%5C.%5Cd%2B)%2F)%3B%0A%20%20%20%20if(!match)%7Balert('Please%20open%20a%20Google%20Maps%20URL%20with%20coordinates%20(e.g.%2C%20https%3A%2F%2Fwww.google.com%2Fmaps%2F%4022.3193%2C114.1694%2C15z)')%3Breturn%3B%7D%0A%20%20%20%20const%20lat%3DparseFloat(match%5B1%5D)%3Bconst%20lon%3DparseFloat(match%5B2%5D)%3B%0A%20%20%20%20const%20hk80%3DHKGeodeticConverter.wgs84ToHK80Grid(lat%2Clon%2C0)%3B%0A%20%20%20%20const%20centamapUrl%3D%60http%3A%2F%2Fhk.centamap.com%2Fgc%2Fhome.aspx%3Fx%3D%24%7Bhk80.easting%7D%26y%3D%24%7Bhk80.northing%7D%26sx%3D%24%7Bhk80.easting%7D%26sy%3D%24%7Bhk80.northing%7D%26z%3D4%26lg%3Db5%60%3B%0A%20%20%20%20window.open(centamapUrl%2C'_blank')%3B%0A%7D)()%3B%7D)()%3B">Google Maps to Centamap</a>
+    </div>
+
+    <script>
+        window.HKGeodeticConverter = {
+            WGS84_A: 6378137,
+            WGS84_F: 1 / 298.257223563,
+            HK80_A: 6378388,
+            HK80_F: 1 / 297,
+            DX: -162.619,
+            DY: -276.959,
+            DZ: -171.599,
+            FALSE_EASTING: 836694.05,
+            FALSE_NORTHING: 819069.80,
+            CENTRAL_MERIDIAN: 114 + (10 / 60) + (42.846 / 3600),
+            LAT_ORIGIN: 22 + (18 / 60) + (43.68 / 3600),
+            SCALE_FACTOR: 1.0,
+            EASTING_ADJUSTMENT: -512,
+            NORTHING_ADJUSTMENT: 200,
+
+            toRadians(deg) {
+                return deg * Math.PI / 180;
+            },
+
+            toDegrees(rad) {
+                return rad * 180 / Math.PI;
+            },
+
+            wgs84ToHK80(lat, lon, height) {
+                const phi = this.toRadians(lat);
+                const lambda = this.toRadians(lon);
+                const h = height;
+                const e2 = 2 * this.WGS84_F - this.WGS84_F * this.WGS84_F;
+                const N = this.WGS84_A / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi));
+                const X = (N + h) * Math.cos(phi) * Math.cos(lambda);
+                const Y = (N + h) * Math.cos(phi) * Math.sin(lambda);
+                const Z = (N * (1 - e2) + h) * Math.sin(phi);
+                const X_HK80 = X + this.DX;
+                const Y_HK80 = Y + this.DY;
+                const Z_HK80 = Z + this.DZ;
+                const e2_HK80 = 2 * this.HK80_F - this.HK80_F * this.HK80_F;
+                const p = Math.sqrt(X_HK80 * X_HK80 + Y_HK80 * Y_HK80);
+                const theta = Math.atan2(Z_HK80 * this.HK80_A, p * (1 - e2_HK80) * this.HK80_A);
+                const sinTheta = Math.sin(theta);
+                const cosTheta = Math.cos(theta);
+                const phi_HK80 = Math.atan2(
+                    Z_HK80 + e2_HK80 * this.HK80_A * sinTheta * sinTheta * sinTheta,
+                    p - e2_HK80 * this.HK80_A * cosTheta * cosTheta * cosTheta
+                );
+                const lambda_HK80 = Math.atan2(Y_HK80, X_HK80);
+                const N_HK80 = this.HK80_A / Math.sqrt(1 - e2_HK80 * Math.sin(phi_HK80) * Math.sin(phi_HK80));
+                const h_HK80 = p / Math.cos(phi_HK80) - N_HK80;
+                return { lat: this.toDegrees(phi_HK80), lon: this.toDegrees(lambda_HK80), height: h_HK80 };
+            },
+
+            hk80ToHK80Grid(lat, lon) {
+                const phi = this.toRadians(lat);
+                const lambda = this.toRadians(lon);
+                const lambda0 = this.toRadians(this.CENTRAL_MERIDIAN);
+                const phi0 = this.toRadians(this.LAT_ORIGIN);
+                const e2 = 2 * this.HK80_F - this.HK80_F * this.HK80_F;
+                const N = this.HK80_A / Math.sqrt(1 - e2 * Math.sin(phi) * Math.sin(phi));
+                const T = Math.tan(phi) * Math.tan(phi);
+                const C = e2 / (1 - e2) * Math.cos(phi) * Math.cos(phi);
+                const A = (lambda - lambda0) * Math.cos(phi);
+                const M = this.HK80_A * (
+                    (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi -
+                    (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi) +
+                    (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi) -
+                    (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi)
+                );
+                const M0 = this.HK80_A * (
+                    (1 - e2 / 4 - 3 * e2 * e2 / 64 - 5 * e2 * e2 * e2 / 256) * phi0 -
+                    (3 * e2 / 8 + 3 * e2 * e2 / 32 + 45 * e2 * e2 * e2 / 1024) * Math.sin(2 * phi0) +
+                    (15 * e2 * e2 / 256 + 45 * e2 * e2 * e2 / 1024) * Math.sin(4 * phi0) -
+                    (35 * e2 * e2 * e2 / 3072) * Math.sin(6 * phi0)
+                );
+                const easting = this.FALSE_EASTING + this.SCALE_FACTOR * N * (
+                    A + (1 - T + C) * A * A * A / 6 +
+                    (5 - 18 * T + T * T + 72 * C - 58 * e2) * A * A * A * A * A / 120
+                );
+                const northing = this.FALSE_NORTHING + this.SCALE_FACTOR * (
+                    M - M0 + N * Math.tan(phi) * (
+                        A * A / 2 +
+                        (5 - T + 9 * C + 4 * C * C) * A * A * A * A / 24 +
+                        (61 - 58 * T + T * T + 600 * C - 330 * e2) * A * A * A * A * A * A / 720
+                    )
+                );
+                return { easting, northing };
+            },
+
+            wgs84ToHK80Grid(lat, lon, height) {
+                const hk80 = this.wgs84ToHK80(lat, lon, height);
+                const grid = this.hk80ToHK80Grid(hk80.lat, hk80.lon);
+                grid.easting += this.EASTING_ADJUSTMENT;
+                grid.northing += this.NORTHING_ADJUSTMENT;
+                return grid;
+            },
+
+            hk80GridToHK80(easting, northing) {
+                const e2 = 2 * this.HK80_F - this.HK80_F * this.HK80_F;
+                const e4 = e2 * e2;
+                const e6 = e4 * e2;
+                const phi0 = this.toRadians(this.LAT_ORIGIN);
+                const M0 = this.HK80_A * (
+                    (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256) * phi0 -
+                    (3 * e2 / 8 + 3 * e4 / 32 + 45 * e6 / 1024) * Math.sin(2 * phi0) +
+                    (15 * e4 / 256 + 45 * e6 / 1024) * Math.sin(4 * phi0) -
+                    (35 * e6 / 3072) * Math.sin(6 * phi0)
+                );
+                const x = easting - this.FALSE_EASTING;
+                const y = northing - this.FALSE_NORTHING;
+                const M = M0 + y / this.SCALE_FACTOR;
+                const mu = M / (this.HK80_A * (1 - e2 / 4 - 3 * e4 / 64 - 5 * e6 / 256));
+                const e1 = (1 - Math.sqrt(1 - e2)) / (1 + Math.sqrt(1 - e2));
+                let phi1 = mu +
+                    (3 * e1 / 2 - 27 * e1 * e1 * e1 / 32) * Math.sin(2 * mu) +
+                    (21 * e1 * e1 / 16 - 55 * e1 * e1 * e1 * e1 / 32) * Math.sin(4 * mu) +
+                    (151 * e1 * e1 * e1 / 96) * Math.sin(6 * mu);
+                const N1 = this.HK80_A / Math.sqrt(1 - e2 * Math.sin(phi1) * Math.sin(phi1));
+                const T1 = Math.tan(phi1) * Math.tan(phi1);
+                const C1 = e2 / (1 - e2) * Math.cos(phi1) * Math.cos(phi1);
+                const R1 = this.HK80_A * (1 - e2) / Math.pow(1 - e2 * Math.sin(phi1) * Math.sin(phi1), 1.5);
+                const D = x / (N1 * this.SCALE_FACTOR);
+                const phi = phi1 - (N1 * Math.tan(phi1) / R1) * (
+                    D * D / 2 -
+                    (5 + 3 * T1 + 10 * C1 - 4 * C1 * C1 - 9 * e2) * D * D * D * D / 24 +
+                    (61 + 90 * T1 + 298 * C1 + 45 * T1 * T1 - 252 * e2 - 3 * C1 * C1) * D * D * D * D * D * D / 720
+                );
+                const lambda0 = this.toRadians(this.CENTRAL_MERIDIAN);
+                const lambda = lambda0 + (
+                    D -
+                    (1 + 2 * T1 + C1) * D * D * D / 6 +
+                    (5 - 2 * C1 + 28 * T1 - 3 * C1 * C1 + 8 * e2 + 24 * T1 * T1) * D * D * D * D * D / 120
+                ) / Math.cos(phi1);
+                return { lat: this.toDegrees(phi), lon: this.toDegrees(lambda) };
+            },
+
+            hk80ToWGS84(lat, lon, height) {
+                const phi = this.toRadians(lat);
+                const lambda = this.toRadians(lon);
+                const h = height;
+                const e2_HK80 = 2 * this.HK80_F - this.HK80_F * this.HK80_F;
+                const N = this.HK80_A / Math.sqrt(1 - e2_HK80 * Math.sin(phi) * Math.sin(phi));
+                const X_HK80 = (N + h) * Math.cos(phi) * Math.cos(lambda);
+                const Y_HK80 = (N + h) * Math.cos(phi) * Math.sin(lambda);
+                const Z_HK80 = (N * (1 - e2_HK80) + h) * Math.sin(phi);
+                const X = X_HK80 - this.DX;
+                const Y = Y_HK80 - this.DY;
+                const Z = Z_HK80 - this.DZ;
+                const e2_WGS84 = 2 * this.WGS84_F - this.WGS84_F * this.WGS84_F;
+                const p = Math.sqrt(X * X + Y * Y);
+                const theta = Math.atan2(Z * this.WGS84_A, p * (1 - e2_WGS84) * this.WGS84_A);
+                const sinTheta = Math.sin(theta);
+                const cosTheta = Math.cos(theta);
+                const phi_WGS84 = Math.atan2(
+                    Z + e2_WGS84 * this.WGS84_A * sinTheta * sinTheta * sinTheta,
+                    p - e2_WGS84 * this.WGS84_A * cosTheta * cosTheta * cosTheta
+                );
+                const lambda_WGS84 = Math.atan2(Y, X);
+                const N_WGS84 = this.WGS84_A / Math.sqrt(1 - e2_WGS84 * Math.sin(phi_WGS84) * Math.sin(phi_WGS84));
+                const h_WGS84 = p / Math.cos(phi_WGS84) - N_WGS84;
+                return { lat: this.toDegrees(phi_WGS84), lon: this.toDegrees(lambda_WGS84), height: h_WGS84 };
+            },
+
+            hk80GridToWGS84(easting, northing, height = 0) {
+                const adjustedEasting = easting - this.EASTING_ADJUSTMENT;
+                const adjustedNorthing = northing - this.NORTHING_ADJUSTMENT;
+                const hk80 = this.hk80GridToHK80(adjustedEasting, adjustedNorthing);
+                return this.hk80ToWGS84(hk80.lat, hk80.lon, height);
+            }
+        };
+
+        function convertWGS84ToHK80Grid() {
+            const lat = parseFloat(document.getElementById('wgs84Lat').value);
+            const lon = parseFloat(document.getElementById('wgs84Lon').value);
+            const height = parseFloat(document.getElementById('wgs84Height').value) || 0;
+
+            if (isNaN(lat) || isNaN(lon)) {
+                document.getElementById('wgs84ToHK80Result').innerText = "Please enter valid latitude and longitude.";
+                return;
+            }
+
+            try {
+                const result = HKGeodeticConverter.wgs84ToHK80Grid(lat, lon, height);
+                document.getElementById('wgs84ToHK80Result').innerText = 
+                    `HK80 Grid: Easting = ${result.easting.toFixed(3)} m, Northing = ${result.northing.toFixed(3)} m`;
+            } catch (error) {
+                document.getElementById('wgs84ToHK80Result').innerText = "Error in conversion: " + error.message;
+            }
+        }
+
+        function convertHK80GridToWGS84() {
+            const easting = parseFloat(document.getElementById('hk80Easting').value);
+            const northing = parseFloat(document.getElementById('hk80Northing').value);
+            const height = parseFloat(document.getElementById('hk80Height').value) || 0;
+
+            if (isNaN(easting) || isNaN(northing)) {
+                document.getElementById('hk80GridToWGS84Result').innerText = "Please enter valid easting and northing.";
+                return;
+            }
+
+            try {
+                const result = HKGeodeticConverter.hk80GridToWGS84(easting, northing, height);
+                document.getElementById('hk80GridToWGS84Result').innerText = 
+                    `WGS84: Latitude = ${result.lat.toFixed(6)}°, Longitude = ${result.lon.toFixed(6)}°, Height = ${result.height.toFixed(3)} m`;
+            } catch (error) {
+                document.getElementById('hk80GridToWGS84Result').innerText = "Error in conversion: " + error.message;
+            }
+        }
+    </script>
+</body>
+</html>
