@@ -4,7 +4,7 @@ const CONFIG_POKEMON_NAMING_THEMES =
             "themeName": "Pokemon Names",
             "givenNameList": [
                 {
-                  "chinese": " ember靈 (Yú líng)",
+                  "chinese": "余靈",
                   "english": "Yu Ling Emberlyte"
                 },
                 {
