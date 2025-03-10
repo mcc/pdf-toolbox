@@ -1,0 +1,102 @@
+[
+    {
+        "english_name": "Alice",
+        "cantonese": "愛麗絲",
+        "jyutping": "Oi3 Lai6 Si1"
+    },
+    {
+        "english_name": "Benjamin",
+        "cantonese": "班傑明",
+        "jyutping": "Baan1 Git6 Ming4"
+    },
+    {
+        "english_name": "Charlotte",
+        "cantonese": "夏洛特",
+        "jyutping": "Ha6 Lok3 Tak1"
+    },
+    {
+        "english_name": "David",
+        "cantonese": "大衛",
+        "jyutping": "Daai6 Wai6"
+    },
+    {
+        "english_name": "Emily",
+        "cantonese": "艾美麗",
+        "jyutping": "Ngaai6 Mei5 Lai6"
+    },
+    {
+        "english_name": "Frank",
+        "cantonese": "法蘭克",
+        "jyutping": "Faat3 Laan4 Hak1"
+    },
+    {
+        "english_name": "Grace",
+        "cantonese": "格蕾絲",
+        "jyutping": "Gaak3 Leoi6 Si1"
+    },
+    {
+        "english_name": "Henry",
+        "cantonese": "亨利",
+        "jyutping": "Hang1 Lei6"
+    },
+    {
+        "english_name": "Isabella",
+        "cantonese": "伊莎貝拉",
+        "jyutping": "Ji1 Saa1 Bui3 Laai1"
+    },
+    {
+        "english_name": "James",
+        "cantonese": "詹姆斯",
+        "jyutping": "Zim1 Muk6 Si1"
+    },
+    {
+        "english_name": "Katherine",
+        "cantonese": "凱瑟琳",
+        "jyutping": "Hoi2 Sit3 Lam4"
+    },
+    {
+        "english_name": "Liam",
+        "cantonese": "利安",
+        "jyutping": "Lei6 On1"
+    },
+    {
+        "english_name": "Michael",
+        "cantonese": "邁克爾",
+        "jyutping": "Maai6 Hak1 Ji5"
+    },
+    {
+        "english_name": "Natalie",
+        "cantonese": "娜塔莉",
+        "jyutping": "Naap6 Taap3 Lei4"
+    },
+    {
+        "english_name": "Oliver",
+        "cantonese": "奧利弗",
+        "jyutping": "Ou3 Lei6 Fat1"
+    },
+    {
+        "english_name": "Penelope",
+        "cantonese": "佩內洛普",
+        "jyutping": "Pui3 Noi6 Lok3 Pou2"
+    },
+    {
+        "english_name": "Quentin",
+        "cantonese": "昆廷",
+        "jyutping": "Kwan1 Ting4"
+    },
+    {
+        "english_name": "Rose",
+        "cantonese": "羅絲",
+        "jyutping": "Lo4 Si1"
+    },
+    {
+        "english_name": "Samuel",
+        "cantonese": "森姆爾",
+        "jyutping": "Sam1 Mou5 Ji5"
+    },
+    {
+        "english_name": "Victoria",
+        "cantonese": "維多利亞",
+        "jyutping": "Wai4 Do1 Lei6 Aa3"
+    }
+]

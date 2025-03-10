@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>JSON Merger with Chinese Conversion</title>
-    <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/full.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/opencc-js@1.0.5/dist/umd/opencc-js.min.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -40,7 +40,6 @@
     <button onclick="downloadResult()">Download as JSON</button>
 
     <script>
-        // Function to wait for OpenCC to load
         function waitForOpenCC() {
             return new Promise((resolve, reject) => {
                 const maxAttempts = 50;
@@ -64,7 +63,6 @@
         let processedData = null;
         let converter = null;
 
-        // Initialize everything after OpenCC loads
         waitForOpenCC()
             .then(OpenCC => {
                 converter = OpenCC.Converter({ from: 'cn', to: 'tw' });
@@ -72,8 +70,7 @@
             })
             .catch(error => {
                 console.error(error);
-                // Fallback: proceed without conversion if OpenCC fails
-                converter = text => text; // Identity function
+                converter = text => text;
                 initializeFunctions();
                 document.getElementById('output').textContent = 
                     'Warning: Chinese conversion not available - OpenCC failed to load. Proceeding with original text.';
@@ -88,6 +85,7 @@
 
                 function capitalizeAndNormalize(str) {
                     return str
+                        .trim() // Trim leading/trailing spaces
                         .normalize('NFD')
                         .replace(/[\u0300-\u036f]/g, '')
                         .split(' ')
@@ -95,26 +93,43 @@
                         .join(' ');
                 }
 
-                const simplifiedChinese = normalizeChineseName(item.chinese_name);
-                const chinese = converter(simplifiedChinese); // Use converter (or fallback)
-                
-                const pinyinMatch = item.chinese_name.match(/\((.*?)\)/);
-                const pinyin = pinyinMatch ? pinyinMatch[1].replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, match => {
-                    const tones = {
-                        'ā': 'a', 'á': 'a', 'ǎ': 'a', 'à': 'a',
-                        'ē': 'e', 'é': 'e', 'ě': 'e', 'è': 'e',
-                        'ī': 'i', 'í': 'i', 'ǐ': 'i', 'ì': 'i',
-                        'ō': 'o', 'ó': 'o', 'ǒ': 'o', 'ò': 'o',
-                        'ū': 'u', 'ú': 'u', 'ǔ': 'u', 'ù': 'u',
-                        'ǖ': 'u', 'ǘ': 'u', 'ǚ': 'u', 'ǜ': 'u'
-                    };
-                    return tones[match] || match;
-                }) : '';
-                
-                const englishName = `${pinyin} ${item.name}`;
-                const normalizedEnglish = capitalizeAndNormalize(englishName);
+                let chinese, english;
 
-                return { chinese, english: normalizedEnglish };
+                // Original format
+                if (item.chinese_name) {
+                    const simplifiedChinese = normalizeChineseName(item.chinese_name);
+                    chinese = converter(simplifiedChinese);
+                    
+                    const pinyinMatch = item.chinese_name.match(/\((.*?)\)/);
+                    const pinyin = pinyinMatch ? pinyinMatch[1].replace(/[āáǎàēéěèīíǐìōóǒòūúǔùǖǘǚǜ]/g, match => {
+                        const tones = {
+                            'ā': 'a', 'á': 'a', 'ǎ': 'a', 'à': 'a',
+                            'ē': 'e', 'é': 'e', 'ě': 'e', 'è': 'e',
+                            'ī': 'i', 'í': 'i', 'ǐ': 'i', 'ì': 'i',
+                            'ō': 'o', 'ó': 'o', 'ǒ': 'o', 'ò': 'o',
+                            'ū': 'u', 'ú': 'u', 'ǔ': 'u', 'ù': 'u',
+                            'ǖ': 'u', 'ǘ': 'u', 'ǚ': 'u', 'ǜ': 'u'
+                        };
+                        return tones[match] || match;
+                    }) : '';
+                    english = capitalizeAndNormalize(`${pinyin} ${item.name}`);
+                }
+                // Second format
+                else if (item.chinese && item.romanisation) {
+                    chinese = converter(item.chinese);
+                    english = capitalizeAndNormalize(item.romanisation);
+                }
+                // New format
+                else if (item.kanji && item.meaning) {
+                    chinese = converter(item.kanji);
+                    // Take text before '/' if present
+                    const meaningParts = item.meaning.split('/');
+                    english = capitalizeAndNormalize(meaningParts[0]);
+                } else {
+                    throw new Error('Unsupported JSON format');
+                }
+
+                return { chinese, english };
             }
 
             window.processFiles = async function() {
@@ -133,7 +148,10 @@
                     for (const file of files) {
                         const text = await file.text();
                         const jsonData = JSON.parse(text);
-                        const convertedData = jsonData.map(item => normalizeAndConvert(item));
+                        
+                        // Handle both array and object with "names" property
+                        let itemsToProcess = Array.isArray(jsonData) ? jsonData : jsonData.names || [];
+                        const convertedData = itemsToProcess.map(item => normalizeAndConvert(item));
                         allData.push(...convertedData);
                     }
 

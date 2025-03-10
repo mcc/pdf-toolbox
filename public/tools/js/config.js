@@ -1,25 +1,10 @@
 
 // Naming themes
 let temp = {
-    themes: [
-        {
-            "themeName": "Hong Kong Common Names",
-            "givenNameList": [
-                { chinese: "偉文A", english: "Wai Man" },
-                { chinese: "美玲A", english: "Mei Ling" },
-                { chinese: "家豪A", english: "Ka Ho" }
-            ],
-            "surnameList": [
-                { chinese: "陳", english: "Chan" },
-                { chinese: "李", english: "Lee" },
-                { chinese: "張", english: "Cheung" }
-            ]
-        }
-        ,
-        
-    ]
+    themes: []
 };
 temp.themes =  temp.themes.concat(CONFIG_POKEMON_NAMING_THEMES);
+temp.themes =  temp.themes.concat(CONFIG_HONG_KONG_COMMON_NAMING_THEMES);
 const CONFIG_NAMING_THEMES = temp;
 console.log(CONFIG_NAMING_THEMES)
 // Mutator lists

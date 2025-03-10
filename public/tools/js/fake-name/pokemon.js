@@ -1677,9 +1677,1066 @@ const CONFIG_POKEMON_NAMING_THEMES =
                 }
               ],
             "surnameList": [
-                { chinese: "陳", english: "Chan" },
-                { chinese: "李", english: "Lee" },
-                { chinese: "張", english: "Cheung" }
-            ]
+  {
+    "chinese": "刀神",
+    "english": "Blade God"
+  },
+  {
+    "chinese": "刀聖",
+    "english": "Blade Saint"
+  },
+  {
+    "chinese": "刃星",
+    "english": "Blade Star"
+  },
+  {
+    "chinese": "刃風",
+    "english": "Blade Wind"
+  },
+  {
+    "chinese": "刃嵐",
+    "english": "Blade Storm"
+  },
+  {
+    "chinese": "刃雷",
+    "english": "Blade Thunder"
+  },
+  {
+    "chinese": "刃龍",
+    "english": "Blade Dragon"
+  },
+  {
+    "chinese": "天刃",
+    "english": "Heavenly Blade"
+  },
+  {
+    "chinese": "天星",
+    "english": "Heavenly Star"
+  },
+  {
+    "chinese": "天皇",
+    "english": "Heavenly Emperor"
+  },
+  {
+    "chinese": "天嵐",
+    "english": "Heavenly Storm"
+  },
+  {
+    "chinese": "天翔",
+    "english": "Sky Soaring"
+  },
+  {
+    "chinese": "天雷",
+    "english": "Heavenly Thunder"
+  },
+  {
+    "chinese": "天罰",
+    "english": "Heavenly Punishment"
+  },
+  {
+    "chinese": "天龍",
+    "english": "Heavenly Dragon"
+  },
+  {
+    "chinese": "幻刃",
+    "english": "Phantom Blade"
+  },
+  {
+    "chinese": "幻星",
+    "english": "Phantom Star"
+  },
+  {
+    "chinese": "幻術",
+    "english": "Illusion Technique"
+  },
+  {
+    "chinese": "幻嵐",
+    "english": "Phantom Storm"
+  },
+  {
+    "chinese": "幻雷",
+    "english": "Phantom Thunder"
+  },
+  {
+    "chinese": "幻影",
+    "english": "Phantom"
+  },
+  {
+    "chinese": "幻龍",
+    "english": "Phantom Dragon"
+  },
+  {
+    "chinese": "水刃",
+    "english": "Water Blade"
+  },
+  {
+    "chinese": "水月",
+    "english": "Water Moon"
+  },
+  {
+    "chinese": "水神",
+    "english": "Water God"
+  },
+  {
+    "chinese": "世一",
+    "english": "World’s Best"
+  },
+  {
+    "chinese": "氷刃",
+    "english": "Ice Blade"
+  },
+  {
+    "chinese": "氷河",
+    "english": "Ice River"
+  },
+  {
+    "chinese": "氷星",
+    "english": "Ice Star"
+  },
+  {
+    "chinese": "氷嵐",
+    "english": "Ice Storm"
+  },
+  {
+    "chinese": "氷雷",
+    "english": "Ice Thunder"
+  },
+  {
+    "chinese": "氷龍",
+    "english": "Ice Dragon"
+  },
+  {
+    "chinese": "永遠",
+    "english": "Eternity"
+  },
+  {
+    "chinese": "玄武",
+    "english": "Black Tortoise"
+  },
+  {
+    "chinese": "白虎",
+    "english": "White Tiger"
+  },
+  {
+    "chinese": "白龍",
+    "english": "White Dragon"
+  },
+  {
+    "chinese": "光翼",
+    "english": "Light Wings"
+  },
+  {
+    "chinese": "朱雀",
+    "english": "Vermilion Bird"
+  },
+  {
+    "chinese": "次元",
+    "english": "Dimension"
+  },
+  {
+    "chinese": "至高",
+    "english": "Supreme"
+  },
+  {
+    "chinese": "血刃",
+    "english": "Blood Blade"
+  },
+  {
+    "chinese": "血牙",
+    "english": "Blood Fang"
+  },
+  {
+    "chinese": "血星",
+    "english": "Blood Star"
+  },
+  {
+    "chinese": "血嵐",
+    "english": "Blood Storm"
+  },
+  {
+    "chinese": "血雷",
+    "english": "Blood Thunder"
+  },
+  {
+    "chinese": "血潮",
+    "english": "Blood Tide"
+  },
+  {
+    "chinese": "血龍",
+    "english": "Blood Dragon"
+  },
+  {
+    "chinese": "乱舞",
+    "english": "Wild Dance"
+  },
+  {
+    "chinese": "希望",
+    "english": "Hope"
+  },
+  {
+    "chinese": "忍術",
+    "english": "Ninja Technique"
+  },
+  {
+    "chinese": "迅雷",
+    "english": "Swift Thunder"
+  },
+  {
+    "chinese": "刺客",
+    "english": "Assassin"
+  },
+  {
+    "chinese": "始源",
+    "english": "Origin"
+  },
+  {
+    "chinese": "炎刃",
+    "english": "Flame Blade"
+  },
+  {
+    "chinese": "炎爪",
+    "english": "Flame Claw"
+  },
+  {
+    "chinese": "炎牙",
+    "english": "Flame Fang"
+  },
+  {
+    "chinese": "炎虎",
+    "english": "Flame Tiger"
+  },
+  {
+    "chinese": "炎帝",
+    "english": "Flame Emperor"
+  },
+  {
+    "chinese": "炎星",
+    "english": "Flame Star"
+  },
+  {
+    "chinese": "炎神",
+    "english": "Flame God"
+  },
+  {
+    "chinese": "炎嵐",
+    "english": "Flame Storm"
+  },
+  {
+    "chinese": "炎雷",
+    "english": "Flame Thunder"
+  },
+  {
+    "chinese": "炎龍",
+    "english": "Flame Dragon"
+  },
+  {
+    "chinese": "青龍",
+    "english": "Azure Dragon"
+  },
+  {
+    "chinese": "星刃",
+    "english": "Star Blade"
+  },
+  {
+    "chinese": "星光",
+    "english": "Starlight"
+  },
+  {
+    "chinese": "星辰",
+    "english": "Stars"
+  },
+  {
+    "chinese": "星空",
+    "english": "Starry Sky"
+  },
+  {
+    "chinese": "星嵐",
+    "english": "Star Storm"
+  },
+  {
+    "chinese": "星雲",
+    "english": "Nebula"
+  },
+  {
+    "chinese": "星雷",
+    "english": "Star Thunder"
+  },
+  {
+    "chinese": "星輝",
+    "english": "Star Brilliance"
+  },
+  {
+    "chinese": "星龍",
+    "english": "Star Dragon"
+  },
+  {
+    "chinese": "流星",
+    "english": "Meteor"
+  },
+  {
+    "chinese": "紅月",
+    "english": "Crimson Moon"
+  },
+  {
+    "chinese": "紅嵐",
+    "english": "Crimson Storm"
+  },
+  {
+    "chinese": "紅蓮",
+    "english": "Crimson Lotus"
+  },
+  {
+    "chinese": "風刃",
+    "english": "Wind Blade"
+  },
+  {
+    "chinese": "風星",
+    "english": "Wind Star"
+  },
+  {
+    "chinese": "風神",
+    "english": "Wind God"
+  },
+  {
+    "chinese": "風嵐",
+    "english": "Wind Storm"
+  },
+  {
+    "chinese": "風雷",
+    "english": "Wind Thunder"
+  },
+  {
+    "chinese": "風龍",
+    "english": "Wind Dragon"
+  },
+  {
+    "chinese": "風魔",
+    "english": "Wind Demon"
+  },
+  {
+    "chinese": "修羅",
+    "english": "Warrior Of Carnage"
+  },
+  {
+    "chinese": "冥王",
+    "english": "Underworld King"
+  },
+  {
+    "chinese": "剛剣",
+    "english": "Sturdy Sword"
+  },
+  {
+    "chinese": "剣星",
+    "english": "Sword Star"
+  },
+  {
+    "chinese": "剣風",
+    "english": "Sword Wind"
+  },
+  {
+    "chinese": "剣嵐",
+    "english": "Sword Storm"
+  },
+  {
+    "chinese": "剣聖",
+    "english": "Sword Saint"
+  },
+  {
+    "chinese": "剣雷",
+    "english": "Sword Thunder"
+  },
+  {
+    "chinese": "剣豪",
+    "english": "Sword Master"
+  },
+  {
+    "chinese": "剣魂",
+    "english": "Sword Soul"
+  },
+  {
+    "chinese": "剣龍",
+    "english": "Sword Dragon"
+  },
+  {
+    "chinese": "時空",
+    "english": "Space-Time"
+  },
+  {
+    "chinese": "烈日",
+    "english": "Blazing Sun"
+  },
+  {
+    "chinese": "烈火",
+    "english": "Raging Fire"
+  },
+  {
+    "chinese": "烈風",
+    "english": "Fierce Wind"
+  },
+  {
+    "chinese": "狼爪",
+    "english": "Wolf Claw"
+  },
+  {
+    "chinese": "狼牙",
+    "english": "Wolf Fang"
+  },
+  {
+    "chinese": "疾刃",
+    "english": "Swift Blade"
+  },
+  {
+    "chinese": "疾星",
+    "english": "Swift Star"
+  },
+  {
+    "chinese": "疾風",
+    "english": "Gale"
+  },
+  {
+    "chinese": "疾嵐",
+    "english": "Swift Storm"
+  },
+  {
+    "chinese": "疾雷",
+    "english": "Swift Thunder"
+  },
+  {
+    "chinese": "疾龍",
+    "english": "Swift Dragon"
+  },
+  {
+    "chinese": "真剣",
+    "english": "True Sword"
+  },
+  {
+    "chinese": "破天",
+    "english": "Sky Breaker"
+  },
+  {
+    "chinese": "破壊",
+    "english": "Destruction"
+  },
+  {
+    "chinese": "神星",
+    "english": "Divine Star"
+  },
+  {
+    "chinese": "神速",
+    "english": "Godlike Speed"
+  },
+  {
+    "chinese": "神嵐",
+    "english": "Divine Storm"
+  },
+  {
+    "chinese": "神聖",
+    "english": "Divine"
+  },
+  {
+    "chinese": "神雷",
+    "english": "Divine Thunder"
+  },
+  {
+    "chinese": "神龍",
+    "english": "Divine Dragon"
+  },
+  {
+    "chinese": "閃光",
+    "english": "Flash Of Light"
+  },
+  {
+    "chinese": "鬼刃",
+    "english": "Demon Blade"
+  },
+  {
+    "chinese": "鬼神",
+    "english": "Demon God"
+  },
+  {
+    "chinese": "鬼眼",
+    "english": "Demon Eye"
+  },
+  {
+    "chinese": "鬼魂",
+    "english": "Demon Soul"
+  },
+  {
+    "chinese": "崩壊",
+    "english": "Collapse"
+  },
+  {
+    "chinese": "斬魔",
+    "english": "Demon Slayer"
+  },
+  {
+    "chinese": "異次",
+    "english": "Different Dimension"
+  },
+  {
+    "chinese": "第一",
+    "english": "Number One"
+  },
+  {
+    "chinese": "虚空",
+    "english": "Void"
+  },
+  {
+    "chinese": "黒月",
+    "english": "Black Moon"
+  },
+  {
+    "chinese": "黒炎",
+    "english": "Black Flame"
+  },
+  {
+    "chinese": "黒星",
+    "english": "Black Star"
+  },
+  {
+    "chinese": "黒嵐",
+    "english": "Black Storm"
+  },
+  {
+    "chinese": "黒雷",
+    "english": "Black Thunder"
+  },
+  {
+    "chinese": "黒龍",
+    "english": "Black Dragon"
+  },
+  {
+    "chinese": "最強",
+    "english": "Strongest"
+  },
+  {
+    "chinese": "嵐",
+    "english": "Storm"
+  },
+  {
+    "chinese": "嵐刃",
+    "english": "Storm Blade"
+  },
+  {
+    "chinese": "嵐月",
+    "english": "Storm Moon"
+  },
+  {
+    "chinese": "嵐星",
+    "english": "Storm Star"
+  },
+  {
+    "chinese": "嵐雷",
+    "english": "Storm Thunder"
+  },
+  {
+    "chinese": "嵐龍",
+    "english": "Storm Dragon"
+  },
+  {
+    "chinese": "無双",
+    "english": "Peerless"
+  },
+  {
+    "chinese": "無心",
+    "english": "No Mind"
+  },
+  {
+    "chinese": "無我",
+    "english": "Selflessness"
+  },
+  {
+    "chinese": "無念",
+    "english": "No Regrets"
+  },
+  {
+    "chinese": "無限",
+    "english": "Infinity"
+  },
+  {
+    "chinese": "無極",
+    "english": "Limitless"
+  },
+  {
+    "chinese": "無敵",
+    "english": "Invincible"
+  },
+  {
+    "chinese": "紫電",
+    "english": "Purple Lightning"
+  },
+  {
+    "chinese": "絶刃",
+    "english": "Absolute Blade"
+  },
+  {
+    "chinese": "絶技",
+    "english": "Ultimate Skill"
+  },
+  {
+    "chinese": "絶命",
+    "english": "Certain Death"
+  },
+  {
+    "chinese": "絶剣",
+    "english": "Absolute Sword"
+  },
+  {
+    "chinese": "絶望",
+    "english": "Despair"
+  },
+  {
+    "chinese": "絶嵐",
+    "english": "Absolute Storm"
+  },
+  {
+    "chinese": "超級",
+    "english": "Super Class"
+  },
+  {
+    "chinese": "超速",
+    "english": "Super Speed"
+  },
+  {
+    "chinese": "戦神",
+    "english": "War God"
+  },
+  {
+    "chinese": "戦鬼",
+    "english": "War Demon"
+  },
+  {
+    "chinese": "暗星",
+    "english": "Dark Star"
+  },
+  {
+    "chinese": "暗殺",
+    "english": "Assassination"
+  },
+  {
+    "chinese": "暗黒",
+    "english": "Darkness"
+  },
+  {
+    "chinese": "暗嵐",
+    "english": "Dark Storm"
+  },
+  {
+    "chinese": "暗雷",
+    "english": "Dark Thunder"
+  },
+  {
+    "chinese": "暗龍",
+    "english": "Dark Dragon"
+  },
+  {
+    "chinese": "極刃",
+    "english": "Extreme Blade"
+  },
+  {
+    "chinese": "極天",
+    "english": "Extreme Heaven"
+  },
+  {
+    "chinese": "極光",
+    "english": "Aurora"
+  },
+  {
+    "chinese": "極星",
+    "english": "Polar Star"
+  },
+  {
+    "chinese": "極嵐",
+    "english": "Extreme Storm"
+  },
+  {
+    "chinese": "極意",
+    "english": "Ultimate Secret"
+  },
+  {
+    "chinese": "極雷",
+    "english": "Extreme Thunder"
+  },
+  {
+    "chinese": "極端",
+    "english": "Extreme"
+  },
+  {
+    "chinese": "極龍",
+    "english": "Extreme Dragon"
+  },
+  {
+    "chinese": "源祖",
+    "english": "Ancestral Source"
+  },
+  {
+    "chinese": "滅刃",
+    "english": "Destruction Blade"
+  },
+  {
+    "chinese": "禁術",
+    "english": "Forbidden Technique"
+  },
+  {
+    "chinese": "聖刃",
+    "english": "Holy Blade"
+  },
+  {
+    "chinese": "聖光",
+    "english": "Holy Light"
+  },
+  {
+    "chinese": "聖炎",
+    "english": "Holy Flame"
+  },
+  {
+    "chinese": "聖星",
+    "english": "Holy Star"
+  },
+  {
+    "chinese": "聖盾",
+    "english": "Holy Shield"
+  },
+  {
+    "chinese": "聖剣",
+    "english": "Holy Sword"
+  },
+  {
+    "chinese": "聖嵐",
+    "english": "Holy Storm"
+  },
+  {
+    "chinese": "聖雷",
+    "english": "Holy Thunder"
+  },
+  {
+    "chinese": "聖輝",
+    "english": "Holy Brilliance"
+  },
+  {
+    "chinese": "聖龍",
+    "english": "Holy Dragon"
+  },
+  {
+    "chinese": "鉄爪",
+    "english": "Iron Claw"
+  },
+  {
+    "chinese": "鉄星",
+    "english": "Iron Star"
+  },
+  {
+    "chinese": "鉄拳",
+    "english": "Iron Fist"
+  },
+  {
+    "chinese": "鉄嵐",
+    "english": "Iron Storm"
+  },
+  {
+    "chinese": "鉄雷",
+    "english": "Iron Thunder"
+  },
+  {
+    "chinese": "鉄壁",
+    "english": "Iron Wall"
+  },
+  {
+    "chinese": "鉄龍",
+    "english": "Iron Dragon"
+  },
+  {
+    "chinese": "零",
+    "english": "Zero"
+  },
+  {
+    "chinese": "雷刃",
+    "english": "Thunder Blade"
+  },
+  {
+    "chinese": "雷爪",
+    "english": "Thunder Claw"
+  },
+  {
+    "chinese": "雷牙",
+    "english": "Thunder Fang"
+  },
+  {
+    "chinese": "雷光",
+    "english": "Thunder Light"
+  },
+  {
+    "chinese": "雷星",
+    "english": "Thunder Star"
+  },
+  {
+    "chinese": "雷神",
+    "english": "Thunder God"
+  },
+  {
+    "chinese": "雷嵐",
+    "english": "Thunder Storm"
+  },
+  {
+    "chinese": "雷鳴",
+    "english": "Thunder Roar"
+  },
+  {
+    "chinese": "雷霆",
+    "english": "Thunderclap"
+  },
+  {
+    "chinese": "雷龍",
+    "english": "Thunder Dragon"
+  },
+  {
+    "chinese": "碧空",
+    "english": "Jade Sky"
+  },
+  {
+    "chinese": "蒼天",
+    "english": "Blue Sky"
+  },
+  {
+    "chinese": "蒼穹",
+    "english": "Azure Sky"
+  },
+  {
+    "chinese": "蒼焰",
+    "english": "Blue Flame"
+  },
+  {
+    "chinese": "蒼龍",
+    "english": "Blue Dragon"
+  },
+  {
+    "chinese": "豪風",
+    "english": "Mighty Wind"
+  },
+  {
+    "chinese": "豪雷",
+    "english": "Mighty Thunder"
+  },
+  {
+    "chinese": "魂炎",
+    "english": "Soul Flame"
+  },
+  {
+    "chinese": "魂星",
+    "english": "Soul Star"
+  },
+  {
+    "chinese": "魂剣",
+    "english": "Soul Sword"
+  },
+  {
+    "chinese": "魂嵐",
+    "english": "Soul Storm"
+  },
+  {
+    "chinese": "魂雷",
+    "english": "Soul Thunder"
+  },
+  {
+    "chinese": "魂魄",
+    "english": "Spirit Essence"
+  },
+  {
+    "chinese": "魂龍",
+    "english": "Soul Dragon"
+  },
+  {
+    "chinese": "鳳凰",
+    "english": "Phoenix"
+  },
+  {
+    "chinese": "影刃",
+    "english": "Shadow Blade"
+  },
+  {
+    "chinese": "影星",
+    "english": "Shadow Star"
+  },
+  {
+    "chinese": "影狼",
+    "english": "Shadow Wolf"
+  },
+  {
+    "chinese": "影術",
+    "english": "Shadow Technique"
+  },
+  {
+    "chinese": "影嵐",
+    "english": "Shadow Storm"
+  },
+  {
+    "chinese": "影龍",
+    "english": "Shadow Dragon"
+  },
+  {
+    "chinese": "熱血",
+    "english": "Hot-Blooded"
+  },
+  {
+    "chinese": "輝刃",
+    "english": "Radiant Blade"
+  },
+  {
+    "chinese": "輝月",
+    "english": "Shining Moon"
+  },
+  {
+    "chinese": "輝星",
+    "english": "Radiant Star"
+  },
+  {
+    "chinese": "輝嵐",
+    "english": "Shining Storm"
+  },
+  {
+    "chinese": "輝煌",
+    "english": "Brilliance"
+  },
+  {
+    "chinese": "輝雷",
+    "english": "Shining Thunder"
+  },
+  {
+    "chinese": "輝龍",
+    "english": "Shining Dragon"
+  },
+  {
+    "chinese": "霊刃",
+    "english": "Spirit Blade"
+  },
+  {
+    "chinese": "霊星",
+    "english": "Spirit Star"
+  },
+  {
+    "chinese": "霊術",
+    "english": "Spirit Technique"
+  },
+  {
+    "chinese": "霊嵐",
+    "english": "Spirit Storm"
+  },
+  {
+    "chinese": "霊雷",
+    "english": "Spirit Thunder"
+  },
+  {
+    "chinese": "霊魂",
+    "english": "Soul"
+  },
+  {
+    "chinese": "霊龍",
+    "english": "Spirit Dragon"
+  },
+  {
+    "chinese": "壊滅",
+    "english": "Annihilation"
+  },
+  {
+    "chinese": "鋼牙",
+    "english": "Steel Fang"
+  },
+  {
+    "chinese": "鋼鉄",
+    "english": "Steel"
+  },
+  {
+    "chinese": "龍牙",
+    "english": "Dragon Fang"
+  },
+  {
+    "chinese": "龍王",
+    "english": "Dragon King"
+  },
+  {
+    "chinese": "龍炎",
+    "english": "Dragon Flame"
+  },
+  {
+    "chinese": "龍星",
+    "english": "Dragon Star"
+  },
+  {
+    "chinese": "龍神",
+    "english": "Dragon God"
+  },
+  {
+    "chinese": "龍脈",
+    "english": "Dragon Vein"
+  },
+  {
+    "chinese": "龍嵐",
+    "english": "Dragon Storm"
+  },
+  {
+    "chinese": "闇刃",
+    "english": "Dark Blade"
+  },
+  {
+    "chinese": "闇翼",
+    "english": "Dark Wings"
+  },
+  {
+    "chinese": "闘魂",
+    "english": "Fighting Spirit"
+  },
+  {
+    "chinese": "覇天",
+    "english": "Dominant Sky"
+  },
+  {
+    "chinese": "覇王",
+    "english": "Overlord"
+  },
+  {
+    "chinese": "覇道",
+    "english": "Path Of Domination"
+  },
+  {
+    "chinese": "霸気",
+    "english": "Overwhelming Spirit"
+  },
+  {
+    "chinese": "魔王",
+    "english": "Demon King"
+  },
+  {
+    "chinese": "魔星",
+    "english": "Demon Star"
+  },
+  {
+    "chinese": "魔剣",
+    "english": "Demon Sword"
+  },
+  {
+    "chinese": "魔神",
+    "english": "Demon God"
+  },
+  {
+    "chinese": "魔眼",
+    "english": "Demon Eye"
+  },
+  {
+    "chinese": "魔術",
+    "english": "Magic Art"
+  },
+  {
+    "chinese": "魔嵐",
+    "english": "Demon Storm"
+  },
+  {
+    "chinese": "魔雷",
+    "english": "Demon Thunder"
+  },
+  {
+    "chinese": "魔龍",
+    "english": "Demon Dragon"
+  }
+]
         
 };

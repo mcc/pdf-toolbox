@@ -1,0 +1,247 @@
+[
+    {
+        "english_name": "Isla",
+        "cantonese": "艾拉",
+        "jyutping": "Ngaai6 Laai1"
+    },
+    {
+        "english_name": "Jacob",
+        "cantonese": "雅各",
+        "jyutping": "Ngaa5 Gok3"
+    },
+    {
+        "english_name": "Kylie",
+        "cantonese": "凱莉",
+        "jyutping": "Hoi2 Lei6"
+    },
+    {
+        "english_name": "Logan",
+        "cantonese": "盧根",
+        "jyutping": "Lou4 Gan1"
+    },
+    {
+        "english_name": "Madison",
+        "cantonese": "麥迪遜",
+        "jyutping": "Mak6 Dik6 Seon3"
+    },
+    {
+        "english_name": "Nathan",
+        "cantonese": "內森",
+        "jyutping": "Noi6 Sam1"
+    },
+    {
+        "english_name": "Ophelia",
+        "cantonese": "奧菲莉亞",
+        "jyutping": "Ou3 Fei1 Lei6 Aa3"
+    },
+    {
+        "english_name": "Parker",
+        "cantonese": "帕克",
+        "jyutping": "Paak3 Hak1"
+    },
+    {
+        "english_name": "Quinn",
+        "cantonese": "昆",
+        "jyutping": "Kwan1"
+    },
+    {
+        "english_name": "Rebecca",
+        "cantonese": "麗貝卡",
+        "jyutping": "Lai6 Bui3 Kaa1"
+    },
+    {
+        "english_name": "Sawyer",
+        "cantonese": "索耶",
+        "jyutping": "Sok3 Je4"
+    },
+    {
+        "english_name": "Taylor",
+        "cantonese": "泰勒",
+        "jyutping": "Taai3 Lak6"
+    },
+    {
+        "english_name": "Ursula",
+        "cantonese": "烏蘇拉",
+        "jyutping": "Wu1 Sou1 Laai1"
+    },
+    {
+        "english_name": "Vera",
+        "cantonese": "維拉",
+        "jyutping": "Wai4 Laai1"
+    },
+    {
+        "english_name": "Wyatt",
+        "cantonese": "懷亞特",
+        "jyutping": "Waai4 Aa3 Tak1"
+    },
+    {
+        "english_name": "Ximena",
+        "cantonese": "希梅娜",
+        "jyutping": "Hei1 Mei4 Naa4"
+    },
+    {
+        "english_name": "Yvette",
+        "cantonese": "伊薇特",
+        "jyutping": "Ji1 Mei4 Tak1"
+    },
+    {
+        "english_name": "Zane",
+        "cantonese": "贊恩",
+        "jyutping": "Zaan3 Jan1"
+    },
+    {
+        "english_name": "Abigail",
+        "cantonese": "亞比該",
+        "jyutping": "Aa3 Bei2 Goi1"
+    },
+    {
+        "english_name": "Blake",
+        "cantonese": "布萊克",
+        "jyutping": "Bou3 Laai6 Hak1"
+    },
+    {
+        "english_name": "Chloe",
+        "cantonese": "克洛伊",
+        "jyutping": "Hak1 Lok3 Ji1"
+    },
+    {
+        "english_name": "Dylan",
+        "cantonese": "狄倫",
+        "jyutping": "Dik6 Leun4"
+    },
+    {
+        "english_name": "Eleanor",
+        "cantonese": "埃莉諾",
+        "jyutping": "Aai1 Lei6 Nok6"
+    },
+    {
+        "english_name": "Finn",
+        "cantonese": "芬",
+        "jyutping": "Fan1"
+    },
+    {
+        "english_name": "Georgia",
+        "cantonese": "喬治亞",
+        "jyutping": "Kiu4 Zi6 Aa3"
+    },
+    {
+        "english_name": "Hudson",
+        "cantonese": "哈德森",
+        "jyutping": "Haa1 Dak1 Sam1"
+    },
+    {
+        "english_name": "Ivy",
+        "cantonese": "艾薇",
+        "jyutping": "Ngaai6 Mei4"
+    },
+    {
+        "english_name": "Jonah",
+        "cantonese": "約拿",
+        "jyutping": "Joek3 Naa4"
+    },
+    {
+        "english_name": "Kennedy",
+        "cantonese": "肯尼迪",
+        "jyutping": "Hang2 Nei4 Dik6"
+    },
+    {
+        "english_name": "Landon",
+        "cantonese": "蘭登",
+        "jyutping": "Laan4 Dang1"
+    },
+    {
+        "english_name": "Mila",
+        "cantonese": "米拉",
+        "jyutping": "Mai5 Laai1"
+    },
+    {
+        "english_name": "Nolan",
+        "cantonese": "諾蘭",
+        "jyutping": "Nok6 Laan4"
+    },
+    {
+        "english_name": "Piper",
+        "cantonese": "派珀",
+        "jyutping": "Paai3 Paak3"
+    },
+    {
+        "english_name": "Roman",
+        "cantonese": "羅曼",
+        "jyutping": "Lo4 Maan6"
+    },
+    {
+        "english_name": "Sienna",
+        "cantonese": "西耶娜",
+        "jyutping": "Sai1 Je4 Naa4"
+    },
+    {
+        "english_name": "Theo",
+        "cantonese": "西奧",
+        "jyutping": "Sai1 Ou3"
+    },
+    {
+        "english_name": "Valerie",
+        "cantonese": "瓦萊麗",
+        "jyutping": "Wa1 Laai6 Lai6"
+    },
+    {
+        "english_name": "Weston",
+        "cantonese": "韋斯頓",
+        "jyutping": "Wai5 Si1 Deon6"
+    },
+    {
+        "english_name": "Xander",
+        "cantonese": "桑德",
+        "jyutping": "Song1 Dak1"
+    },
+    {
+        "english_name": "Yara",
+        "cantonese": "雅拉",
+        "jyutping": "Ngaa5 Laai1"
+    },
+    {
+        "english_name": "Zander",
+        "cantonese": "贊德",
+        "jyutping": "Zaan3 Dak1"
+    },
+    {
+        "english_name": "Avery",
+        "cantonese": "艾弗里",
+        "jyutping": "Ngaai6 Fu2 Lei6"
+    },
+    {
+        "english_name": "Bryce",
+        "cantonese": "布萊斯",
+        "jyutping": "Bou3 Laai6 Si1"
+    },
+    {
+        "english_name": "Camila",
+        "cantonese": "卡米拉",
+        "jyutping": "Kaa1 Mai5 Laai1"
+    },
+    {
+        "english_name": "Declan",
+        "cantonese": "德克蘭",
+        "jyutping": "Dak1 Hak1 Laan4"
+    },
+    {
+        "english_name": "Elena",
+        "cantonese": "埃琳娜",
+        "jyutping": "Aai1 Lam4 Naa4"
+    },
+    {
+        "english_name": "Felix",
+        "cantonese": "菲利克斯",
+        "jyutping": "Fei1 Lei6 Hak1 Si1"
+    },
+    {
+        "english_name": "Giselle",
+        "cantonese": "吉賽爾",
+        "jyutping": "Gat1 Coi3 Ji5"
+    },
+    {
+        "english_name": "Hunter",
+        "cantonese": "亨特",
+        "jyutping": "Hang1 Tak1"
+    }
+]
