@@ -1,0 +1,252 @@
+[
+    {
+        "english_surname": "Smith",
+        "cantonese": "史密斯",
+        "jyutping": "Si2 Mat6 Si1"
+    },
+    {
+        "english_surname": "Johnson",
+        "cantonese": "約翰遜",
+        "jyutping": "Joek3 Hon6 Seon3"
+    },
+    {
+        "english_surname": "Brown",
+        "cantonese": "布朗",
+        "jyutping": "Bou3 Long5"
+    },
+    {
+        "english_surname": "Taylor",
+        "cantonese": "泰勒",
+        "jyutping": "Taai3 Lak6"
+    },
+    {
+        "english_surname": "Wilson",
+        "cantonese": "威爾遜",
+        "jyutping": "Wai1 Ji5 Seon3"
+    },
+    {
+        "english_surname": "Davis",
+        "cantonese": "戴維斯",
+        "jyutping": "Daai3 Wai6 Si1"
+    },
+    {
+        "english_surname": "Clark",
+        "cantonese": "克拉克",
+        "jyutping": "Hak1 Laai1 Hak1"
+    },
+    {
+        "english_surname": "Harris",
+        "cantonese": "哈里斯",
+        "jyutping": "Haa1 Lei6 Si1"
+    },
+    {
+        "english_surname": "Lewis",
+        "cantonese": "路易斯",
+        "jyutping": "Lou6 Jik6 Si1"
+    },
+    {
+        "english_surname": "Walker",
+        "cantonese": "沃克",
+        "jyutping": "Wok6 Hak1"
+    },
+    {
+        "english_surname": "Hall",
+        "cantonese": "霍爾",
+        "jyutping": "Fok3 Ji5"
+    },
+    {
+        "english_surname": "Allen",
+        "cantonese": "艾倫",
+        "jyutping": "Ngaai6 Leun4"
+    },
+    {
+        "english_surname": "Young",
+        "cantonese": "楊",
+        "jyutping": "Joeng4"
+    },
+    {
+        "english_surname": "King",
+        "cantonese": "金",
+        "jyutping": "Gam1"
+    },
+    {
+        "english_surname": "Wright",
+        "cantonese": "賴特",
+        "jyutping": "Laai6 Dak1"
+    },
+    {
+        "english_surname": "Scott",
+        "cantonese": "斯科特",
+        "jyutping": "Si1 Fo1 Dak1"
+    },
+    {
+        "english_surname": "Green",
+        "cantonese": "格林",
+        "jyutping": "Gaak3 Lam4"
+    },
+    {
+        "english_surname": "Baker",
+        "cantonese": "貝克",
+        "jyutping": "Bui3 Hak1"
+    },
+    {
+        "english_surname": "Adams",
+        "cantonese": "亞當斯",
+        "jyutping": "Aa3 Dong1 Si1"
+    },
+    {
+        "english_surname": "Nelson",
+        "cantonese": "納爾遜",
+        "jyutping": "Naap6 Ji5 Seon3"
+    },
+    {
+        "english_surname": "Carter",
+        "cantonese": "卡特",
+        "jyutping": "Kaa1 Tak1"
+    },
+    {
+        "english_surname": "Mitchell",
+        "cantonese": "米切爾",
+        "jyutping": "Mai5 Cit3 Ji5"
+    },
+    {
+        "english_surname": "Perez",
+        "cantonese": "佩雷斯",
+        "jyutping": "Pui3 Leoi4 Si1"
+    },
+    {
+        "english_surname": "Roberts",
+        "cantonese": "羅伯茨",
+        "jyutping": "Lo4 Baak3 Ci4"
+    },
+    {
+        "english_surname": "Turner",
+        "cantonese": "特納",
+        "jyutping": "Dak6 Naa4"
+    },
+    {
+        "english_surname": "Phillips",
+        "cantonese": "菲利普斯",
+        "jyutping": "Fei1 Lei6 Pou2 Si1"
+    },
+    {
+        "english_surname": "Campbell",
+        "cantonese": "坎貝爾",
+        "jyutping": "Ham3 Bui3 Ji5"
+    },
+    {
+        "english_surname": "Parker",
+        "cantonese": "帕克",
+        "jyutping": "Paak3 Hak1"
+    },
+    {
+        "english_surname": "Evans",
+        "cantonese": "埃文斯",
+        "jyutping": "Aai1 Man4 Si1"
+    },
+    {
+        "english_surname": "Edwards",
+        "cantonese": "愛德華茲",
+        "jyutping": "Oi3 Dak1 Waa4 Ci4"
+    },
+    {
+        "english_surname": "Collins",
+        "cantonese": "柯林斯",
+        "jyutping": "Fo1 Lam4 Si1"
+    },
+    {
+        "english_surname": "Stewart",
+        "cantonese": "斯圖爾特",
+        "jyutping": "Si1 Tou4 Ji5 Dak1"
+    },
+    {
+        "english_surname": "Sanchez",
+        "cantonese": "桑切斯",
+        "jyutping": "Song1 Cit3 Si1"
+    },
+    {
+        "english_surname": "Morris",
+        "cantonese": "莫里斯",
+        "jyutping": "Mok6 Lei6 Si1"
+    },
+    {
+        "english_surname": "Rogers",
+        "cantonese": "羅傑斯",
+        "jyutping": "Lo4 Git6 Si1"
+    },
+    {
+        "english_surname": "Reed",
+        "cantonese": "里德",
+        "jyutping": "Lei5 Dak1"
+    },
+    {
+        "english_surname": "Cook",
+        "cantonese": "庫克",
+        "jyutping": "Fu3 Hak1"
+    },
+    {
+        "english_surname": "Morgan",
+        "cantonese": "摩根",
+        "jyutping": "Mo1 Gan1"
+    },
+    {
+        "english_surname": "Bell",
+        "cantonese": "貝爾",
+        "jyutping": "Bui3 Ji5"
+    },
+    {
+        "english_surname": "Murphy",
+        "cantonese": "墨菲",
+        "jyutping": "Mak6 Fei1"
+    },
+    {
+        "english_surname": "Bailey",
+        "cantonese": "貝利",
+        "jyutping": "Bui3 Lei6"
+    },
+    {
+        "english_surname": "Rivera",
+        "cantonese": "里維拉",
+        "jyutping": "Lei5 Wai4 Laai1"
+    },
+    {
+        "english_surname": "Cooper",
+        "cantonese": "庫珀",
+        "jyutping": "Fu3 Paak3"
+    },
+    {
+        "english_surname": "Richardson",
+        "cantonese": "理查森",
+        "jyutping": "Lei5 Caa4 Sam1"
+    },
+    {
+        "english_surname": "Cox",
+        "cantonese": "考克斯",
+        "jyutping": "Haau2 Hak1 Si1"
+    },
+    {
+        "english_surname": "Howard",
+        "cantonese": "霍華德",
+        "jyutping": "Fok3 Waa4 Dak1"
+    },
+    {
+        "english_surname": "Ward",
+        "cantonese": "沃德",
+        "jyutping": "Wok6 Dak1"
+    },
+    {
+        "english_surname": "Torres",
+        "cantonese": "托雷斯",
+        "jyutping": "Tok3 Leoi4 Si1"
+    },
+    {
+        "english_surname": "Peterson",
+        "cantonese": "彼得森",
+        "jyutping": "Bei2 Dak1 Sam1"
+    },
+    {
+        "english_surname": "Gray",
+        "cantonese": "格雷",
+        "jyutping": "Gaak3 Leoi5"
+    }
+]
