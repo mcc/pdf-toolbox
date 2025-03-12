@@ -27,6 +27,8 @@
             flex: 1;
             padding-right: 20px;
             overflow-y: auto;
+            position: relative;
+            z-index: 10;
         }
         .right-panel {
             flex: 1;
@@ -34,11 +36,13 @@
             top: 20px;
             height: calc(100vh - 40px);
             align-self: flex-start;
+            z-index: 0;
         }
         .input-container {
             position: relative;
             display: flex;
             align-items: center;
+            z-index: 20;
         }
         #routeInput {
             padding: 8px;
@@ -66,9 +70,24 @@
             margin: 5px 0;
             cursor: pointer;
             transition: background-color 0.3s;
+            position: relative;
         }
-        .stop:hover, .stop.highlighted {
-            background-color: #f0f0f0;
+        .stop:hover {
+            background-color: #fff3cd; /* Pale yellow for hover */
+        }
+        .stop.nearest {
+            background-color: #d4edda; /* Pale green for nearest stop */
+        }
+        .stop.highlighted {
+            background-color: #fff3cd; /* Pale yellow for highlighted (e.g., on click) */
+        }
+        .distance {
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            font-size: 12px;
+            color: #888;
+            opacity: 0.7;
         }
         #map {
             height: 100%;
@@ -98,6 +117,7 @@
             width: calc(100% - 42px);
             z-index: 1000;
             display: none;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
         }
         .autocomplete-item {
             padding: 8px;
@@ -105,6 +125,18 @@
         }
         .autocomplete-item:hover, .autocomplete-item.selected {
             background-color: #f0f0f0;
+        }
+        #loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            z-index: 2000;
+            display: none;
         }
 
         @media (max-width: 768px) {
@@ -121,9 +153,23 @@
                 position: relative;
                 top: 0;
                 height: 400px;
+                order: 2;
+                z-index: 0;
+                display: none;
+            }
+            .left-panel {
+                order: 1;
+                z-index: 10;
+            }
+            .input-container {
+                z-index: 20;
             }
             #autocompleteList {
                 width: 100%;
+                z-index: 1000;
+            }
+            .right-panel.visible {
+                display: block;
             }
         }
     </style>
@@ -154,6 +200,7 @@
             <div id="map"></div>
         </div>
     </div>
+    <div id="loading">Loading...</div>
 
     <script>
         let routes = [];
@@ -163,7 +210,10 @@
         let refreshInterval, countdown = 60;
         let currentRouteData = null;
         let selectedIndex = -1;
-        let previousRouteValue = ''; // Store previous route for restoration
+        let previousRouteValue = '';
+        let userLocation = null;
+        let userMarker = null;
+        let isNewRoute = true;
 
         const texts = {
             en: {
@@ -175,7 +225,8 @@
                 next: "Next bus at",
                 secondNext: "2nd next bus at",
                 refresh: "Refresh in",
-                placeholder: "Enter route number or name"
+                placeholder: "Enter route number or name",
+                loading: "Loading..."
             },
             zh: {
                 title: "九巴到站時間",
@@ -186,7 +237,8 @@
                 next: "下班車於",
                 secondNext: "下下班車於",
                 refresh: "刷新於",
-                placeholder: "輸入路線號或名稱"
+                placeholder: "輸入路線號或名稱",
+                loading: "載入中..."
             }
         };
 
@@ -279,9 +331,10 @@
 
         function selectRoute(routeNum, bound, label) {
             const routeInput = document.getElementById('routeInput');
-            routeInput.value = label; // Show label instead of value
-            routeInput.dataset.value = `${routeNum}|${bound}`; // Store value in dataset
-            previousRouteValue = label; // Update previous value
+            routeInput.value = label;
+            routeInput.dataset.value = `${routeNum}|${bound}`;
+            previousRouteValue = label;
+            isNewRoute = true;
             hideAutocomplete();
             showETAs();
         }
@@ -363,6 +416,7 @@
                 return;
             }
 
+            showLoading();
             try {
                 const routeResponse = await fetch(`https://data.etabus.gov.hk/v1/transport/kmb/route-stop/${routeNum}/${direction}/${serviceType}`);
                 const routeData = await routeResponse.json();
@@ -381,26 +435,41 @@
                 currentRouteData = { routeNum, bound, routeStops, stopETAs };
                 renderRouteData(currentRouteData);
                 startRefreshTimer();
+                document.querySelector('.right-panel').classList.add('visible');
             } catch (error) {
                 console.error('Error fetching ETA data:', error);
                 document.getElementById('results').innerHTML = 'Error loading data';
+            } finally {
+                hideLoading();
             }
         }
 
         function renderRouteData(data) {
             const { routeNum, bound, stopETAs } = data;
+            const route = routes.find(r => r.route === routeNum && r.bound === bound);
+            const destName = route ? (isChinese ? route.dest_tc : route.dest_en) : '';
             const resultsDiv = document.getElementById('results');
-            resultsDiv.innerHTML = `<h2>${isChinese ? '巴士站及到站時間' : 'Bus Stops and ETA'} - ${routeNum}</h2>`;
+            resultsDiv.innerHTML = `<h2>${routeNum} - ${destName}</h2>`;
 
             clearMarkers();
+            if (userLocation && userMarker) {
+                userMarker.setMap(map);
+            }
+
             const urlParams = new URLSearchParams(window.location.search);
             const highlightedStopId = urlParams.get('stop');
+            let nearestStop = null;
+            let nearestStopCoords = null;
+            let minDistance = Infinity;
 
-            stopETAs.forEach(({ stop, etaData }) => {
+            stopETAs.forEach(({ stop, etaData }, index) => {
                 const stopId = stop.stop;
                 const stopDiv = document.createElement('div');
                 stopDiv.className = 'stop';
                 stopDiv.dataset.stopId = stopId;
+                stopDiv.dataset.lat = stop.lat;
+                stopDiv.dataset.lng = stop.long;
+
                 if (stopId === highlightedStopId) stopDiv.classList.add('highlighted');
 
                 const matchingETAs = etaData.data
@@ -411,7 +480,6 @@
                 if (matchingETAs.length > 0) {
                     const nextBus = matchingETAs.find(eta => eta.eta_seq === 1);
                     const secondNextBus = matchingETAs.find(eta => eta.eta_seq === 2);
-                    
                     let nextInfo = nextBus ? formatETA(nextBus) : '';
                     let secondNextInfo = secondNextBus ? `${isChinese ? texts.zh.secondNext : texts.en.secondNext}: ${formatETA(secondNextBus)}` : '';
                     etaInfo = nextInfo + (secondNextInfo ? '<br>' + secondNextInfo : '');
@@ -421,6 +489,22 @@
                     <strong>${isChinese ? stop.name_tc : stop.name_en}</strong>
                     <div>${etaInfo}</div>
                 `;
+
+                if (userLocation) {
+                    const distance = calculateDistance(userLocation.lat, userLocation.lng, parseFloat(stop.lat), parseFloat(stop.long));
+                    const distanceText = distance < 1 ? `${Math.round(distance * 1000)}m` : `${distance.toFixed(1)}km`;
+                    const distanceDiv = document.createElement('div');
+                    distanceDiv.className = 'distance';
+                    distanceDiv.textContent = distanceText;
+                    stopDiv.appendChild(distanceDiv);
+
+                    if (distance < minDistance) {
+                        minDistance = distance;
+                        nearestStop = stopDiv;
+                        nearestStopCoords = { lat: parseFloat(stop.lat), lng: parseFloat(stop.long) };
+                    }
+                }
+
                 resultsDiv.appendChild(stopDiv);
 
                 const marker = addMarker(
@@ -432,7 +516,12 @@
                 );
 
                 stopDiv.onmouseover = () => {
-                    document.querySelectorAll('.stop').forEach(div => div.classList.remove('highlighted'));
+                    document.querySelectorAll('.stop').forEach(div => {
+                        if (div !== nearestStop || minDistance * 1000 > 500) {
+                            div.classList.remove('highlighted');
+                            div.classList.remove('nearest');
+                        }
+                    });
                     stopDiv.classList.add('highlighted');
                     marker.setIcon('http://maps.google.com/mapfiles/ms/icons/yellow-dot.png');
                     const latLng = new google.maps.LatLng(parseFloat(stop.lat), parseFloat(stop.long));
@@ -445,13 +534,28 @@
                 stopDiv.onmouseout = () => {
                     stopDiv.classList.remove('highlighted');
                     marker.setIcon('http://maps.google.com/mapfiles/ms/icons/red-dot.png');
+                    if (nearestStop === stopDiv && userLocation && minDistance * 1000 <= 500) {
+                        stopDiv.classList.add('nearest');
+                    }
                 };
 
                 if (stopId === highlightedStopId) {
                     map.panTo({ lat: parseFloat(stop.lat), lng: parseFloat(stop.long) });
                     stopDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    stopDiv.classList.add('highlighted');
                 }
             });
+
+            if (nearestStop && userLocation && minDistance * 1000 <= 500) {
+                nearestStop.classList.add('nearest');
+                if (isNewRoute) {
+                    nearestStop.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    if (nearestStopCoords) {
+                        map.panTo(nearestStopCoords);
+                    }
+                    isNewRoute = false;
+                }
+            }
         }
 
         function formatETA(bus) {
@@ -467,6 +571,7 @@
             });
             const trafficLayer = new google.maps.TrafficLayer();
             trafficLayer.setMap(map);
+            getUserLocation();
         }
 
         function addMarker(location, title, stopId, etaInfo, isHighlighted = false) {
@@ -500,8 +605,46 @@
 
         function clearMarkers() {
             markers.forEach(marker => marker.setMap(null));
+            if (userMarker) userMarker.setMap(null);
             infoWindows = [];
             markers = [];
+        }
+
+        function getUserLocation() {
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        userLocation = {
+                            lat: position.coords.latitude,
+                            lng: position.coords.longitude
+                        };
+                        userMarker = new google.maps.Marker({
+                            position: userLocation,
+                            map: map,
+                            title: isChinese ? '我的位置' : 'My Location',
+                            icon: 'http://maps.google.com/mapfiles/ms/icons/blue-dot.png'
+                        });
+                        if (currentRouteData) renderRouteData(currentRouteData);
+                    },
+                    error => {
+                        console.error('Error getting location:', error);
+                    }
+                );
+            } else {
+                console.error('Geolocation not supported');
+            }
+        }
+
+        function calculateDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = 
+                Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c; // Distance in km
         }
 
         function shareRoute() {
@@ -571,14 +714,27 @@
 
         function refreshETAs() {
             countdown = 60;
+            isNewRoute = false;
             showETAs();
         }
 
+        function showLoading() {
+            const loading = document.getElementById('loading');
+            loading.textContent = texts[isChinese ? 'zh' : 'en'].loading;
+            loading.style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
         window.onload = async () => {
+            showLoading();
             await Promise.all([loadRoutes(), loadStops()]);
             document.getElementById('shareBtn').textContent = texts.zh.share;
             updateRouteInput();
             loadFromQueryString();
+            hideLoading();
         };
     </script>
     <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSdxYZf872NOwMc9eE4Xmr42mCRhKCZEA&callback=initMap" async defer></script>
