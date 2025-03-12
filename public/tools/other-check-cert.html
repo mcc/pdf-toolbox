@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate Compliance Checker</title>
+    <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 1000px; margin: 20px auto; padding: 20px; }
+        table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 8px; text-align: left; vertical-align: top; }
+        th { background-color: #f2f2f2; }
+        .non-compliant { background-color: #ffe6e6; }
+        .manual-check { background-color: #fff3cd; }
+        th:nth-child(3), td:nth-child(3) { width: 40%; } /* Wider Requirements column */
+        .badge {
+            display: inline-block;
+            padding: 2px 6px;
+            margin: 2px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: white;
+        }
+        .badge-green { background-color: #28a745; } /* Compliant */
+        .badge-yellow { background-color: #ffc107; color: black; } /* Manual Check */
+        .badge-red { background-color: #dc3545; } /* Non-compliant */
+    </style>
+</head>
+<body>
+    <h1>Certificate Compliance Checker</h1>
+    <p>Upload a certificate (.pem or .cer) to check compliance with CA/B Forum Baseline Requirements:</p>
+    <input type="file" id="certFile" accept=".pem,.cer,.crt">
+    <button id="verifyBtn">Verify Certificate</button>
+    <div id="result">
+        <table id="attributesTable">
+            <thead>
+                <tr>
+                    <th>Attribute</th>
+                    <th>Value</th>
+                    <th>Requirements</th>
+                    <th>Compliance</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+    <script>
+        console.log('Checking if node-forge is loaded...');
+        if (!window.forge || !forge.pki) {
+            console.error('node-forge library failed to load.');
+            document.body.innerHTML = '<p>Error: node-forge library failed to load.</p>';
+            throw new Error('node-forge not loaded');
+        } else {
+            console.log('node-forge loaded successfully:', forge);
+        }
+
+        document.getElementById('verifyBtn').addEventListener('click', function() {
+            const fileInput = document.getElementById('certFile');
+            const tbody = document.querySelector('#attributesTable tbody');
+            console.log('Verify button clicked, checking file input...');
+
+            if (!fileInput.files.length) {
+                console.warn('No file selected.');
+                tbody.innerHTML = '<tr><td colspan="4">Please select a certificate file.</td></tr>';
+                return;
+            }
+
+            const file = fileInput.files[0];
+            console.log('File selected:', file.name, 'Size:', file.size);
+            const reader = new FileReader();
+
+            reader.onload = function(event) {
+                console.log('File read as ArrayBuffer, length:', event.target.result.byteLength);
+                tbody.innerHTML = '';
+                let cert;
+
+                try {
+                    const data = event.target.result;
+                    if (!data || (typeof data !== 'string' && !(data instanceof ArrayBuffer))) {
+                        throw new Error('File is empty or unreadable.');
+                    }
+
+                    const textReader = new FileReader();
+                    textReader.onload = function(textEvent) {
+                        const text = textEvent.target.result;
+                        console.log('File read as text, first 50 chars:', text.substring(0, 50));
+                        if (text && text.includes('-----BEGIN CERTIFICATE-----')) {
+                            console.log('Detected PEM format, attempting to parse...');
+                            try {
+                                cert = forge.pki.certificateFromPem(text);
+                                console.log('PEM parsed successfully:', cert);
+                                processCertificate(cert, tbody);
+                            } catch (e) {
+                                console.error('Error parsing PEM:', e);
+                                tbody.innerHTML = `<tr><td colspan="4">Error parsing PEM: ${e.message}</td></tr>`;
+                            }
+                        } else {
+                            console.log('No PEM header, assuming DER format...');
+                            try {
+                                const bytes = new Uint8Array(data);
+                                if (bytes.length < 10) {
+                                    throw new Error('File too small to be a valid certificate.');
+                                }
+                                console.log('DER bytes length:', bytes.length);
+                                const der = forge.util.createBuffer(bytes);
+                                const asn1 = forge.asn1.fromDer(der);
+                                cert = forge.pki.certificateFromAsn1(asn1);
+                                console.log('DER parsed successfully:', cert);
+                                processCertificate(cert, tbody);
+                            } catch (e) {
+                                console.error('Error parsing DER:', e);
+                                tbody.innerHTML = `<tr><td colspan="4">Error parsing DER: ${e.message} (可能是文件损坏或不是有效的证书文件)</td></tr>`;
+                            }
+                        }
+                    };
+                    textReader.onerror = function() {
+                        console.error('Error reading file as text:', textReader.error);
+                        tbody.innerHTML = '<tr><td colspan="4">Error reading file as text.</td></tr>';
+                    };
+                    console.log('Starting text read for PEM check...');
+                    textReader.readAsText(file);
+                } catch (e) {
+                    console.error('General error during file processing:', e);
+                    tbody.innerHTML = `<tr><td colspan="4">Error: ${e.message}</td></tr>`;
+                }
+            };
+
+            reader.onerror = function() {
+                console.error('Error reading file as ArrayBuffer:', reader.error);
+                tbody.innerHTML = '<tr><td colspan="4">Error reading file.</td></tr>';
+            };
+            console.log('Starting ArrayBuffer read...');
+            reader.readAsArrayBuffer(file);
+        });
+        function processCertificate(cert, tbody) {
+    console.log('Processing certificate attributes...');
+    try {
+        const coreFields = checkCoreFields(cert);
+        const extensions = checkAllAttributes(cert);
+        const allAttributes = [...coreFields, ...extensions];
+        console.log('Attributes checked:', allAttributes);
+        allAttributes.forEach(attr => {
+            console.log(`Rendering attribute: ${attr.name}`, attr);
+            const row = document.createElement('tr');
+            const reqsHtml = attr.requirements.map(r => {
+                const badgeClass = r.complies === true ? 'badge-green' : r.complies === null ? 'badge-yellow' : 'badge-red';
+                return `<span class="badge ${badgeClass}">${r.text}: ${r.complies === true ? 'Yes' : r.complies === null ? 'Manual' : 'No'}</span>`;
+            }).join('<br>');
+            const hasManual = attr.requirements.some(r => r.complies === null);
+            const allAutoCompliant = attr.requirements.every(r => r.complies === true || r.complies === null);
+            const overallCompliance = allAutoCompliant ? (hasManual ? 'Yes with Manual Check' : 'Yes') : 'No';
+            const cellClass = overallCompliance === 'No' ? 'non-compliant' : overallCompliance === 'Yes with Manual Check' ? 'manual-check' : '';
+            row.innerHTML = `
+                <td>${attr.name}</td>
+                <td>${attr.value}</td>
+                <td>${reqsHtml}</td>
+                <td class="${cellClass}">${overallCompliance}</td>
+            `;
+            tbody.appendChild(row);
+        });
+    } catch (e) {
+        console.error('Error processing certificate attributes:', e);
+        tbody.innerHTML = `<tr><td colspan="4">Error processing certificate attributes: ${e.message}</td></tr>`;
+    }
+}
+
+function checkCoreFields(cert) {
+    return [
+        checkVersion(cert),
+        checkSerialNumber(cert),
+        checkSignatureAlgorithm(cert),
+        checkIssuerSignatureAlgorithm(cert),
+        checkValidityPeriod(cert),
+        checkSubjectName(cert),
+        checkIssuerName(cert),
+        checkPublicKey(cert)
+    ];
+}
+function checkAllAttributes(cert) {
+    console.log('Checking all extensions for cert:', cert);
+    const permittedExtensions = [
+        'certificatePolicies', 'subjectAltName', 'basicConstraints', 'keyUsage',
+        'extendedKeyUsage', 'cRLDistributionPoints', 'authorityInfoAccess',
+        'authorityKeyIdentifier', 'subjectKeyIdentifier'
+    ];
+    const extraExtensions = cert.extensions
+        .filter(ext => !permittedExtensions.includes(ext.name))
+        .map(ext => ({
+            name: `Extra Extension: ${ext.name || ext.oid}`,
+            value: 'Present',
+            requirements: [{ text: 'Must not be present in Subscriber Certificate', complies: false }]
+        }));
+
+    return [
+        checkSubjectKeyIdentifier(cert),
+        checkAuthorityKeyIdentifier(cert),
+        checkBasicConstraints(cert),
+        checkKeyUsage(cert),
+        checkExtendedKeyUsage(cert),
+        checkSAN(cert),
+        checkCertificatePolicies(cert),
+        checkCRLDistributionPoints(cert),
+        checkAuthorityInfoAccess(cert),
+        checkSubjectDirectoryAttributes(cert),
+        checkNameConstraints(cert),
+        checkPolicyConstraints(cert),
+        checkInhibitAnyPolicy(cert),
+        ...extraExtensions
+    ].filter(attr => attr !== null);
+}
+
+
+        function checkVersion(cert) {
+            console.log('Checking Version...');
+            const value = `v${cert.version + 1}`;
+            const result = {
+                name: 'Version',
+                value,
+                requirements: [
+                    { text: 'Must be v3 (2 in DER encoding)', complies: cert.version === 2 }
+                ]
+            };
+            console.log('Version result:', result);
+            return result;
+        }
+
+        function checkSerialNumber(cert) {
+            console.log('Checking Serial Number...');
+            const value = cert.serialNumber || 'Not available';
+            const byteLength = cert.serialNumber ? cert.serialNumber.length / 2 : 0;
+            const result = {
+                name: 'Serial Number',
+                value,
+                requirements: [
+                    { text: 'Must be positive integer', complies: cert.serialNumber && parseInt(cert.serialNumber, 16) > 0 },
+                    { text: 'Must be at least 8 bytes (64 bits) of entropy', complies: byteLength >= 8 },
+                    { text: 'Must not exceed 20 bytes', complies: byteLength <= 20 }
+                ]
+            };
+            console.log('Serial Number result:', result);
+            return result;
+        }
+
+        function checkSignatureAlgorithm(cert) {
+            console.log('Checking Signature Algorithm...');
+            const alg = cert.signatureOid ? (forge.pki.oids[cert.signatureOid] || cert.signatureOid) : 'Not available';
+            const insecureOids = ['1.2.840.113549.1.1.4', '1.2.840.113549.1.1.5', '1.2.840.10045.4.1'];
+            const result = {
+                name: 'Signature Algorithm',
+                value: alg,
+                requirements: [
+                    { text: 'Must be present', complies: !!cert.signatureOid },
+                    { text: 'Must not use MD5 or SHA-1', complies: cert.signatureOid && !insecureOids.includes(cert.signatureOid) },
+                    { text: 'Must use SHA-256, SHA-384, or SHA-512', complies: cert.signatureOid && ['sha256WithRSAEncryption', 'sha384WithRSAEncryption', 'sha512WithRSAEncryption', 'ecdsa-with-SHA256', 'ecdsa-with-SHA384', 'ecdsa-with-SHA512'].includes(alg) }
+                ]
+            };
+            console.log('Signature Algorithm result:', result);
+            return result;
+        }
+
+        function checkIssuerSignatureAlgorithm(cert) {
+            console.log('Checking Issuer Signature Algorithm...');
+            const alg = cert.tbsCertificate && cert.tbsCertificate.signature && cert.tbsCertificate.signature.algorithm
+                ? (forge.pki.oids[cert.tbsCertificate.signature.algorithm] || cert.tbsCertificate.signature.algorithm)
+                : 'Not available';
+            const insecureOids = ['1.2.840.113549.1.1.4', '1.2.840.113549.1.1.5', '1.2.840.10045.4.1'];
+            const result = {
+                name: 'Issuer Signature Algorithm',
+                value: alg,
+                requirements: [
+                    { text: 'Must be present', complies: !!(cert.tbsCertificate && cert.tbsCertificate.signature && cert.tbsCertificate.signature.algorithm) },
+                    { text: 'Must not use MD5 or SHA-1', complies: cert.tbsCertificate && cert.tbsCertificate.signature && !insecureOids.includes(cert.tbsCertificate.signature.algorithm) },
+                    { text: 'Must match certificate signature algorithm', complies: cert.tbsCertificate && cert.tbsCertificate.signature && cert.signatureOid === cert.tbsCertificate.signature.algorithm }
+                ]
+            };
+            console.log('Issuer Signature Algorithm result:', result);
+            return result;
+        }
+
+        function checkValidityPeriod(cert) {
+            console.log('Checking Validity Period...');
+            const notBefore = cert.validity && cert.validity.notBefore || new Date();
+            const notAfter = cert.validity && cert.validity.notAfter || new Date();
+            const days = (notAfter - notBefore) / (1000 * 60 * 60 * 24);
+            const now = new Date();
+            const result = {
+                name: 'Validity Period',
+                value: `${notBefore.toISOString()} to ${notAfter.toISOString()}`,
+                requirements: [
+                    { text: 'Must not exceed 397 days', complies: days <= 397 },
+                    { text: 'NotBefore must be in the past or present', complies: notBefore <= now },
+                    { text: 'NotAfter must be in the future', complies: notAfter > now }
+                ]
+            };
+            console.log('Validity Period result:', result);
+            return result;
+        }
+
+        function checkSubjectName(cert) {
+            console.log('Checking Subject Name...');
+            const value = cert.subject && cert.subject.attributes
+                ? cert.subject.attributes.map(attr => `${attr.shortName}=${attr.value}`).join(', ')
+                : 'Not available';
+            const result = {
+                name: 'Subject Name',
+                value,
+                requirements: [
+                    { text: 'Must be present', complies: cert.subject && cert.subject.attributes && cert.subject.attributes.length > 0 },
+                    { text: 'Must match validated identity (manual check)', complies: null },
+                    { text: 'No deprecated attributes (e.g., unstructuredName)', complies: cert.subject && cert.subject.attributes && !cert.subject.attributes.some(a => a.type === '1.2.840.113549.1.9.2') }
+                ]
+            };
+            console.log('Subject Name result:', result);
+            return result;
+        }
+
+        function checkIssuerName(cert) {
+            console.log('Checking Issuer Name...');
+            const value = cert.issuer && cert.issuer.attributes
+                ? cert.issuer.attributes.map(attr => `${attr.shortName}=${attr.value}`).join(', ')
+                : 'Not available';
+            const result = {
+                name: 'Issuer Name',
+                value,
+                requirements: [
+                    { text: 'Must be present', complies: cert.issuer && cert.issuer.attributes && cert.issuer.attributes.length > 0 },
+                    { text: 'Must identify a valid CA (manual check)', complies: null },
+                    { text: 'Must use UTF8String or PrintableString', complies: cert.issuer && cert.issuer.attributes && cert.issuer.attributes.every(a => a.valueTagClass === forge.asn1.Type.UTF8 || a.valueTagClass === forge.asn1.Type.PRINTABLESTRING) }
+                ]
+            };
+            console.log('Issuer Name result:', result);
+            return result;
+        }
+
+        function checkPublicKey(cert) {
+            console.log('Checking Subject Public Key Info...');
+            let value, reqs;
+            if (!cert.publicKey || !cert.tbsCertificate || !cert.tbsCertificate.subjectPublicKeyInfo) {
+                value = 'Not available';
+                reqs = [{ text: 'Must be present', complies: false }];
+            } else {
+                const spki = cert.tbsCertificate.subjectPublicKeyInfo;
+                if (spki.algorithm === '1.2.840.113549.1.1.1') { // RSA
+                    const bits = cert.publicKey.n ? cert.publicKey.n.bitLength() : 0;
+                    const exponent = cert.publicKey.e ? cert.publicKey.e.toString(16) : 'Unknown';
+                    value = `RSA ${bits} bits, Exponent: 0x${exponent}`;
+                    reqs = [
+                        { text: 'Must be present', complies: true },
+                        { text: 'RSA key size must be at least 2048 bits', complies: bits >= 2048 },
+                        { text: 'Modulus must be odd', complies: cert.publicKey.n && cert.publicKey.n.testBit(0) }
+                    ];
+                } else if (spki.algorithm === '1.2.840.10045.2.1') { // ECDSA
+                    const curveOid = spki.parameters || 'Unknown';
+                    const curveName = forge.pki.oids[curveOid] || curveOid;
+                    value = `ECDSA ${curveName}`;
+                    reqs = [
+                        { text: 'Must be present', complies: true },
+                        { text: 'Must use P-256, P-384, or P-521 curves', complies: ['1.2.840.10045.3.1.7', '1.3.132.0.34', '1.3.132.0.35'].includes(curveOid) }
+                    ];
+                } else {
+                    value = 'Unsupported key type';
+                    reqs = [
+                        { text: 'Must be present', complies: true },
+                        { text: 'Must be RSA or ECDSA', complies: false }
+                    ];
+                }
+            }
+            const result = { name: 'Subject Public Key Info', value, requirements: reqs };
+            console.log('Subject Public Key Info result:', result);
+            return result;
+        }
+
+        function checkSubjectKeyIdentifier(cert) {
+            console.log('Checking Subject Key Identifier...');
+            const ext = cert.getExtension('subjectKeyIdentifier');
+            const value = ext ? forge.util.bytesToHex(ext.keyIdentifier) : 'Not present';
+            const result = {
+                name: 'Subject Key Identifier',
+                value,
+                requirements: [
+                    { text: 'Should be present', complies: !!ext },
+                    { text: 'Must be unique per key (manual check)', complies: null }
+                ]
+            };
+            console.log('Subject Key Identifier result:', result);
+            return result;
+        }
+
+        function checkAuthorityKeyIdentifier(cert) {
+            console.log('Checking Authority Key Identifier...');
+            const ext = cert.getExtension('authorityKeyIdentifier');
+            const value = ext ? (ext.keyIdentifier ? forge.util.bytesToHex(ext.keyIdentifier) : 'Serial+Issuer') : 'Not present';
+            const result = {
+                name: 'Authority Key Identifier',
+                value,
+                requirements: [
+                    { text: 'Must be present', complies: !!ext },
+                    { text: 'Must match issuer’s SKI (manual check)', complies: null },
+                    { text: 'Must not use issuer/serial alone if SKI exists', complies: ext && ext.keyIdentifier ? true : null }
+                ]
+            };
+            console.log('Authority Key Identifier result:', result);
+            return result;
+        }
+
+        function checkBasicConstraints(cert) {
+            console.log('Checking Basic Constraints...');
+            const ext = cert.getExtension('basicConstraints');
+            const value = ext ? (ext.cA ? 'CA:TRUE' : 'CA:FALSE') : 'Not present';
+            const result = {
+                name: 'Basic Constraints',
+                value,
+                requirements: [
+                    { text: 'Must be present for end-entity certs', complies: !!ext },
+                    { text: 'CA must be FALSE for end-entity certs', complies: ext && !ext.cA },
+                    { text: 'Must be critical', complies: ext && ext.critical }
+                ]
+            };
+            console.log('Basic Constraints result:', result);
+            return result;
+        }
+
+        function checkKeyUsage(cert) {
+            console.log('Checking Key Usage...');
+            const ext = cert.getExtension('keyUsage');
+            const value = ext ? Object.keys(ext).filter(k => ext[k] && k !== 'critical').join(', ') : 'Not present';
+            const spki = cert.tbsCertificate && cert.tbsCertificate.subjectPublicKeyInfo;
+            const isRSA = spki && spki.algorithm === '1.2.840.113549.1.1.1';
+            const result = {
+                name: 'Key Usage',
+                value,
+                requirements: [
+                    { text: 'Must be present', complies: !!ext },
+                    { text: 'Must include digitalSignature', complies: ext && ext.digitalSignature },
+                    { text: 'May include keyEncipherment for RSA', complies: !cert.publicKey || isRSA ? (ext && ext.keyEncipherment) : true },
+                    { text: 'Must be critical', complies: ext && ext.critical }
+                ]
+            };
+            console.log('Key Usage result:', result);
+            return result;
+        }
+
+        function checkExtendedKeyUsage(cert) {
+            console.log('Checking Extended Key Usage...');
+            const ext = cert.getExtension('extKeyUsage');
+            const value = ext ? Object.keys(ext).filter(k => ext[k] && k !== 'critical').join(', ') : 'Not present';
+            const result = {
+                name: 'Extended Key Usage',
+                value,
+                requirements: [
+                    { text: 'Must be present for SSL/TLS', complies: !!ext },
+                    { text: 'Must include serverAuth', complies: ext && ext.serverAuth },
+                    { text: 'Must not include unintended purposes (manual check)', complies: null }
+                ]
+            };
+            console.log('Extended Key Usage result:', result);
+            return result;
+        }
+
+        function checkSAN(cert) {
+            console.log('Checking Subject Alternative Name...');
+            const ext = cert.getExtension('subjectAltName');
+            const value = ext ? ext.altNames.map(n => `${n.type === 2 ? 'dNSName' : n.type === 7 ? 'iPAddress' : 'other'}: ${n.value}`).join(', ') : 'Not present';
+            const result = {
+                name: 'Subject Alternative Name',
+                value,
+                requirements: [
+                    { text: 'Must be present', complies: !!ext },
+                    { text: 'Must include at least one entry', complies: ext && ext.altNames.length > 0 },
+                    { text: 'Entries must be validated (manual check)', complies: null },
+                    { text: 'Must be critical if CN is absent', complies: cert.subject && cert.subject.getField('CN') ? true : ext && ext.critical }
+                ]
+            };
+            console.log('Subject Alternative Name result:', result);
+            return result;
+        }
+
+        function checkCertificatePolicies(cert) {
+            console.log('Checking Certificate Policies...');
+            const ext = cert.getExtension('certificatePolicies');
+            let value = 'Not present';
+            let policyOids = [];
+
+            if (ext && ext.value) {
+                console.log('Certificate Policies extension found, raw value:', ext.value);
+                try {
+                    const asn1 = forge.asn1.fromDer(ext.value);
+                    console.log('Decoded ASN.1 structure:', asn1);
+                    if (asn1.type === forge.asn1.Type.SEQUENCE) {
+                        policyOids = asn1.value.map(policy => {
+                            if (policy.type === forge.asn1.Type.SEQUENCE && policy.value.length > 0) {
+                                const oidAsn1 = policy.value[0];
+                                if (oidAsn1.type === forge.asn1.Type.OID) {
+                                    return forge.asn1.derToOid(oidAsn1.value);
+                                }
+                            }
+                            return null;
+                        }).filter(oid => oid !== null);
+                        console.log('Extracted policy OIDs:', policyOids);
+                        value = policyOids.length > 0 ? policyOids.join(', ') : 'No valid policy OIDs found';
+                    } else {
+                        value = 'Invalid structure';
+                    }
+                } catch (e) {
+                    console.error('Error parsing Certificate Policies:', e);
+                    value = 'Error parsing policies';
+                }
+            }
+
+            const result = {
+                name: 'Certificate Policies',
+                value,
+                requirements: [
+                    { text: 'Must be present', complies: !!ext },
+                    { text: 'Must include at least one policy OID', complies: policyOids.length > 0 },
+                    { text: 'Must match CA’s CPS (manual check)', complies: null }
+                ]
+            };
+            console.log('Certificate Policies result:', result);
+            return result;
+        }
+
+        function checkCRLDistributionPoints(cert) {
+            console.log('Checking CRL Distribution Points...');
+            const ext = cert.getExtension('cRLDistributionPoints');
+            let value = 'Not present';
+            let crlUrls = [];
+
+            // Recursive function to extract IA5String URLs from nested ASN.1 structures
+            function extractUrls(asn1Node) {
+                let urls = [];
+                if (!asn1Node || !asn1Node.value) return urls;
+
+                if (Array.isArray(asn1Node.value)) {
+                    asn1Node.value.forEach(node => {
+                        if (node.type === forge.asn1.Type.IA5STRING) {
+                            urls.push(node.value); // Direct IA5String (e.g., URI)
+                        } else if (node.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && node.type === 6) {
+                            // GeneralName uniformResourceIdentifier (tag [6])
+                            if (node.value && node.value[0] && node.value[0].type === forge.asn1.Type.IA5STRING) {
+                                urls.push(node.value[0].value);
+                            } else {
+                                if (node.value ) {
+                                    urls.push(node.value);
+                                }
+                            }
+                        } else if (node.type === forge.asn1.Type.SEQUENCE) {
+                            // Recursively process nested SEQUENCEs
+                            urls = urls.concat(extractUrls(node));
+                        } else if (node.type === 0) {
+                            // Recursively process nested SEQUENCEs
+                            urls = urls.concat(extractUrls(node));
+                        }
+                    });
+                } else {
+                    urls = asn1Node.value;
+                }
+                return urls;
+            }
+
+            if (ext) {
+                if (Array.isArray(ext)) {
+                    // node-forge pre-parsed array
+                    crlUrls = ext.map(point => {
+                        if (point.fullName) {
+                            return point.fullName.map(name => name.value).filter(v => v);
+                        }
+                        return null;
+                    }).flat().filter(url => url);
+                    value = crlUrls.length > 0 ? crlUrls.join('; ') : 'No valid URLs found (pre-parsed)';
+                } else if (ext.value) {
+                    // Fallback to raw DER parsing
+                    console.log('CRL Distribution Points raw value:', ext.value);
+                    try {
+                        const asn1 = forge.asn1.fromDer(ext.value);
+                        console.log('Decoded ASN.1 structure:', asn1);
+                        if (asn1.type === forge.asn1.Type.SEQUENCE) {
+                            crlUrls = extractUrls(asn1);
+                            console.log('Extracted CRL URLs:', crlUrls);
+                            value = crlUrls.length > 0 ? crlUrls.join('; ') : 'No valid URLs found';
+                        } else {
+                            value = 'Invalid structure';
+                        }
+                    } catch (e) {
+                        console.error('Error parsing CRL Distribution Points:', e);
+                        value = 'Error parsing CRL';
+                    }
+                }
+            }
+
+            const result = {
+                name: 'CRL Distribution Points',
+                value,
+                requirements: [
+                    { text: 'Should be present', complies: crlUrls.length > 0 ? true : null }, // Recommended, not required
+                    { text: 'URLs must be valid (manual check)', complies: crlUrls.length > 0 ? null : true }, // Compliant if absent
+                    { text: 'Must not be critical', complies: ext ? !ext.critical : true }
+                ]
+            };
+            console.log('CRL Distribution Points result:', result);
+            return result;
+        }
+
+        function checkAuthorityInfoAccess(cert) {
+            console.log('Checking Authority Information Access...');
+            const ext = cert.getExtension('authorityInfoAccess');
+            let value = 'Not present';
+            let aiaEntries = [];
+
+            if (ext && ext.value) {
+                console.log('Authority Info Access extension found, raw value:', ext.value);
+                try {
+                    const asn1 = forge.asn1.fromDer(ext.value);
+                    console.log('Decoded ASN.1 structure:', asn1);
+                    if (asn1.type === forge.asn1.Type.SEQUENCE) {
+                        aiaEntries = asn1.value.map(access => {
+                            if (access.type === forge.asn1.Type.SEQUENCE && access.value.length === 2) {
+                                const methodAsn1 = access.value[0];
+                                const locationAsn1 = access.value[1];
+                                if (methodAsn1.type === forge.asn1.Type.OID) {
+                                    const methodOid = forge.asn1.derToOid(methodAsn1.value);
+                                    const method = forge.pki.oids[methodOid] || methodOid;
+                                    // Handle GeneralName (typically IA5String for URIs)
+                                    const location = locationAsn1.type === forge.asn1.Type.IA5STRING ? locationAsn1.value : 'Unknown';
+                                    return { method, location };
+                                }
+                            }
+                            return null;
+                        }).filter(entry => entry !== null);
+                        console.log('Extracted AIA entries:', aiaEntries);
+                        value = aiaEntries.length > 0 ? aiaEntries.map(a => `${a.method}: ${a.location}`).join('; ') : 'No valid AIA entries found';
+                    } else {
+                        value = 'Invalid structure';
+                    }
+                } catch (e) {
+                    console.error('Error parsing Authority Info Access:', e);
+                    value = 'Error parsing AIA';
+                }
+            }
+
+            const result = {
+                name: 'Authority Information Access',
+                value,
+                requirements: [
+                    { text: 'Must be present', complies: !!ext },
+                    { text: 'Must include OCSP URL', complies: aiaEntries.some(a => a.method === 'ocsp') },
+                    { text: 'Should include caIssuers URL', complies: aiaEntries.some(a => a.method === 'caIssuers') ? true : null }, // Recommended, not required
+                    { text: 'Must not be critical', complies: ext ? !ext.critical : true }
+                ]
+            };
+            console.log('Authority Information Access result:', result);
+            return result;
+        }
+        function checkSubjectDirectoryAttributes(cert) {
+    console.log('Checking Subject Directory Attributes...');
+    const ext = cert.getExtension('subjectDirectoryAttributes');
+    let value = 'Not present';
+    let attributes = [];
+    if (ext && ext.value) {
+        console.log('Subject Directory Attributes extension found, raw value:', ext.value);
+        try {
+            const asn1 = forge.asn1.fromDer(ext.value);
+            console.log('Decoded ASN.1 structure:', asn1);
+            if (asn1.type === forge.asn1.Type.SEQUENCE) {
+                attributes = asn1.value.map(attr => {
+                    if (attr.type === forge.asn1.Type.SEQUENCE && attr.value.length >= 2) {
+                        const typeAsn1 = attr.value[0];
+                        const valuesAsn1 = attr.value[1];
+                        if (typeAsn1.type === forge.asn1.Type.OID && valuesAsn1.type === forge.asn1.Type.SET) {
+                            const type = forge.asn1.derToOid(typeAsn1.value);
+                            const value = valuesAsn1.value[0].value;
+                            return `${type}=${value}`;
+                        }
+                    }
+                    return null;
+                }).filter(a => a);
+                value = attributes.length > 0 ? attributes.join(', ') : 'No valid attributes found';
+            } else {
+                value = 'Invalid structure';
+            }
+        } catch (e) {
+            console.error('Error parsing Subject Directory Attributes:', e);
+            value = 'Error parsing attributes';
+        }
+    }
+    const result = {
+        name: 'Subject Directory Attributes',
+        value,
+        requirements: [
+            { text: 'Must not be present in Subscriber Certificate', complies: !ext },
+            { text: 'Optional, if present must be valid (manual check)', complies: !ext ? true : null }
+        ]
+    };
+    console.log('Subject Directory Attributes result:', result);
+    return result;
+}
+function checkNameConstraints(cert) {
+    console.log('Checking Name Constraints...');
+    const ext = cert.getExtension('nameConstraints');
+    let value = 'Not present';
+    let permitted = 'None';
+    let excluded = 'None';
+    if (ext && ext.value) {
+        console.log('Name Constraints extension found, raw value:', ext.value);
+        try {
+            const asn1 = forge.asn1.fromDer(ext.value);
+            console.log('Decoded ASN.1 structure:', asn1);
+            if (asn1.type === forge.asn1.Type.SEQUENCE) {
+                asn1.value.forEach(item => {
+                    if (item.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC) {
+                        const subtrees = item.value.map(subtree => {
+                            if (subtree.type === forge.asn1.Type.SEQUENCE && subtree.value.length > 0) {
+                                const name = subtree.value[0];
+                                if (name.type === forge.asn1.Type.IA5STRING) return name.value;
+                            }
+                            return null;
+                        }).filter(n => n);
+                        if (item.type === 0) permitted = subtrees.length > 0 ? subtrees.join(', ') : 'None';
+                        if (item.type === 1) excluded = subtrees.length > 0 ? subtrees.join(', ') : 'None';
+                    }
+                });
+                value = `Permitted: ${permitted}, Excluded: ${excluded}`;
+            } else {
+                value = 'Invalid structure';
+            }
+        } catch (e) {
+            console.error('Error parsing Name Constraints:', e);
+            value = 'Error parsing constraints';
+        }
+    }
+    const result = {
+        name: 'Name Constraints',
+        value,
+        requirements: [
+            { text: 'Must not be present in Subscriber Certificate', complies: !ext },
+            { text: 'Optional for end-entity, must be critical if present', complies: !ext ? true : ext.critical },
+            { text: 'Must be valid if present (manual check)', complies: !ext ? true : null }
+        ]
+    };
+    console.log('Name Constraints result:', result);
+    return result;
+}
+function checkPolicyConstraints(cert) {
+    console.log('Checking Policy Constraints...');
+    const ext = cert.getExtension('policyConstraints');
+    let value = 'Not present';
+    let requireExplicitPolicy = null;
+    let inhibitPolicyMapping = null;
+    if (ext && ext.value) {
+        console.log('Policy Constraints extension found, raw value:', ext.value);
+        try {
+            const asn1 = forge.asn1.fromDer(ext.value);
+            console.log('Decoded ASN.1 structure:', asn1);
+            if (asn1.type === forge.asn1.Type.SEQUENCE) {
+                asn1.value.forEach(item => {
+                    if (item.type === forge.asn1.Type.INTEGER) {
+                        const intValue = forge.util.decode64(item.value);
+                        if (item.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && item.type === 0) {
+                            requireExplicitPolicy = intValue;
+                        } else if (item.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC && item.type === 1) {
+                            inhibitPolicyMapping = intValue;
+                        }
+                    }
+                });
+                value = `RequireExplicitPolicy: ${requireExplicitPolicy || 'N/A'}, InhibitPolicyMapping: ${inhibitPolicyMapping || 'N/A'}`;
+            } else {
+                value = 'Invalid structure';
+            }
+        } catch (e) {
+            console.error('Error parsing Policy Constraints:', e);
+            value = 'Error parsing constraints';
+        }
+    }
+    const result = {
+        name: 'Policy Constraints',
+        value,
+        requirements: [
+            { text: 'Must not be present in Subscriber Certificate', complies: !ext },
+            { text: 'Optional, must be critical if present', complies: !ext ? true : ext.critical },
+            { text: 'Values must be valid if present (manual check)', complies: !ext ? true : null }
+        ]
+    };
+    console.log('Policy Constraints result:', result);
+    return result;
+}
+
+function checkInhibitAnyPolicy(cert) {
+    console.log('Checking Inhibit Any Policy...');
+    const ext = cert.getExtension('inhibitAnyPolicy');
+    let value = 'Not present';
+    let skipCerts = null;
+    if (ext && ext.value) {
+        console.log('Inhibit Any Policy extension found, raw value:', ext.value);
+        try {
+            const asn1 = forge.asn1.fromDer(ext.value);
+            console.log('Decoded ASN.1 structure:', asn1);
+            if (asn1.type === forge.asn1.Type.INTEGER) {
+                skipCerts = forge.util.decode64(asn1.value);
+                value = `SkipCerts: ${skipCerts}`;
+            } else {
+                value = 'Invalid structure';
+            }
+        } catch (e) {
+            console.error('Error parsing Inhibit Any Policy:', e);
+            value = 'Error parsing SkipCerts';
+        }
+    }
+    const result = {
+        name: 'Inhibit Any Policy',
+        value,
+        requirements: [
+            { text: 'Must not be present in Subscriber Certificate', complies: !ext },
+            { text: 'Optional, must be critical if present', complies: !ext ? true : ext.critical },
+            { text: 'SkipCerts must be valid if present (manual check)', complies: !ext ? true : null }
+        ]
+    };
+    console.log('Inhibit Any Policy result:', result);
+    return result;
+}
+    </script>
+</body>
+</html>

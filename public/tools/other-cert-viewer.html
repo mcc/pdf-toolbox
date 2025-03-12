@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Certificate Parser</title>
+    <script src="https://cdn.jsdelivr.net/npm/node-forge@latest/dist/forge.min.js"></script>
+    <style>
+        pre {
+            background: #f4f4f4;
+            padding: 10px;
+            border: 1px solid #ddd;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h2>Certificate Parser</h2>
+    <input type="file" id="certFile" accept=".cer,.pem,.der,.crt">
+    <button onclick="parseCert()">Parse Certificate</button>
+    <pre id="output"></pre>
+
+    <script>
+        // Main function to handle file selection and parsing
+        function parseCert() {
+            const fileInput = document.getElementById('certFile');
+            const file = fileInput.files[0];
+            if (!file) {
+                document.getElementById('output').textContent = 'Please select a certificate file.';
+                return;
+            }
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const arrayBuffer = e.target.result;
+                const data = new Uint8Array(arrayBuffer);
+                try {
+                    const parsed = parseCertificate(data);
+                    document.getElementById('output').textContent = JSON.stringify(parsed, null, 2);
+                } catch (error) {
+                    document.getElementById('output').textContent = 'Error: ' + error.message;
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // Library function to parse certificate data
+        function parseCertificate(data) {
+            let cert;
+            const headerCheck = new TextDecoder().decode(data.slice(0, 30));
+            if (headerCheck.startsWith('-----BEGIN CERTIFICATE-----')) {
+                const pem = new TextDecoder().decode(data);
+                try {
+                    cert = forge.pki.certificateFromPem(pem);
+                } catch (e) {
+                    throw new Error('Invalid PEM certificate: ' + e.message);
+                }
+            } else {
+                const buffer = forge.util.createBuffer(data);
+                try {
+                    const asn1Obj = forge.asn1.fromDer(buffer);
+                    cert = forge.pki.certificateFromAsn1(asn1Obj);
+                } catch (e) {
+                    throw new Error('Invalid DER certificate: ' + e.message);
+                }
+            }
+            if (!cert) throw new Error('Failed to parse certificate');
+            return extractCertificateInfo(cert);
+        }
+
+        // Extracts all attributes and extensions from a Forge certificate object
+        function extractCertificateInfo(cert) {
+            return {
+                version: cert.version !== undefined ? cert.version : null,
+                serialNumber: cert.serialNumber || null,
+                signatureAlgorithm: cert.siginfo ? parseAlgorithmIdentifier(cert.siginfo) : null,
+                issuer: cert.issuer ? parseName(cert.issuer) : null,
+                validity: cert.validity ? {
+                    notBefore: cert.validity.notBefore ? cert.validity.notBefore.toISOString() : null,
+                    notAfter: cert.validity.notAfter ? cert.validity.notAfter.toISOString() : null
+                } : null,
+                subject: cert.subject ? parseName(cert.subject) : null,
+                subjectPublicKeyInfo: cert.subjectPublicKeyInfo ? parsePublicKeyInfo(cert.subjectPublicKeyInfo) : null,
+                issuerUniqueID: cert.issuerUniqueID || null,
+                subjectUniqueID: cert.subjectUniqueID || null,
+                extensions: cert.extensions ? cert.extensions.map(parseExtension) : [],
+                signature: cert.signature ? forge.util.encode64(cert.signature) : null,
+                signatureValueRaw: cert.signatureValue ? forge.util.encode64(cert.signatureValue) : null
+            };
+        }
+
+        // Parses AlgorithmIdentifier structure
+        function parseAlgorithmIdentifier(siginfo) {
+            const oid = siginfo.algorithmOid || null;
+            let parameters = null;
+            if (siginfo.parameters) {
+                try {
+                    if (siginfo.parameters instanceof forge.util.ByteStringBuffer) {
+                        const asn1Obj = forge.asn1.fromDer(siginfo.parameters);
+                        parameters = asn1ToObject(asn1Obj);
+                    } else {
+                        parameters = { raw: forge.util.encode64(siginfo.parameters) };
+                    }
+                } catch (e) {
+                    console.warn('Failed to parse signature parameters:', e.message);
+                    parameters = { error: 'Invalid or unparsable parameters', raw: forge.util.encode64(siginfo.parameters) };
+                }
+            }
+            return {
+                oid: oid,
+                name: oid ? (forge.pki.oids[oid] || 'unknown') : null,
+                parameters: parameters
+            };
+        }
+
+        // Parses Name (issuer or subject)
+        function parseName(name) {
+            return {
+                attributes: name.attributes ? name.attributes.map(attr => ({
+                    type: attr.type || null,
+                    name: attr.type ? (forge.pki.oids[attr.type] || 'unknown') : null,
+                    value: attr.value || null,
+                    valueTagClass: attr.valueTagClass !== undefined ? attr.valueTagClass : null,
+                    shortName: attr.shortName || null
+                })) : [],
+                string: name.attributes ? nameToString(name) : null
+            };
+        }
+
+        // Converts name attributes to a string
+        function nameToString(name) {
+            return name.attributes
+                .map(attr => `${attr.shortName || forge.pki.oids[attr.type] || attr.type}=${attr.value || ''}`)
+                .join(', ');
+        }
+
+        // Parses SubjectPublicKeyInfo
+        function parsePublicKeyInfo(spki) {
+            if (!spki || !spki.algorithm) {
+                return { error: 'Missing or invalid SubjectPublicKeyInfo' };
+            }
+            const algorithm = parseAlgorithmIdentifier(spki.algorithm);
+            let publicKey;
+            if (algorithm.oid === '1.2.840.113549.1.1.1') { // RSA
+                try {
+                    const keyAsn1 = forge.asn1.fromDer(spki.publicKey);
+                    const rsaKey = forge.pki.publicKeyFromAsn1(keyAsn1);
+                    publicKey = {
+                        type: 'rsa',
+                        n: rsaKey.n ? rsaKey.n.toString(16) : null,
+                        e: rsaKey.e ? rsaKey.e.toString(16) : null
+                    };
+                } catch (e) {
+                    publicKey = { type: 'rsa', error: 'Failed to parse RSA key: ' + e.message };
+                }
+            } else {
+                publicKey = {
+                    type: 'unknown',
+                    raw: spki.publicKey ? forge.util.encode64(spki.publicKey) : null
+                };
+            }
+            return {
+                algorithm: algorithm,
+                publicKey: publicKey
+            };
+        }
+
+        // Parses an extension
+        function parseExtension(ext) {
+            if (!ext) return { error: 'Invalid extension' };
+            let parsedValue = null;
+            if (ext.value) {
+                try {
+                    const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(ext.value));
+                    parsedValue = asn1ToObject(asn1Obj);
+                } catch (e) {
+                    parsedValue = { error: 'Failed to parse extension value: ' + e.message, raw: forge.util.encode64(ext.value) };
+                }
+            }
+            const parsedExt = {
+                id: ext.id || null,
+                name: ext.id ? (ext.name || forge.pki.oids[ext.id] || 'unknown') : null,
+                critical: ext.critical !== undefined ? ext.critical : false,
+                rawValue: ext.value ? forge.util.encode64(ext.value) : null,
+                parsedValue: parsedValue
+            };
+
+            switch (ext.id) {
+                case '2.5.29.19': // Basic Constraints
+                    parsedExt.isCA = ext.isCA !== undefined ? ext.isCA : null;
+                    parsedExt.pathLenConstraint = ext.pathLenConstraint !== undefined ? ext.pathLenConstraint : null;
+                    break;
+                case '2.5.29.15': // Key Usage
+                    parsedExt.keyUsage = ext.keyUsage || (ext.value ? parseKeyUsage(ext.value) : null);
+                    break;
+                case '2.5.29.37': // Extended Key Usage
+                    parsedExt.extKeyUsage = ext.extKeyUsage || (ext.value ? parseExtKeyUsage(ext.value) : null);
+                    break;
+                case '2.5.29.17': // Subject Alternative Name
+                    parsedExt.altNames = ext.altNames || (ext.value ? parseGeneralNames(ext.value) : null);
+                    break;
+                case '2.5.29.18': // Issuer Alternative Name
+                    parsedExt.altNames = ext.value ? parseGeneralNames(ext.value) : null;
+                    break;
+                case '2.5.29.35': // Authority Key Identifier
+                    parsedExt.authorityKeyIdentifier = ext.value ? parseAuthorityKeyIdentifier(ext.value) : null;
+                    break;
+                case '2.5.29.14': // Subject Key Identifier
+                    parsedExt.subjectKeyIdentifier = ext.value && ext.value.value && ext.value.value[0] ? forge.util.encode64(ext.value.value[0].value) : null;
+                    break;
+                case '2.5.29.31': // CRL Distribution Points
+                    parsedExt.crlDistributionPoints = ext.value ? parseCRLDistributionPoints(ext.value) : null;
+                    break;
+                case '1.3.6.1.5.5.7.1.1': // Authority Information Access
+                    parsedExt.authorityInfoAccess = ext.value ? parseAuthorityInfoAccess(ext.value) : null;
+                    break;
+                case '2.5.29.32': // Certificate Policies
+                    parsedExt.certificatePolicies = ext.value ? parseCertificatePolicies(ext.value) : null;
+                    break;
+            }
+            return parsedExt;
+        }
+
+        // Helper function to convert a parsed ASN.1 object to a JSON-like structure with interpreted values
+        function asn1ToObject(asn1) {
+            if (!asn1 || typeof asn1 !== 'object' || !('tagClass' in asn1) || !('type' in asn1)) {
+                return { error: 'Input is not a valid ASN.1 object' };
+            }
+
+            const typeName = getAsn1TypeName(asn1.tagClass, asn1.type);
+            let interpretedValue;
+
+            if (asn1.composed) {
+                interpretedValue = Array.isArray(asn1.value) ? asn1.value.map(asn1ToObject) : interpretValue(asn1.tagClass, asn1.type, asn1.value);
+            } else {
+                interpretedValue = interpretValue(asn1.tagClass, asn1.type, asn1.value);
+            }
+
+            return {
+                type: typeName,
+                tagClass: asn1.tagClass,
+                typeTag: asn1.type,
+                value: interpretedValue
+            };
+        }
+
+        // Interprets the value based on tagClass and typeTag
+        function interpretValue(tagClass, type, value) {
+            if (tagClass === forge.asn1.Class.UNIVERSAL) {
+                switch (type) {
+                    case forge.asn1.Type.INTEGER:
+                        return value.toString ? parseInt(value.toString(10), 10) : value;
+                    case forge.asn1.Type.BITSTRING:
+                        return forge.util.bytesToHex(value);
+                    case forge.asn1.Type.OCTETSTRING:
+                        return forge.util.bytesToHex(value);
+                    case forge.asn1.Type.NULL:
+                        return null;
+                    case forge.asn1.Type.OID:
+                        return forge.pki.oids[value] || value;
+                    case forge.asn1.Type.BOOLEAN:
+                        return !!value;
+                    case forge.asn1.Type.UTF8STRING:
+                    case forge.asn1.Type.PRINTABLESTRING:
+                    case forge.asn1.Type.IA5STRING:
+                        return value;
+                    case forge.asn1.Type.UTCTIME:
+                    case forge.asn1.Type.GENERALIZEDTIME:
+                        try {
+                            return forge.asn1.utcTimeToDate(value).toISOString();
+                        } catch (e) {
+                            return { error: 'Invalid time format', raw: value };
+                        }
+                    default:
+                        return { unknownType: forge.util.encode64(value) };
+                }
+            } else if (tagClass === forge.asn1.Class.CONTEXT_SPECIFIC) {
+                if (type === 6) { // uniformResourceIdentifier
+                    return value;
+                }
+                return { contextSpecific: forge.util.encode64(value) };
+            }
+            return { unknownTagClass: forge.util.encode64(value) };
+        }
+
+        // Maps ASN.1 type tags to names
+        function getAsn1TypeName(tagClass, type) {
+            if (tagClass !== forge.asn1.Class.UNIVERSAL) {
+                return `context-specific[${type}]`;
+            }
+            switch (type) {
+                case forge.asn1.Type.SEQUENCE: return 'sequence';
+                case forge.asn1.Type.SET: return 'set';
+                case forge.asn1.Type.INTEGER: return 'integer';
+                case forge.asn1.Type.BITSTRING: return 'bitString';
+                case forge.asn1.Type.OCTETSTRING: return 'octetString';
+                case forge.asn1.Type.NULL: return 'null';
+                case forge.asn1.Type.OID: return 'oid';
+                case forge.asn1.Type.BOOLEAN: return 'boolean';
+                case forge.asn1.Type.UTF8STRING: return 'utf8String';
+                case forge.asn1.Type.PRINTABLESTRING: return 'printableString';
+                case forge.asn1.Type.IA5STRING: return 'ia5String';
+                case forge.asn1.Type.UTCTIME: return 'utcTime';
+                case forge.asn1.Type.GENERALIZEDTIME: return 'generalizedTime';
+                default: return `unknown[${type}]`;
+            }
+        }
+
+        function parseKeyUsage(asn1Value) {
+    try {
+        const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(asn1Value));
+        if (asn1Obj.type !== forge.asn1.Type.SEQUENCE || !asn1Obj.value || !asn1Obj.value[0]) {
+            return { error: 'Invalid KeyUsage structure: not a SEQUENCE or empty' };
+        }
+
+        const bitStringAsn1 = asn1Obj.value[0];
+        if (bitStringAsn1.type !== forge.asn1.Type.BITSTRING) {
+            return { error: 'Invalid KeyUsage structure: not a BIT STRING' };
+        }
+
+        const bitString = bitStringAsn1.value;
+        const buffer = forge.util.createBuffer(bitString);
+        const unusedBits = buffer.getByte();
+        const bitStringBytes = buffer.getBytes();
+
+        if (bitStringBytes.length === 0) {
+            return { error: 'Empty KeyUsage bit string' };
+        }
+
+        // Use the raw byte and adjust for unused bits
+        const bits = bitStringBytes.charCodeAt(0);
+
+        return {
+            digitalSignature: !!(bits & 0x80),  // Bit 0 (MSB)
+            nonRepudiation: !!(bits & 0x40),    // Bit 1
+            keyEncipherment: !!(bits & 0x20),   // Bit 2
+            dataEncipherment: !!(bits & 0x10),  // Bit 3
+            keyAgreement: !!(bits & 0x08),      // Bit 4
+            keyCertSign: !!(bits & 0x04),       // Bit 5
+            cRLSign: !!(bits & 0x02),           // Bit 6
+            encipherOnly: !!(bits & 0x01),      // Bit 7
+            decipherOnly: bitStringBytes.length > 1 && !!(bitStringBytes.charCodeAt(1) & 0x80) // Bit 8
+        };
+    } catch (e) {
+        return { error: 'Failed to parse KeyUsage: ' + e.message };
+    }
+}
+
+        function parseExtKeyUsage(asn1Value) {
+            try {
+                const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(asn1Value));
+                return asn1Obj.value ? asn1Obj.value.map(item => forge.pki.oids[item.value] || item.value) : null;
+            } catch (e) {
+                return { error: 'Failed to parse ExtKeyUsage: ' + e.message };
+            }
+        }
+
+        function parseGeneralNames(asn1Value) {
+            try {
+                let names;
+
+                if (typeof asn1Value === 'object' && 'tagClass' in asn1Value && 'type' in asn1Value) {
+                    if (!asn1Value.value) return null;
+                    names = Array.isArray(asn1Value.value) ? asn1Value.value : [asn1Value];
+                } else if (asn1Value instanceof forge.util.ByteStringBuffer || (typeof asn1Value === 'string' && isLikelyDer(asn1Value))) {
+                    const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(asn1Value));
+                    if (!asn1Obj.value) return null;
+                    names = asn1Obj.value;
+                } else if (typeof asn1Value === 'string') {
+                    return [{ type: 'ia5String', value: asn1Value }];
+                } else {
+                    return { error: 'Invalid GeneralNames input type' };
+                }
+
+                return names.map(name => {
+                    if (name.type === forge.asn1.Type.IA5STRING) {
+                        return { type: 'dNSName', value: name.value };
+                    } else if (name.type === 1) {
+                        return { type: 'rfc822Name', value: name.value };
+                    } else if (name.type === 6 && name.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC) {
+                        return { type: 'uniformResourceIdentifier', value: name.value };
+                    } else if (name.type === 2) {
+                        return { type: 'directoryName', value: nameToString({ attributes: name.value }) };
+                    } else {
+                        return { type: `unknown[${name.type}]`, value: name.value };
+                    }
+                });
+            } catch (e) {
+                return { error: 'Failed to parse GeneralNames: ' + e.message };
+            }
+        }
+
+        // Heuristic to check if a string is likely DER-encoded
+        function isLikelyDer(str) {
+            if (str.length < 2) return false;
+            const firstByte = str.charCodeAt(0);
+            return firstByte === 0x30; // SEQUENCE tag
+        }
+
+        function parseAuthorityKeyIdentifier(asn1Value) {
+            try {
+                const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(asn1Value));
+                if (!asn1Obj.value) return null;
+                const aki = {};
+                asn1Obj.value.forEach(item => {
+                    if (item.type === 0) {
+                        aki.keyIdentifier = forge.util.encode64(item.value);
+                    } else if (item.type === 1) {
+                        aki.authorityCertIssuer = parseGeneralNames(item.value);
+                    } else if (item.type === 2) {
+                        aki.authorityCertSerialNumber = item.value.toString();
+                    }
+                });
+                return aki;
+            } catch (e) {
+                return { error: 'Failed to parse AuthorityKeyIdentifier: ' + e.message };
+            }
+        }
+
+        function parseCRLDistributionPoints(asn1Value) {
+            try {
+                const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(asn1Value));
+                if (!asn1Obj.value) return null;
+
+                return asn1Obj.value.map(dp => {
+                    const point = {};
+                    dp.value.forEach(item => {
+                        if (item.type === 0 && item.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC) {
+                            const fullNameAsn1 = item.value[0];
+                            if (fullNameAsn1.type === 0 && fullNameAsn1.tagClass === forge.asn1.Class.CONTEXT_SPECIFIC) {
+                                point.fullName = parseGeneralNames(fullNameAsn1);
+                            }
+                        }
+                    });
+                    return point;
+                });
+            } catch (e) {
+                return { error: 'Failed to parse CRLDistributionPoints: ' + e.message };
+            }
+        }
+
+        function parseAuthorityInfoAccess(asn1Value) {
+            try {
+                const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(asn1Value));
+                if (!asn1Obj.value) return null;
+                return asn1Obj.value.map(access => {
+                    const methodOid = access.value[0] ? access.value[0].value : null;
+                    const location = access.value[1];
+                    return {
+                        accessMethod: methodOid ? (forge.pki.oids[methodOid] || methodOid) : null,
+                        accessLocation: location ? parseGeneralNames(location.value)[0] : null
+                    };
+                });
+            } catch (e) {
+                return { error: 'Failed to parse AuthorityInfoAccess: ' + e.message };
+            }
+        }
+
+        function parseCertificatePolicies(asn1Value) {
+            try {
+                const asn1Obj = forge.asn1.fromDer(forge.util.createBuffer(asn1Value));
+                if (!asn1Obj.value) return null;
+                return asn1Obj.value.map(policy => {
+                    const info = { policyIdentifier: policy.value[0] ? policy.value[0].value : null };
+                    if (policy.value[1]) {
+                        info.policyQualifiers = policy.value[1].value.map(qual => ({
+                            qualifierId: qual.value[0] ? qual.value[0].value : null,
+                            qualifier: qual.value[1] ? qual.value[1].value : null
+                        }));
+                    }
+                    return info;
+                });
+            } catch (e) {
+                return { error: 'Failed to parse CertificatePolicies: ' + e.message };
+            }
+        }
+    </script>
+</body>
+</html>
