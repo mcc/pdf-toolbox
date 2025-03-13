@@ -594,7 +594,7 @@
                         ${uniqueRoutes.map(r => {
                             const direction = r.dir === 'O' ? 'outbound' : 'inbound';
                             const serviceType = r.service_type;
-                            const isSelected = selectedStops.some(s => s.route === r.route && s.stopId === stopId && s.direction === direction && s.service_type === serviceType);
+                            const isSelected = selectedStops.some(s => s.route === r.route && s.stopId === stopId && s.direction === direction);
                             const serviceTypeText = serviceType == 1 ? '' : ` (${isChinese ? '服務類型' : 'Service Type'}: ${serviceType})`;
                             return `
                                 <div class="py-2 border-b ${isSelected ? 'bg-green-100' : ''}"
@@ -685,7 +685,7 @@
                 const stopId = card.dataset.stopId;
                 const serviceType = parseInt(card.dataset.serviceType) || 1;
                 try {
-                    const etaRes = await fetch(`${API_BASE}eta/${stopId}/${route}/${serviceType}`);
+                    const etaRes = await fetch(`${API_BASE}eta/${stopId}/${route}/1`);
                     const etaData = await etaRes.json();
                     const etas = etaData.data
                         .filter(eta => eta.dir === (selectedStops.find(s => s.route === route && s.stopId === stopId && s.service_type === serviceType).direction === 'outbound' ? 'O' : 'I'))
