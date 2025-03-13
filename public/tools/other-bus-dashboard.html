@@ -11,12 +11,29 @@
         <div class="flex-1">
             <div class="flex justify-between items-center mb-6">
                 <h1 class="text-3xl font-bold text-gray-800" id="title">巴士到站儀表板</h1>
-                <div class="flex gap-2">
-                    <button id="langToggle" class="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">English</button>
-                    <button id="editToggle" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600">編輯</button>
-                    <button id="editTitle" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">修改標題</button>
-                    <button id="shareDashboardBtn" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">分享</button>
-                    <button id="newDashboardBtn" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">新儀表板</button>
+                <div class="relative">
+                    <!-- Hamburger Button (visible on mobile) -->
+                    <button id="hamburgerBtn" class="lg:hidden bg-gray-700 text-white p-2 rounded hover:bg-gray-800 focus:outline-none">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                        </svg>
+                    </button>
+                    <!-- Buttons Container (hidden on mobile, visible on desktop) -->
+                    <div id="buttonContainer" class="hidden lg:flex gap-2">
+                        <button id="langToggle" class="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">English</button>
+                        <button id="editToggle" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600">編輯</button>
+                        <button id="editTitle" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">修改標題</button>
+                        <button id="shareDashboardBtn" class="bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">分享</button>
+                        <button id="newDashboardBtn" class="bg-yellow-500 text-white px-3 py-1 rounded hover:bg-yellow-600">新儀表板</button>
+                    </div>
+                    <!-- Dropdown Menu (visible on mobile when hamburger clicked) -->
+                    <div id="mobileMenu" class="hidden absolute right-0 mt-2 w-48 bg-white rounded shadow-lg lg:hidden z-10">
+                        <button id="mobileLangToggle" class="block w-full text-left bg-gray-500 text-white px-3 py-2 hover:bg-gray-600">English</button>
+                        <button id="mobileEditToggle" class="block w-full text-left bg-purple-500 text-white px-3 py-2 hover:bg-purple-600">編輯</button>
+                        <button id="mobileEditTitle" class="block w-full text-left bg-blue-500 text-white px-3 py-2 hover:bg-blue-600">修改標題</button>
+                        <button id="mobileShareDashboard" class="block w-full text-left bg-green-500 text-white px-3 py-2 hover:bg-green-600">分享</button>
+                        <button id="mobileNewDashboard" class="block w-full text-left bg-yellow-500 text-white px-3 py-2 hover:bg-yellow-600">新儀表板</button>
+                    </div>
                 </div>
             </div>
 
@@ -46,42 +63,97 @@
         let isChinese = true, isEditMode = false, dashboardTitle = '巴士到站儀表板';
         let searchHistory = [];
 
-        // Language toggle
-        document.getElementById('langToggle').addEventListener('click', () => {
+        // Hamburger Menu Toggle
+        const hamburgerBtn = document.getElementById('hamburgerBtn');
+        const mobileMenu = document.getElementById('mobileMenu');
+        hamburgerBtn.addEventListener('click', () => {
+            mobileMenu.classList.toggle('hidden');
+        });
+
+        // Close mobile menu when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!hamburgerBtn.contains(e.target) && !mobileMenu.contains(e.target)) {
+                mobileMenu.classList.add('hidden');
+            }
+        });
+
+        // Language toggle (Desktop and Mobile)
+        const langToggle = document.getElementById('langToggle');
+        const mobileLangToggle = document.getElementById('mobileLangToggle');
+        const toggleLanguage = () => {
             isChinese = !isChinese;
-            document.getElementById('langToggle').textContent = isChinese ? 'English' : '中文';
+            langToggle.textContent = isChinese ? 'English' : '中文';
+            mobileLangToggle.textContent = isChinese ? 'English' : '中文';
             document.getElementById('title').textContent = isChinese ? dashboardTitle : dashboardTitle.replace('巴士到站儀表板', 'Bus Arrival Dashboard');
             document.getElementById('searchInput').placeholder = isChinese ? '搜索路線或地點' : 'Search route or location';
             document.getElementById('editToggle').textContent = isEditMode ? (isChinese ? '完成' : 'Done') : (isChinese ? '編輯' : 'Edit');
+            document.getElementById('mobileEditToggle').textContent = isEditMode ? (isChinese ? '完成' : 'Done') : (isChinese ? '編輯' : 'Edit');
             document.getElementById('editTitle').textContent = isChinese ? '修改標題' : 'Edit Title';
+            document.getElementById('mobileEditTitle').textContent = isChinese ? '修改標題' : 'Edit Title';
             document.getElementById('shareDashboardBtn').textContent = isChinese ? '分享' : 'Share';
+            document.getElementById('mobileShareDashboard').textContent = isChinese ? '分享' : 'Share';
             document.getElementById('newDashboardBtn').textContent = isChinese ? '新儀表板' : 'New Dashboard';
+            document.getElementById('mobileNewDashboard').textContent = isChinese ? '新儀表板' : 'New Dashboard';
             updateDashboardTimes();
             refreshSearchResults();
+        };
+        langToggle.addEventListener('click', toggleLanguage);
+        mobileLangToggle.addEventListener('click', () => {
+            toggleLanguage();
+            mobileMenu.classList.add('hidden');
         });
 
-        // Edit mode toggle
-        document.getElementById('editToggle').addEventListener('click', () => {
+        // Edit mode toggle (Desktop and Mobile)
+        const editToggle = document.getElementById('editToggle');
+        const mobileEditToggle = document.getElementById('mobileEditToggle');
+        const toggleEditMode = () => {
             isEditMode = !isEditMode;
-            document.getElementById('editToggle').textContent = isEditMode ? (isChinese ? '完成' : 'Done') : (isChinese ? '編輯' : 'Edit');
+            editToggle.textContent = isEditMode ? (isChinese ? '完成' : 'Done') : (isChinese ? '編輯' : 'Edit');
+            mobileEditToggle.textContent = isEditMode ? (isChinese ? '完成' : 'Done') : (isChinese ? '編輯' : 'Edit');
             renderDashboard();
+        };
+        editToggle.addEventListener('click', toggleEditMode);
+        mobileEditToggle.addEventListener('click', () => {
+            toggleEditMode();
+            mobileMenu.classList.add('hidden');
         });
 
-        // Edit title
-        document.getElementById('editTitle').addEventListener('click', () => {
+        // Edit title (Desktop and Mobile)
+        const editTitle = document.getElementById('editTitle');
+        const mobileEditTitle = document.getElementById('mobileEditTitle');
+        const editDashboardTitle = () => {
             const newTitle = prompt(isChinese ? '輸入新的儀表板標題:' : 'Enter new dashboard title:', dashboardTitle);
             if (newTitle) {
                 dashboardTitle = newTitle;
                 document.getElementById('title').textContent = isChinese ? newTitle : newTitle.replace('巴士到站儀表板', 'Bus Arrival Dashboard');
                 updateURL();
             }
+        };
+        editTitle.addEventListener('click', editDashboardTitle);
+        mobileEditTitle.addEventListener('click', () => {
+            editDashboardTitle();
+            mobileMenu.classList.add('hidden');
         });
 
-        // Share dashboard
-        document.getElementById('shareDashboardBtn').addEventListener('click', shareDashboard);
+        // Share dashboard (Desktop and Mobile)
+        const shareDashboardBtn = document.getElementById('shareDashboardBtn');
+        const mobileShareDashboard = document.getElementById('mobileShareDashboard');
+        const shareDashboardAction = () => {
+            shareDashboard();
+            mobileMenu.classList.add('hidden');
+        };
+        shareDashboardBtn.addEventListener('click', shareDashboardAction);
+        mobileShareDashboard.addEventListener('click', shareDashboardAction);
 
-        // New dashboard
-        document.getElementById('newDashboardBtn').addEventListener('click', newDashboard);
+        // New dashboard (Desktop and Mobile)
+        const newDashboardBtn = document.getElementById('newDashboardBtn');
+        const mobileNewDashboard = document.getElementById('mobileNewDashboard');
+        const newDashboardAction = () => {
+            newDashboard();
+            mobileMenu.classList.add('hidden');
+        };
+        newDashboardBtn.addEventListener('click', newDashboardAction);
+        mobileNewDashboard.addEventListener('click', newDashboardAction);
 
         // Cache management
         function getCachedData(key) {
