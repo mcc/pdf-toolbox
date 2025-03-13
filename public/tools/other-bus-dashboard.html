@@ -740,7 +740,7 @@
 
         // URL Management
         function updateURL() {
-            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}-${s.service_type || 1}`).join('_');
+            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}}`).join('_');
             const params = new URLSearchParams();
             if (compactData) params.set('s', compactData);
             if (dashboardTitle !== '巴士到站儀表板') params.set('t', encodeURIComponent(dashboardTitle));
@@ -770,7 +770,7 @@
 
         // Share Dashboard Function
         function shareDashboard() {
-            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}-${s.service_type || 1}`).join('_');
+            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}`).join('_');
             const params = new URLSearchParams();
             if (compactData) params.set('s', compactData);
             if (dashboardTitle !== '巴士到站儀表板') params.set('t', encodeURIComponent(dashboardTitle));
