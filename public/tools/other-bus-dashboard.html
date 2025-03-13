@@ -360,7 +360,7 @@
                     </div>
                     ${stops.map(stop => {
                         const stopInfo = stopsData.find(s => s.stop === stop.stop);
-                        const isSelected = selectedStops.some(s => s.route === route && s.stopId === stop.stop && s.direction === direction && s.service_type == serviceType);
+                        const isSelected = selectedStops.some(s => s.route === route && s.stopId === stop.stop && s.direction === direction);
                         return `
                             <div 
                                 class="py-2 border-b stop-row ${isSelected ? 'bg-green-100' : ''}"
@@ -383,11 +383,11 @@
 
         async function toggleStop(route, stopId, direction, fromStopsList = false, serviceType = 1) {
             serviceType = parseInt(serviceType) || 1; // Ensure serviceType is an integer, default to 1 if invalid
-            const index = selectedStops.findIndex(s => s.route === route && s.stopId === stopId && s.direction === direction && s.service_type === serviceType);
+            const index = selectedStops.findIndex(s => s.route === route && s.stopId === stopId && s.direction === direction);
             if (index !== -1) {
                 selectedStops.splice(index, 1);
             } else {
-                selectedStops.push({route, stopId, direction, service_type: serviceType});
+                selectedStops.push({route, stopId, direction});
             }
             renderDashboard();
             updateURL();
@@ -410,13 +410,13 @@
                 let content = isChinese ? stopInfo.name_tc : stopInfo.name_en;
                 if (route && direction) {
                     const serviceTypeInt = parseInt(serviceType) || 1;
-                    const isSelected = selectedStops.some(s => s.route === route && s.stopId === stopId && s.direction === direction && s.service_type === serviceTypeInt);
+                    const isSelected = selectedStops.some(s => s.route === route && s.stopId === stopId && s.direction === direction);
                     if (isSelected) {
                         const res = await fetch(`${API_BASE}stop-eta/${stopId}`);
                         const etaData = await res.json();
                         const routes = Array.from(new Map(etaData.data.map(item => 
                             [`${item.route}-${item.dir}-${item.service_type}`, item]
-                        )).values()).filter(r => r.route === route && r.dir === (direction === 'outbound' ? 'O' : 'I') && (r.service_type == serviceType));
+                        )).values()).filter(r => r.route === route && r.dir === (direction === 'outbound' ? 'O' : 'I') );
                         content += `<br>${isChinese ? '路線' : 'Routes'}: ${routes.map(r => `${r.route}${r.service_type == 1 ? '' : ` (${r.service_type})`}`).join(', ')}`;
                     }
                 }
@@ -640,7 +640,7 @@
                 const stopInfo = stopsData.find(s => s.stop === stop.stopId);
                 const stopName = stopInfo ? (isChinese ? stopInfo.name_tc : stopInfo.name_en) : stop.stopId;
                 const dest = routeInfo ? (isChinese ? routeInfo.dest_tc : routeInfo.dest_en) : stopName;
-                const serviceTypeText = stop.service_type == 1 ? '' : ` (${isChinese ? '特' : 'SP'})`;
+                //const serviceTypeText = stop.service_type == 1 ? '' : ` (${isChinese ? '特' : 'SP'})`;
 
                 const card = document.createElement('div');
                 card.className = 'bg-white p-4 rounded shadow draggable';
@@ -651,7 +651,7 @@
                 card.dataset.serviceType = stop.service_type || 1;
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
-                        <h3 class="text-lg font-semibold mb-2">${stop.route} - ${dest}${serviceTypeText}</h3>
+                        <h3 class="text-lg font-semibold mb-2">${stop.route} - ${dest}</h3>
                         <span class="text-sm text-gray-500">${stopName}</span>
                     </div>
                     <p class="text-gray-600 eta-next">
@@ -662,7 +662,7 @@
                     </p>
                     ${isEditMode ? `
                         <button 
-                            onclick="removeStop('${stop.route}', '${stop.stopId}', ${stop.service_type || 1})" 
+                            onclick="removeStop('${stop.route}', '${stop.stopId}')" 
                             class="mt-2 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                         >
                             ${isChinese ? '移除' : 'Remove'}
@@ -702,8 +702,8 @@
             }
         }
 
-        function removeStop(route, stopId, serviceType) {
-            selectedStops = selectedStops.filter(s => !(s.route === route && s.stopId === stopId && s.service_type === serviceType));
+        function removeStop(route, stopId) {
+            selectedStops = selectedStops.filter(s => !(s.route === route && s.stopId === stopId ));
             renderDashboard();
             updateURL();
             refreshSearchResults();
