@@ -688,7 +688,7 @@
                     const etaRes = await fetch(`${API_BASE}eta/${stopId}/${route}/1`);
                     const etaData = await etaRes.json();
                     const etas = etaData.data
-                        .filter(eta => eta.dir === (selectedStops.find(s => s.route === route && s.stopId === stopId && s.service_type === serviceType).direction === 'outbound' ? 'O' : 'I'))
+                        .filter(eta => eta.dir === (selectedStops.find(s => s.route === route && s.stopId === stopId).direction === 'outbound' ? 'O' : 'I'))
                         .sort((a, b) => new Date(a.eta) - new Date(b.eta))
                         .slice(0, 2);
 
