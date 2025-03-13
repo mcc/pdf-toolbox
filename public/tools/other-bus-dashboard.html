@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>巴士到站儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4">
+    <div class="max-w-6xl mx-auto flex flex-col lg:flex-row gap-4">
+        <div class="flex-1">
+            <div class="flex justify-between items-center mb-6">
+                <h1 class="text-3xl font-bold text-gray-800" id="title">巴士到站儀表板</h1>
+                <div class="flex gap-2">
+                    <button id="langToggle" class="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600">English</button>
+                    <button id="editToggle" class="bg-purple-500 text-white px-3 py-1 rounded hover:bg-purple-600">編輯</button>
+                    <button id="editTitle" class="bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">修改標題</button>
+                </div>
+            </div>
+
+            <div class="mb-6 flex flex-col sm:flex-row gap-4">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="搜索路線或地點" 
+                    class="flex-grow p-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+            </div>
+
+            <div id="searchResults" class="mb-6"></div>
+            <div id="dashboard" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4"></div>
+        </div>
+        
+        <div class="lg:w-1/3 lg:flex-shrink-0 hidden lg:block">
+            <div id="map" class="h-[600px] w-full sticky top-4"></div>
+        </div>
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyBSdxYZf872NOwMc9eE4Xmr42mCRhKCZEA&libraries=places"></script>
+    <script>
+        let map, selectedStops = [], markers = [], infoWindow, searchTimeout;
+        const API_BASE = 'https://data.etabus.gov.hk/v1/transport/kmb/';
+        let routesData = [], stopsData = [];
+        let isChinese = true, isEditMode = false, dashboardTitle = '巴士到站儀表板';
+        let searchHistory = [];
+
+        // Language toggle
+        document.getElementById('langToggle').addEventListener('click', () => {
+            isChinese = !isChinese;
+            document.getElementById('langToggle').textContent = isChinese ? 'English' : '中文';
+            document.getElementById('title').textContent = isChinese ? dashboardTitle : dashboardTitle.replace('巴士到站儀表板', 'Bus Arrival Dashboard');
+            document.getElementById('searchInput').placeholder = isChinese ? '搜索路線或地點' : 'Search route or location';
+            document.getElementById('editToggle').textContent = isEditMode ? (isChinese ? '完成' : 'Done') : (isChinese ? '編輯' : 'Edit');
+            document.getElementById('editTitle').textContent = isChinese ? '修改標題' : 'Edit Title';
+            updateDashboardTimes();
+            refreshSearchResults();
+        });
+
+        // Edit mode toggle
+        document.getElementById('editToggle').addEventListener('click', () => {
+            isEditMode = !isEditMode;
+            document.getElementById('editToggle').textContent = isEditMode ? (isChinese ? '完成' : 'Done') : (isChinese ? '編輯' : 'Edit');
+            renderDashboard();
+        });
+
+        // Edit title
+        document.getElementById('editTitle').addEventListener('click', () => {
+            const newTitle = prompt(isChinese ? '輸入新的儀表板標題:' : 'Enter new dashboard title:', dashboardTitle);
+            if (newTitle) {
+                dashboardTitle = newTitle;
+                document.getElementById('title').textContent = isChinese ? newTitle : newTitle.replace('巴士到站儀表板', 'Bus Arrival Dashboard');
+                updateURL();
+            }
+        });
+
+        // Cache management
+        function getCachedData(key) {
+            const cached = localStorage.getItem(key);
+            if (cached) {
+                const {data, timestamp} = JSON.parse(cached);
+                if (Date.now() - timestamp < 24 * 60 * 60 * 1000) { // 24 hours
+                    return data;
+                }
+            }
+            return null;
+        }
+
+        function setCachedData(key, data) {
+            localStorage.setItem(key, JSON.stringify({
+                data,
+                timestamp: Date.now()
+            }));
+        }
+
+        // Preload data
+        async function preloadData() {
+            try {
+                routesData = getCachedData('routesData') || [];
+                stopsData = getCachedData('stopsData') || [];
+
+                if (!routesData.length || !stopsData.length) {
+                    const [routesRes, stopsRes] = await Promise.all([
+                        fetch(`${API_BASE}route/`),
+                        fetch(`${API_BASE}stop/`)
+                    ]);
+                    routesData = (await routesRes.json()).data;
+                    stopsData = (await stopsRes.json()).data;
+                    setCachedData('routesData', routesData);
+                    setCachedData('stopsData', stopsData);
+                }
+            } catch (error) {
+                console.error('Error preloading data:', error);
+            }
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', async () => {
+            await preloadData();
+            initMap();
+            loadFromUrl();
+            renderDashboard();
+            setInterval(updateDashboardTimes, 30000);
+        });
+
+        // Map initialization
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                center: {lat: 22.3193, lng: 114.1694},
+                zoom: 12
+            });
+            infoWindow = new google.maps.InfoWindow();
+            map.addListener('click', (e) => {
+                const clickedLatLng = e.latLng;
+                searchHistory = [];
+                showNearbyStopsOnMapAndList(clickedLatLng);
+            });
+        }
+
+        // Search functionality with debounce
+        document.getElementById('searchInput').addEventListener('input', (e) => {
+            const query = e.target.value.trim();
+            clearTimeout(searchTimeout);
+
+            if (query.length < 2) {
+                document.getElementById('searchResults').innerHTML = '';
+                clearMarkers();
+                searchHistory = [];
+                return;
+            }
+
+            searchTimeout = setTimeout(() => {
+                const resultsDiv = document.getElementById('searchResults');
+                resultsDiv.innerHTML = '';
+
+                const matchingRoutes = routesData.filter(route => 
+                    route.route.toLowerCase().includes(query.toLowerCase())
+                );
+                
+                if (matchingRoutes.length > 0) {
+                    searchHistory = [{type: 'routes', data: matchingRoutes}];
+                    showRouteResults(matchingRoutes);
+                } else {
+                    searchHistory = [];
+                    showMapForLocation(query);
+                }
+            }, 500);
+        });
+
+        function refreshSearchResults() {
+            if (searchHistory.length > 0) {
+                const lastSearch = searchHistory[searchHistory.length - 1];
+                if (lastSearch.type === 'routes') {
+                    showRouteResults(lastSearch.data);
+                } else if (lastSearch.type === 'stops') {
+                    showStopsForRoute(lastSearch.route, lastSearch.bound, lastSearch.serviceType);
+                } else if (lastSearch.type === 'nearby') {
+                    showNearbyStopsOnMapAndList(lastSearch.latLng, lastSearch.locationName);
+                } else if (lastSearch.type === 'routesForStop') {
+                    showRoutesForStop(lastSearch.stopId);
+                }
+            }
+        }
+
+        function highlightRouteStop(route, bound, serviceType){
+            // Already shown in map when stops are displayed
+        }
+
+        function showRouteResults(routes) {
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = `
+                <div class="bg-white p-4 rounded shadow">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-semibold">${isChinese ? '匹配路線' : 'Matching Routes'}</h3>
+                        <button 
+                            onclick="closeResults()" 
+                            class="text-red-500 hover:text-red-700"
+                        >
+                            ${isChinese ? '關閉' : 'Close'}
+                        </button>
+                    </div>
+                    ${routes.map(route => {
+                        const serviceTypeText = route.service_type == 1 ? '' : ` <span class="text-sm">${isChinese ? '(特別路線)' : '(Special)'}</span>`;
+                        return `
+                            <div 
+                                class="py-2 border-b route-row"
+                                onmouseover="highlightRouteStop('${route.route}', '${route.bound}', '${route.service_type}')"
+                                onmouseout="clearHighlight()"
+                            >
+                                <button 
+                                    onclick="toggleRoute('${route.route}', '${route.bound}', '${route.service_type}')"
+                                    class="w-full text-left hover:bg-gray-100 p-2 rounded"
+                                >
+                                    ${route.route} (${route.bound === 'O' ? (isChinese ? '出城' : 'Outbound') : (isChinese ? '入城' : 'Inbound')}) 
+                                    - ${isChinese ? route.dest_tc : route.dest_en}${serviceTypeText}
+                                </button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        async function toggleRoute(route, bound, serviceType) {
+            const direction = bound === 'O' ? 'outbound' : 'inbound';
+            searchHistory.push({type: 'stops', route, bound, serviceType});
+            showStopsForRoute(route, bound, serviceType);
+        }
+
+        async function showStopsForRoute(route, bound, serviceType) {
+            const direction = bound === 'O' ? 'outbound' : 'inbound';
+            const res = await fetch(`${API_BASE}route-stop/${route}/${direction}/${serviceType}`);
+            const data = await res.json();
+            const stops = data.data;
+            
+            clearMarkers();
+            stops.forEach(stop => {
+                const stopInfo = stopsData.find(s => s.stop === stop.stop);
+                if (stopInfo) {
+                    const marker = new google.maps.Marker({
+                        position: {lat: parseFloat(stopInfo.lat), lng: parseFloat(stopInfo.long)},
+                        map: map,
+                        title: isChinese ? stopInfo.name_tc : stopInfo.name_en
+                    });
+                    marker.addListener('click', () => {
+                        searchHistory.push({type: 'routesForStop', stopId: stop.stop});
+                        showRoutesForStop(stop.stop);
+                    });
+                    markers.push(marker);
+                }
+            });
+            if (markers.length > 0) {
+                const bounds = new google.maps.LatLngBounds();
+                markers.forEach(m => bounds.extend(m.getPosition()));
+                map.fitBounds(bounds);
+            }
+
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = `
+                <div class="bg-white p-4 rounded shadow">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-semibold">${isChinese ? `路線 ${route} 的巴士站` : `Stops for ${route}`}</h3>
+                        <div>
+                            ${searchHistory.length > 1 ? `
+                                <button 
+                                    onclick="goBack()" 
+                                    class="text-blue-500 hover:text-blue-700 mr-2"
+                                >
+                                    ${isChinese ? '返回' : 'Back'}
+                                </button>
+                            ` : ''}
+                            <button 
+                                onclick="closeResults()" 
+                                class="text-red-500 hover:text-red-700"
+                            >
+                                ${isChinese ? '關閉' : 'Close'}
+                            </button>
+                        </div>
+                    </div>
+                    ${stops.map(stop => {
+                        const stopInfo = stopsData.find(s => s.stop === stop.stop);
+                        const isSelected = selectedStops.some(s => s.route === route && s.stopId === stop.stop && s.direction === direction && s.service_type == serviceType);
+                        return `
+                            <div 
+                                class="py-2 border-b stop-row ${isSelected ? 'bg-green-100' : ''}"
+                                onmouseover="highlightStop('${stop.stop}', '${route}', '${direction}', '${serviceType}')"
+                                onmouseout="clearHighlight()"
+                            >
+                                <button 
+                                    onclick="toggleStop('${route}', '${stop.stop}', '${direction}', true, '${serviceType}')"
+                                    class="w-full text-left hover:bg-gray-100 p-2 rounded ${isSelected ? 'text-green-700' : ''}"
+                                >
+                                    ${isChinese ? stopInfo?.name_tc : stopInfo?.name_en}
+                                    ${isSelected ? ` (${isChinese ? '已添加' : 'Added'})` : ''}
+                                </button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        async function toggleStop(route, stopId, direction, fromStopsList = false, serviceType = 1) {
+            serviceType = parseInt(serviceType) || 1; // Ensure serviceType is an integer, default to 1 if invalid
+            const index = selectedStops.findIndex(s => s.route === route && s.stopId === stopId && s.direction === direction && s.service_type === serviceType);
+            if (index !== -1) {
+                selectedStops.splice(index, 1);
+            } else {
+                selectedStops.push({route, stopId, direction, service_type: serviceType});
+            }
+            renderDashboard();
+            updateURL();
+            if (fromStopsList) {
+                refreshSearchResults();
+            } else {
+                searchHistory = [{type: 'nearby', latLng: markers[0].getPosition(), locationName: infoWindow.getContent().split(': ')[1]}];
+                searchHistory.push({type: 'routesForStop', stopId});
+                showRoutesForStop(stopId);
+            }
+        }
+
+        async function highlightStop(stopId, route = null, direction = null, serviceType = null) {
+            const stopInfo = stopsData.find(s => s.stop === stopId);
+            if (!stopInfo) return;
+
+            const marker = markers.find(m => m.getTitle() === (isChinese ? stopInfo.name_tc : stopInfo.name_en));
+            if (marker) {
+                map.panTo(marker.getPosition());
+                let content = isChinese ? stopInfo.name_tc : stopInfo.name_en;
+                if (route && direction) {
+                    const serviceTypeInt = parseInt(serviceType) || 1;
+                    const isSelected = selectedStops.some(s => s.route === route && s.stopId === stopId && s.direction === direction && s.service_type === serviceTypeInt);
+                    if (isSelected) {
+                        const res = await fetch(`${API_BASE}stop-eta/${stopId}`);
+                        const etaData = await res.json();
+                        const routes = Array.from(new Map(etaData.data.map(item => 
+                            [`${item.route}-${item.dir}-${item.service_type}`, item]
+                        )).values()).filter(r => r.route === route && r.dir === (direction === 'outbound' ? 'O' : 'I') && (r.service_type == serviceType));
+                        content += `<br>${isChinese ? '路線' : 'Routes'}: ${routes.map(r => `${r.route}${r.service_type == 1 ? '' : ` (${r.service_type})`}`).join(', ')}`;
+                    }
+                }
+                infoWindow.setContent(content);
+                infoWindow.open(map, marker);
+            }
+        }
+
+        function clearHighlight() {
+            infoWindow.close();
+        }
+
+        function clearMarkers() {
+            markers.forEach(m => m.setMap(null));
+            markers = [];
+        }
+
+        function closeResults() {
+            document.getElementById('searchResults').innerHTML = '';
+            document.getElementById('searchInput').value = '';
+            clearMarkers();
+            searchHistory = [];
+        }
+
+        function goBack() {
+            if (searchHistory.length > 1) {
+                searchHistory.pop();
+                refreshSearchResults();
+            } else if (searchHistory.length === 1 && searchHistory[0].type === 'routesForStop') {
+                const nearbyEntry = searchHistory[0];
+                searchHistory = [{type: 'nearby', latLng: nearbyEntry.latLng, locationName: nearbyEntry.locationName}];
+                showNearbyStopsOnMapAndList(nearbyEntry.latLng, nearbyEntry.locationName);
+            }
+        }
+
+        function showMapForLocation(query) {
+            const geocoder = new google.maps.Geocoder();
+            geocoder.geocode({ address: query }, (results, status) => {
+                if (status === 'OK') {
+                    const location = results[0].geometry.location;
+                    searchHistory = [{type: 'nearby', latLng: location, locationName: results[0].formatted_address}];
+                    showNearbyStopsOnMapAndList(location, results[0].formatted_address);
+                }
+            });
+        }
+
+        function showNearbyStopsOnMapAndList(latLng, locationName = "Clicked Location") {
+            clearMarkers();
+            
+            const locationMarker = new google.maps.Marker({
+                position: latLng,
+                map: map,
+                icon: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
+            });
+            markers.push(locationMarker);
+            infoWindow.setContent(isChinese ? `位置: ${locationName}` : `Location: ${locationName}`);
+            infoWindow.open(map, locationMarker);
+            map.panTo(latLng);
+
+            const nearbyStops = findNearbyStops(latLng, 0.5).map(stop => ({
+                ...stop,
+                distance: getDistance(latLng.lat(), latLng.lng(), parseFloat(stop.lat), parseFloat(stop.long))
+            })).sort((a, b) => a.distance - b.distance);
+
+            nearbyStops.forEach(stop => {
+                const marker = new google.maps.Marker({
+                    position: {lat: parseFloat(stop.lat), lng: parseFloat(stop.long)},
+                    map: map,
+                    title: isChinese ? stop.name_tc : stop.name_en
+                });
+                marker.addListener('click', () => {
+                    searchHistory = [{type: 'nearby', latLng: latLng, locationName: locationName}];
+                    searchHistory.push({type: 'routesForStop', stopId: stop.stop});
+                    showRoutesForStop(stop.stop);
+                });
+                markers.push(marker);
+            });
+
+            if (nearbyStops.length > 0) {
+                const bounds = new google.maps.LatLngBounds();
+                bounds.extend(latLng);
+                nearbyStops.forEach(stop => bounds.extend({lat: parseFloat(stop.lat), lng: parseFloat(stop.long)}));
+                map.fitBounds(bounds);
+            }
+
+            showNearbyStopOptions(nearbyStops, latLng);
+        }
+
+        function findNearbyStops(latLng, radiusKm = 1) {
+            return stopsData.filter(stop => {
+                const dist = getDistance(latLng.lat(), latLng.lng(), 
+                    parseFloat(stop.lat), parseFloat(stop.long));
+                return dist <= radiusKm;
+            });
+        }
+
+        function getDistance(lat1, lon1, lat2, lon2) {
+            const R = 6371;
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c;
+        }
+
+        async function showNearbyStopOptions(stops, latLng) {
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = `
+                <div class="bg-white p-4 rounded shadow">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-lg font-semibold">${isChinese ? '附近巴士站' : 'Nearby Stops'}</h3>
+                        <button 
+                            onclick="closeResults()" 
+                            class="text-red-500 hover:text-red-700"
+                        >
+                            ${isChinese ? '關閉' : 'Close'}
+                        </button>
+                    </div>
+                    ${stops.map(stop => {
+                        const isSelected = selectedStops.some(s => s.stopId === stop.stop);
+                        return `
+                            <div class="py-2 border-b ${isSelected ? 'bg-green-100' : ''}">
+                                <button 
+                                    onclick="toggleStopFromNearby('${stop.stop}')"
+                                    class="w-full text-left hover:bg-gray-100 p-2 rounded ${isSelected ? 'text-green-700' : ''}"
+                                >
+                                    ${isChinese ? stop.name_tc : stop.name_en} (${stop.distance.toFixed(2)}km)
+                                    ${isSelected ? ` (${isChinese ? '已添加' : 'Added'})` : ''}
+                                </button>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+        }
+
+        async function toggleStopFromNearby(stopId) {
+            searchHistory = searchHistory.slice(0, 1); // Keep only the 'nearby' entry
+            searchHistory.push({type: 'routesForStop', stopId});
+            showRoutesForStop(stopId);
+        }
+
+        async function showRoutesForStop(stopId) {
+            const resultsDiv = document.getElementById('searchResults');
+            resultsDiv.innerHTML = '<div class="bg-white p-4 rounded shadow">載入路線中...</div>';
+            
+            try {
+                const res = await fetch(`${API_BASE}stop-eta/${stopId}`);
+                const etaData = await res.json();
+                const uniqueRoutes = Array.from(new Map(etaData.data.map(item => 
+                    [`${item.route}-${item.dir}-${item.service_type}`, item]
+                )).values());
+
+                resultsDiv.innerHTML = `
+                    <div class="bg-white p-4 rounded shadow">
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-lg font-semibold">${isChinese ? '巴士站路線' : 'Routes for Stop'}</h3>
+                            <div>
+                                <button 
+                                    onclick="goBack()" 
+                                    class="text-blue-500 hover:text-blue-700 mr-2"
+                                >
+                                    ${isChinese ? '返回' : 'Back'}
+                                </button>
+                                <button 
+                                    onclick="closeResults()" 
+                                    class="text-red-500 hover:text-red-700"
+                                >
+                                    ${isChinese ? '關閉' : 'Close'}
+                                </button>
+                            </div>
+                        </div>
+                        ${uniqueRoutes.map(r => {
+                            const direction = r.dir === 'O' ? 'outbound' : 'inbound';
+                            const serviceType = r.service_type;
+                            const isSelected = selectedStops.some(s => s.route === r.route && s.stopId === stopId && s.direction === direction && s.service_type === serviceType);
+                            const serviceTypeText = serviceType == 1 ? '' : ` (${isChinese ? '服務類型' : 'Service Type'}: ${serviceType})`;
+                            return `
+                                <div class="py-2 border-b ${isSelected ? 'bg-green-100' : ''}"
+                                    onmouseover="highlightStop('${stopId}', '${r.route}', '${direction}', '${serviceType}')"
+                                    onmouseout="clearHighlight()"
+                                >
+                                    <button 
+                                        onclick="toggleStop('${r.route}', '${stopId}', '${direction}', false, ${serviceType})"
+                                        class="w-full text-left hover:bg-gray-100 p-2 rounded ${isSelected ? 'text-green-700' : ''}"
+                                    >
+                                        ${r.route} (${direction === 'outbound' ? (isChinese ? '出城' : 'Outbound') : (isChinese ? '入城' : 'Inbound')}) 
+                                        - ${isChinese ? r.dest_tc : r.dest_en}${serviceTypeText}
+                                        ${isSelected ? ` (${isChinese ? '已添加' : 'Added'})` : ''}
+                                    </button>
+                                </div>
+                            `;
+                        }).join('')}
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error fetching stop ETA:', error);
+                resultsDiv.innerHTML = `
+                    <div class="bg-white p-4 rounded shadow">
+                        <p class="text-red-500">${isChinese ? '無法載入路線數據' : 'Failed to load route data'}</p>
+                        <button 
+                            onclick="closeResults()" 
+                            class="text-red-500 hover:text-red-700"
+                        >
+                            ${isChinese ? '關閉' : 'Close'}
+                        </button>
+                    </div>
+                `;
+            }
+        }
+
+        function renderDashboard() {
+            const dashboard = document.getElementById('dashboard');
+            dashboard.innerHTML = '';
+            dashboard.setAttribute('draggable', isEditMode.toString());
+
+            selectedStops.forEach((stop, i) => {
+                const routeInfo = routesData.find(r => r.route === stop.route && r.bound === (stop.direction === 'outbound' ? 'O' : 'I'));
+                const stopInfo = stopsData.find(s => s.stop === stop.stopId);
+                const stopName = stopInfo ? (isChinese ? stopInfo.name_tc : stopInfo.name_en) : stop.stopId;
+                const dest = routeInfo ? (isChinese ? routeInfo.dest_tc : routeInfo.dest_en) : stopName;
+                const serviceTypeText = stop.service_type == 1 ? '' : ` (${isChinese ? '特' : 'SP'})`;
+
+                const card = document.createElement('div');
+                card.className = 'bg-white p-4 rounded shadow draggable';
+                card.draggable = isEditMode;
+                card.dataset.index = i;
+                card.dataset.route = stop.route;
+                card.dataset.stopId = stop.stopId;
+                card.dataset.serviceType = stop.service_type || 1;
+                card.innerHTML = `
+                    <div class="flex justify-between items-start">
+                        <h3 class="text-lg font-semibold mb-2">${stop.route} - ${dest}${serviceTypeText}</h3>
+                        <span class="text-sm text-gray-500">${stopName}</span>
+                    </div>
+                    <p class="text-gray-600 eta-next">
+                        ${isChinese ? '下班車' : 'Next'}: <span>N/A</span>
+                    </p>
+                    <p class="text-gray-600 eta-next-plus-one">
+                        ${isChinese ? '下下班車' : 'Next+1'}: <span>N/A</span>
+                    </p>
+                    ${isEditMode ? `
+                        <button 
+                            onclick="removeStop('${stop.route}', '${stop.stopId}', ${stop.service_type || 1})" 
+                            class="mt-2 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
+                        >
+                            ${isChinese ? '移除' : 'Remove'}
+                        </button>
+                    ` : ''}
+                `;
+                dashboard.appendChild(card);
+            });
+
+            if (isEditMode) {
+                setupDragAndDrop();
+            }
+            updateDashboardTimes();
+        }
+
+        async function updateDashboardTimes() {
+            const cards = document.querySelectorAll('#dashboard .draggable');
+            for (const card of cards) {
+                const route = card.dataset.route;
+                const stopId = card.dataset.stopId;
+                const serviceType = parseInt(card.dataset.serviceType) || 1;
+                try {
+                    const etaRes = await fetch(`${API_BASE}eta/${stopId}/${route}/${serviceType}`);
+                    const etaData = await etaRes.json();
+                    const etas = etaData.data
+                        .filter(eta => eta.dir === (selectedStops.find(s => s.route === route && s.stopId === stopId && s.service_type === serviceType).direction === 'outbound' ? 'O' : 'I'))
+                        .sort((a, b) => new Date(a.eta) - new Date(b.eta))
+                        .slice(0, 2);
+
+                    const nextTime = card.querySelector('.eta-next span');
+                    const nextPlusOneTime = card.querySelector('.eta-next-plus-one span');
+                    nextTime.textContent = etas[0]?.eta ? new Date(etas[0].eta).toLocaleTimeString() : 'N/A';
+                    nextPlusOneTime.textContent = etas[1]?.eta ? new Date(etas[1].eta).toLocaleTimeString() : 'N/A';
+                } catch (error) {
+                    console.error('Error updating ETA:', error);
+                }
+            }
+        }
+
+        function removeStop(route, stopId, serviceType) {
+            selectedStops = selectedStops.filter(s => !(s.route === route && s.stopId === stopId && s.service_type === serviceType));
+            renderDashboard();
+            updateURL();
+            refreshSearchResults();
+        }
+
+        function setupDragAndDrop() {
+            const cards = document.querySelectorAll('.draggable');
+            cards.forEach(card => {
+                card.addEventListener('dragstart', (e) => {
+                    e.dataTransfer.setData('text/plain', card.dataset.index);
+                    card.classList.add('opacity-50');
+                });
+
+                card.addEventListener('dragend', (e) => {
+                    card.classList.remove('opacity-50');
+                });
+
+                card.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                });
+
+                card.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    const fromIndex = parseInt(e.dataTransfer.getData('text/plain'));
+                    const toIndex = parseInt(card.dataset.index);
+                    
+                    const [movedItem] = selectedStops.splice(fromIndex, 1);
+                    selectedStops.splice(toIndex, 0, movedItem);
+                    renderDashboard();
+                    updateURL();
+                });
+            });
+        }
+
+        // URL Management
+        function updateURL() {
+            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}-${s.service_type || 1}`).join('_');
+            const params = new URLSearchParams();
+            if (compactData) params.set('s', compactData);
+            if (dashboardTitle !== '巴士到站儀表板') params.set('t', encodeURIComponent(dashboardTitle));
+            const newUrl = `${window.location.pathname}${params.toString() ? '?' + params.toString() : ''}`;
+            window.history.replaceState({}, document.title, newUrl);
+        }
+
+        function loadFromUrl() {
+            const params = new URLSearchParams(window.location.search);
+            const stopsParam = params.get('s');
+            const titleParam = params.get('t');
+            
+            if (stopsParam) {
+                selectedStops = stopsParam.split('_').map(item => {
+                    const [routePart, rest] = item.split('|');
+                    const [stopId, directionService] = rest.split(';');
+                    const [direction, service_type] = directionService.split('-');
+                    return {route: routePart, stopId, direction, service_type: parseInt(service_type) || 1};
+                });
+            }
+            
+            if (titleParam) {
+                dashboardTitle = decodeURIComponent(titleParam);
+                document.getElementById('title').textContent = isChinese ? dashboardTitle : dashboardTitle.replace('巴士到站儀表板', 'Bus Arrival Dashboard');
+            }
+        }
+
+        // Sharing
+        function shareDashboard() {
+            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}-${s.service_type || 1}`).join('_');
+            const params = new URLSearchParams();
+            if (compactData) params.set('s', compactData);
+            if (dashboardTitle !== '巴士到站儀表板') params.set('t', encodeURIComponent(dashboardTitle));
+            const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+            navigator.clipboard.writeText(url);
+            alert(isChinese ? '網址已複製到剪貼板！' : 'URL copied to clipboard!');
+        }
+    </script>
+</body>
+</html>
