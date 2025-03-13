@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>iAM Smart Personal Code Scanner</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- jsQR for QR code decoding -->
+  <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+  <!-- Forge for cryptography -->
+  <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
+  <!-- XLSX for Excel file generation -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body class="bg-gray-100">
+  <div class="container mx-auto p-4 max-w-4xl">
+    <h1 class="text-2xl font-bold mb-4 text-center">Personal Code Scanner</h1>
+    <div class="mb-4 bg-black rounded-lg overflow-hidden">
+      <video id="video" class="w-full" autoplay></video>
+    </div>
+    <div id="result" class="hidden p-4 bg-white rounded-lg shadow-md mb-4">
+      <h2 class="text-xl font-semibold mb-2">Scanned Result</h2>
+      <p id="personal-content" class="text-gray-800"></p>
+      <p id="timer" class="text-sm text-gray-600 mt-2"></p>
+    </div>
+    <div id="error" class="hidden p-4 bg-red-100 text-red-700 rounded-lg shadow-md mb-4">
+      <p id="error-message"></p>
+    </div>
+    <div class="flex justify-center space-x-4 mb-4">
+      <button id="download-btn" class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">Download Logs</button>
+      <button id="clear-btn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Clear Logs</button>
+    </div>
+    <div class="bg-white p-4 rounded-lg shadow-md">
+      <h2 class="text-xl font-semibold mb-2">Logs</h2>
+      <table id="log-table" class="w-full text-left border-collapse">
+        <thead>
+          <tr class="bg-gray-200">
+            <th class="p-2 border-b">Timestamp</th>
+            <th class="p-2 border-b">English Name</th>
+            <th class="p-2 border-b">Age Group</th>
+            <th class="p-2 border-b">Hash</th>
+          </tr>
+        </thead>
+        <tbody id="log-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <script>
+    (async () => {
+      // Placeholder for the public certificate (replace with actual PEM from sandbox)
+      const certPem = `-----BEGIN CERTIFICATE-----
+MIIEVDCCAzygAwIBAgIEeKVFWTANBgkqhkiG9w0BAQsFADB/MQswCQYDVQQGEwJI
+SzExMC8GA1UEChMoRElHSS1TSUdOIENFUlRJRklDQVRJT04gU0VSVklDRVMgTElN
+SVRFRDEZMBcGA1UECxMQQlJOIDMxMzQ2OTUyLTAwMDEiMCAGA1UEAxMZSUQtQ0VS
+VCBTSUdOSU5HIENBIENFUlQgMzAeFw0yNDA4MTIwOTI3MTZaFw0yNzA4MTIwOTI3
+MTNaMIGrMQswCQYDVQQGEwJISzEkMCIGA1UEChMbRFMgSUQtQ0VSVCBDTEFTUyA1
+ICg0ODg2ODIpMSYwJAYDVQQLEx1ESUdJVEFMIFBPTElDWSBPRkZJQ0UsIEhLU0FS
+RzEXMBUGA1UECxMOT1RIIEhLU0FSRy1EUE8xETAPBgNVBAsTCDIxOTI0ODczMQ4w
+DAYDVQQLEwVJRFJFRjESMBAGA1UEAxMJSUFNIFNNQVJUMIIBIjANBgkqhkiG9w0B
+AQEFAAOCAQ8AMIIBCgKCAQEA4axd8mscnS8jEuc0XdEZYxaqu/+vtASkV7HlJllk
+KOwjgM2qssIlRDnGLPBrOyhObnifKAM1Zc7nEh+dNH6ySNso30aEqQ+DAjVv/9Y5
+kITpblrcM2rzvAcyKKwnDt/T8yjSHMdK2MZ+YACgouebHwaCZsYnu9JYJsjEfGm/
+YCj/Oyb4rT7vER7546m0+Ip1Tkc31Q9AMEzBJHmguo5mP1/vXmPC3zryqtKX2aD1
+vkaMgdEkuVPRHOuR70+wyPhugOGCDuPqlfZZW64bZMz/fbZagF0xwIQW9Wu2REzg
+lOr00MK+ORiRZIZmtIgj2IPiWnK2Eonyt5DW/7NvzCEcHwIDAQABo4GqMIGnMDQG
+A1UdIAQtMCswKQYIKwYBBAHBZAEwHTAbBggrBgEFBQcCARYPd3d3LmRnLXNpZ24u
+Y29tMAwGA1UdEwEB/wQCMAAwEQYJYIZIAYb4QgEBBAQDAgWgMA4GA1UdDwEB/wQE
+AwIGwDAfBgNVHSMEGDAWgBSfzhpkw/4Mqj+gdEHhKsuGjOLJGDAdBgNVHQ4EFgQU
+QMz4PmGwRKp5qM9loP9msBibn3cwDQYJKoZIhvcNAQELBQADggEBAK7yWhlZSzGl
+ugXSSTjbHxn9ZXb3NptBP1qKOMehKzPQngmy8JB+KtQJpzxV0VmRBA9VNXwebysf
+53POp55tRbaa1K+E4DnKHfy2n2I472e8GZkOtTLPzhzGE4iRo5JK0TuMSAqTDxxi
+k7mkcJN9z5GrDMQboaPyPMY1mNLCpB27vxEFurSU5xSnncM7IQykdGRhDUeyA8+f
+hvjWltvLuqeMiK2w4CJL6LxVr3JewPcifg6UubMkKpvEatN4n00mjNiQYnD6J6nl
+wtBxcDsCyJGgagAf45wcfrLqlCT6Ue5GdwkBosBBAHmUEZoJXFi3QwTlH6aM4qtq
+RJ4ukTBXacI=
+-----END CERTIFICATE-----`;
+
+      // DOM elements
+      const video = document.getElementById('video');
+      const canvas = document.createElement('canvas');
+      const context = canvas.getContext('2d');
+      const resultDiv = document.getElementById('result');
+      const personalContent = document.getElementById('personal-content');
+      const timerDisplay = document.getElementById('timer');
+      const errorDiv = document.getElementById('error');
+      const errorMessage = document.getElementById('error-message');
+      const logBody = document.getElementById('log-body');
+
+      let isScanning = true;
+
+      // Setup front camera
+      navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } })
+        .then(stream => {
+          video.srcObject = stream;
+          video.onloadedmetadata = () => {
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            requestAnimationFrame(scan);
+          };
+        })
+        .catch(err => {
+          console.error('Camera access error:', err);
+          alert('Camera access denied or not available. Please grant permission.');
+        });
+
+      // Scanning loop
+      function scan() {
+        if (isScanning) {
+          context.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+          const code = jsQR(imageData.data, imageData.width, imageData.height);
+          if (code) {
+            if (code.data === '') {
+              requestAnimationFrame(scan); // Bypass empty string
+              return;
+            }
+            isScanning = false;
+            processQRCode(code.data);
+          }
+        }
+        requestAnimationFrame(scan);
+      }
+
+      // Process and verify QR code
+      async function processQRCode(data) {
+        try {
+          const json = JSON.parse(data);
+
+          // Step 1: Check type and version
+          if (json.type !== 'LPQR' || json.version !== '1') {
+            showError('Unrecognised Code');
+            return;
+          }
+
+          // Step 2: Check timestamp (validity period: 5 minutes)
+          const { generatedDateTime } = json.body;
+          const [datePart, timePart] = generatedDateTime.split(' ');
+          const [day, month, year] = datePart.split('/').map(Number);
+          const [hour, minute, second] = timePart.split(':').map(Number);
+          const generatedDate = new Date(year, month - 1, day, hour, minute, second);
+          if (isNaN(generatedDate.getTime())) {
+            showError('Invalid timestamp format');
+            return;
+          }
+          const now = new Date();
+          const diffMinutes = (now - generatedDate) / (1000 * 60);
+          if (diffMinutes > 5) {
+            showError('Expired Code');
+            return;
+          }
+
+          // Step 3: Check serial number
+          if (json.sn !== '1saahap') { // Current certificate serial number
+            showError('Invalid Code');
+            return;
+          }
+
+          // Step 4: Verify digital signature
+          const body = json.body;
+          const keys = Object.keys(body).sort((a, b) => a.localeCompare(b));
+          let sortedBodyString = '{';
+          for (let i = 0; i < keys.length; i++) {
+            sortedBodyString += `"${keys[i]}":"${body[keys[i]]}"`;
+            if (i < keys.length - 1) sortedBodyString += ',';
+          }
+          sortedBodyString += '}';
+
+          const md = forge.md.sha256.create();
+          md.update(sortedBodyString, 'utf8');
+          const digest = md.digest().getBytes();
+          const cert = forge.pki.certificateFromPem(certPem);
+          const publicKey = cert.publicKey;
+          const signatureBytes = forge.util.decode64(json.signature);
+          const verified = publicKey.verify(digest, signatureBytes);
+          if (!verified) {
+            showError('Invalid Code');
+            return;
+          }
+
+          // All checks passed: Log and display
+          const logEntry = {
+            timestamp: new Date().toLocaleString(), // Local time zone
+            hash: body.hash,
+            engName: body.engName,
+            ageGroup: body.ageGroup,
+            qrCode: data // Store original QR code string
+          };
+          const logs = JSON.parse(localStorage.getItem('logs') || '[]');
+          logs.push(logEntry);
+          localStorage.setItem('logs', JSON.stringify(logs));
+          updateLogTable(logs);
+
+          personalContent.innerHTML = `
+            Hash: ${body.hash}<br>
+            English Name: ${body.engName}<br>
+            Age Group: ${body.ageGroup}
+          `;
+          resultDiv.classList.remove('hidden');
+          timerDisplay.textContent = 'Disappearing in 15s';
+
+          let timer = 15;
+          const interval = setInterval(() => {
+            timer--;
+            if (timer > 0) {
+              timerDisplay.textContent = `Disappearing in ${timer}s`;
+            } else {
+              clearInterval(interval);
+              resultDiv.classList.add('hidden');
+              isScanning = true;
+            }
+          }, 1000);
+
+        } catch (e) {
+          console.error('Processing error:', e);
+          showError('Unrecognised Code');
+        }
+      }
+
+      // Show error message
+      function showError(message) {
+        errorMessage.textContent = message;
+        errorDiv.classList.remove('hidden');
+        setTimeout(() => {
+          errorDiv.classList.add('hidden');
+          isScanning = true;
+        }, 5000);
+      }
+
+      // Update log table
+      function updateLogTable(logs) {
+        logBody.innerHTML = '';
+        logs.forEach(log => {
+          const row = document.createElement('tr');
+          row.innerHTML = `
+            <td class="p-2 border-b">${log.timestamp}</td>
+            <td class="p-2 border-b">${log.engName}</td>
+            <td class="p-2 border-b">${log.ageGroup}</td>
+            <td class="p-2 border-b">${log.hash}</td>
+          `;
+          logBody.appendChild(row);
+        });
+      }
+
+      // Initial table load
+      const initialLogs = JSON.parse(localStorage.getItem('logs') || '[]');
+      updateLogTable(initialLogs);
+
+      // Download logs as password-protected Excel
+      document.getElementById('download-btn').addEventListener('click', async () => {
+        const logs = JSON.parse(localStorage.getItem('logs') || '[]');
+        if (logs.length === 0) {
+          alert('No logs to download.');
+          return;
+        }
+
+        const password = prompt('Enter a password to protect the Excel file:');
+        if (!password) {
+          alert('Password is required to protect the file.');
+          return;
+        }
+
+        // Prepare data for Excel
+        const excelData = logs.map(log => ({
+          Timestamp: log.timestamp,
+          "English Name": log.engName,
+          "Age Group": log.ageGroup,
+          Hash: log.hash,
+          "QR Code": log.qrCode
+        }));
+        const worksheet = XLSX.utils.json_to_sheet(excelData);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, "Logs");
+
+        // Generate password-protected Excel file
+        const excelBuffer = XLSX.write(workbook, {
+          bookType: 'xlsx',
+          type: 'array',
+          password: password // Excel native encryption
+        });
+
+        // Download the file
+        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'personal_code_logs.xlsx';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+      });
+
+      // Clear logs
+      document.getElementById('clear-btn').addEventListener('click', () => {
+        localStorage.setItem('logs', '[]');
+        updateLogTable([]);
+        alert('Logs cleared successfully.');
+      });
+    })();
+  </script>
+</body>
+</html>
