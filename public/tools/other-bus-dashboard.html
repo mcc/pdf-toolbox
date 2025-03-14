@@ -269,6 +269,7 @@
 
         function showRouteResults(routes) {
             const resultsDiv = document.getElementById('searchResults');
+            
             resultsDiv.innerHTML = `
                 <div class="bg-white p-4 rounded shadow">
                     <div class="flex justify-between items-center mb-2">
@@ -280,6 +281,7 @@
                             ${isChinese ? '關閉' : 'Close'}
                         </button>
                     </div>
+                    
                     ${routes.map(route => {
                         const serviceTypeText = route.service_type == 1 ? '' : ` <span class="text-sm">${isChinese ? '(特別路線)' : '(Special)'}</span>`;
                         return `
@@ -387,7 +389,7 @@
             if (index !== -1) {
                 selectedStops.splice(index, 1);
             } else {
-                selectedStops.push({route, stopId, direction});
+                selectedStops.push({route, stopId, direction, service_type: serviceType});
             }
             renderDashboard();
             updateURL();
@@ -449,6 +451,10 @@
                 const nearbyEntry = searchHistory[0];
                 searchHistory = [{type: 'nearby', latLng: nearbyEntry.latLng, locationName: nearbyEntry.locationName}];
                 showNearbyStopsOnMapAndList(nearbyEntry.latLng, nearbyEntry.locationName);
+            } else if (searchHistory.length === 1 && searchHistory[0].type === 'nearby') {
+                const nearbyEntry = searchHistory[0];
+                searchHistory = [{type: 'nearby', latLng: nearbyEntry.latLng, locationName: nearbyEntry.locationName}];
+                showNearbyStopsOnMapAndList(nearbyEntry.latLng, nearbyEntry.locationName);
             }
         }
 
@@ -463,7 +469,7 @@
             });
         }
 
-        function showNearbyStopsOnMapAndList(latLng, locationName = "Clicked Location") {
+        function showNearbyStopsOnMapAndList(latLng, locationName) {
             clearMarkers();
             
             const locationMarker = new google.maps.Marker({
@@ -472,8 +478,10 @@
                 icon: 'http://maps.google.com/mapfiles/ms/icons/red-dot.png'
             });
             markers.push(locationMarker);
-            infoWindow.setContent(isChinese ? `位置: ${locationName}` : `Location: ${locationName}`);
-            infoWindow.open(map, locationMarker);
+            if (locationName) {
+                infoWindow.setContent(isChinese ? `位置: ${locationName}` : `Location: ${locationName}`);
+                infoWindow.open(map, locationMarker);
+            }
             map.panTo(latLng);
 
             const nearbyStops = findNearbyStops(latLng, 0.5).map(stop => ({
@@ -542,7 +550,7 @@
                         return `
                             <div class="py-2 border-b ${isSelected ? 'bg-green-100' : ''}">
                                 <button 
-                                    onclick="toggleStopFromNearby('${stop.stop}')"
+                                    onclick="toggleStopFromNearby('${stop.stop}'); highlightStop('${isChinese ? stop.name_tc : stop.name_en}')"
                                     class="w-full text-left hover:bg-gray-100 p-2 rounded ${isSelected ? 'text-green-700' : ''}"
                                 >
                                     ${isChinese ? stop.name_tc : stop.name_en} (${stop.distance.toFixed(2)}km)
@@ -568,14 +576,20 @@
             try {
                 const res = await fetch(`${API_BASE}stop-eta/${stopId}`);
                 const etaData = await res.json();
-                const uniqueRoutes = Array.from(new Map(etaData.data.map(item => 
-                    [`${item.route}-${item.dir}-${item.service_type}`, item]
-                )).values());
+                const stopInfo = stopsData.find(s => s.stop === stopId);
+                const uniqueRoutes = Array.from(etaData.data.reduce((map, route) => {
+                    const key = `${route.route}-${route.bound}`;
+                    if (!map.has(key) || map.get(key).service_type > route.service_type) {
+                        map.set(key, route);
+                    }
+                    return map;
+                }, new Map()).values());
+                const title = isChinese ? `巴士站路線 - ${stopInfo?.name_tc}`: `Routes for Stop - ${stopInfo?.name_en}`;
 
                 resultsDiv.innerHTML = `
                     <div class="bg-white p-4 rounded shadow">
                         <div class="flex justify-between items-center mb-2">
-                            <h3 class="text-lg font-semibold">${isChinese ? '巴士站路線' : 'Routes for Stop'}</h3>
+                            <h3 class="text-lg font-semibold">${title}</h3>
                             <div>
                                 <button 
                                     onclick="goBack()" 
@@ -640,7 +654,7 @@
                 const stopInfo = stopsData.find(s => s.stop === stop.stopId);
                 const stopName = stopInfo ? (isChinese ? stopInfo.name_tc : stopInfo.name_en) : stop.stopId;
                 const dest = routeInfo ? (isChinese ? routeInfo.dest_tc : routeInfo.dest_en) : stopName;
-                //const serviceTypeText = stop.service_type == 1 ? '' : ` (${isChinese ? '特' : 'SP'})`;
+                const serviceTypeText = stop.service_type == 1 ? '' : ` (${isChinese ? '特' : 'SP'})`;
 
                 const card = document.createElement('div');
                 card.className = 'bg-white p-4 rounded shadow draggable';
@@ -651,7 +665,7 @@
                 card.dataset.serviceType = stop.service_type || 1;
                 card.innerHTML = `
                     <div class="flex justify-between items-start">
-                        <h3 class="text-lg font-semibold mb-2">${stop.route} - ${dest}</h3>
+                        <h3 class="text-lg font-semibold mb-2">${stop.route} - ${dest}${serviceTypeText}</h3>
                         <span class="text-sm text-gray-500">${stopName}</span>
                     </div>
                     <p class="text-gray-600 eta-next">
@@ -662,7 +676,7 @@
                     </p>
                     ${isEditMode ? `
                         <button 
-                            onclick="removeStop('${stop.route}', '${stop.stopId}')" 
+                            onclick="removeStop('${stop.route}', '${stop.stopId}', ${stop.service_type || 1})" 
                             class="mt-2 bg-red-500 text-white px-3 py-1 rounded hover:bg-red-600"
                         >
                             ${isChinese ? '移除' : 'Remove'}
@@ -685,7 +699,7 @@
                 const stopId = card.dataset.stopId;
                 const serviceType = parseInt(card.dataset.serviceType) || 1;
                 try {
-                    const etaRes = await fetch(`${API_BASE}eta/${stopId}/${route}/1`);
+                    const etaRes = await fetch(`${API_BASE}eta/${stopId}/${route}/${serviceType}`);
                     const etaData = await etaRes.json();
                     const etas = etaData.data
                         .filter(eta => eta.dir === (selectedStops.find(s => s.route === route && s.stopId === stopId).direction === 'outbound' ? 'O' : 'I'))
@@ -740,7 +754,7 @@
 
         // URL Management
         function updateURL() {
-            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}`).join('_');
+            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}-${s.service_type || 1}`).join('_');
             const params = new URLSearchParams();
             if (compactData) params.set('s', compactData);
             if (dashboardTitle !== '巴士到站儀表板') params.set('t', encodeURIComponent(dashboardTitle));
@@ -770,7 +784,7 @@
 
         // Share Dashboard Function
         function shareDashboard() {
-            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}`).join('_');
+            const compactData = selectedStops.map(s => `${s.route}|${s.stopId};${s.direction}-${s.service_type || 1}`).join('_');
             const params = new URLSearchParams();
             if (compactData) params.set('s', compactData);
             if (dashboardTitle !== '巴士到站儀表板') params.set('t', encodeURIComponent(dashboardTitle));
