@@ -328,6 +328,7 @@
                     marker.addListener('click', () => {
                         searchHistory.push({type: 'routesForStop', stopId: stop.stop});
                         showRoutesForStop(stop.stop);
+                        highlightStop(stop.stop);
                     });
                     markers.push(marker);
                 }
@@ -335,7 +336,7 @@
             if (markers.length > 0) {
                 const bounds = new google.maps.LatLngBounds();
                 markers.forEach(m => bounds.extend(m.getPosition()));
-                map.fitBounds(bounds);
+                //map.fitBounds(bounds);
             }
 
             const resultsDiv = document.getElementById('searchResults');
@@ -499,6 +500,7 @@
                     searchHistory = [{type: 'nearby', latLng: latLng, locationName: locationName}];
                     searchHistory.push({type: 'routesForStop', stopId: stop.stop});
                     showRoutesForStop(stop.stop);
+                    highlightStop(stop.stop);
                 });
                 markers.push(marker);
             });
@@ -507,7 +509,7 @@
                 const bounds = new google.maps.LatLngBounds();
                 bounds.extend(latLng);
                 nearbyStops.forEach(stop => bounds.extend({lat: parseFloat(stop.lat), lng: parseFloat(stop.long)}));
-                map.fitBounds(bounds);
+                //map.fitBounds(bounds);
             }
 
             showNearbyStopOptions(nearbyStops, latLng);
@@ -550,6 +552,8 @@
                         return `
                             <div class="py-2 border-b ${isSelected ? 'bg-green-100' : ''}">
                                 <button 
+                                    onmouseover="highlightStop('${stop.stop}')"
+                                    onmouseout="clearHighlight()"
                                     onclick="toggleStopFromNearby('${stop.stop}'); highlightStop('${isChinese ? stop.name_tc : stop.name_en}')"
                                     class="w-full text-left hover:bg-gray-100 p-2 rounded ${isSelected ? 'text-green-700' : ''}"
                                 >
@@ -612,8 +616,7 @@
                             const serviceTypeText = serviceType == 1 ? '' : ` (${isChinese ? '服務類型' : 'Service Type'}: ${serviceType})`;
                             return `
                                 <div class="py-2 border-b ${isSelected ? 'bg-green-100' : ''}"
-                                    onmouseover="highlightStop('${stopId}', '${r.route}', '${direction}', '${serviceType}')"
-                                    onmouseout="clearHighlight()"
+                                    
                                 >
                                     <button 
                                         onclick="toggleStop('${r.route}', '${stopId}', '${direction}', false, ${serviceType})"
