@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HK Address Lookup Resolver</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: auto;
+        }
+        .input-section {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+        }
+        input, button {
+            padding: 8px;
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .error {
+            color: red;
+        }
+        #progress {
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Hong Kong Address Lookup Resolver</h1>
+        <div class="input-section">
+            <label for="addressInput">Enter Address:</label>
+            <input type="text" id="addressInput" placeholder="e.g., 5-15 Hankow Road" style="width: 300px;">
+            <button onclick="resolveSingleAddress()">Resolve Single Address</button>
+            <br>
+            <label for="fileInput">Upload CSV/Excel File (First column: Address):</label>
+            <input type="file" id="fileInput" accept=".csv,.xlsx">
+            <button onclick="processBatchFile()">Process Batch</button>
+            <br>
+            <button onclick="downloadResults()" disabled id="downloadBtn">Download Results</button>
+        </div>
+        <h3>Results:</h3>
+        <div id="progress"></div>
+        <table id="resultTable">
+            <thead>
+                <tr>
+                    <th>Input Address</th>
+                    <th>District (EN)</th>
+                    <th>Region (EN)</th>
+                    <th>District (ZH)</th>
+                    <th>Region (ZH)</th>
+                    <th>Location (EN)</th>
+                    <th>Location (ZH)</th>
+                    <th>Estate (EN)</th>
+                    <th>Estate (ZH)</th>
+                    <th>Street (EN)</th>
+                    <th>Street (ZH)</th>
+                    <th>Building (EN)</th>
+                    <th>Building (ZH)</th>
+                    <th>Block (EN)</th>
+                    <th>Block (ZH)</th>
+                    <th>GeoAddress</th>
+                    <th>HK1980 Coordinates</th>
+                    <th>WGS84 Coordinates</th>
+                    <th>Score</th>
+                </tr>
+            </thead>
+            <tbody id="resultBody"></tbody>
+        </table>
+    </div>
+
+    <!-- External Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+    <script>
+        let results = []; // Store all resolved results
+
+        // Throttle API calls to 1 per second
+        const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+        async function resolveAddress(address) {
+            const params = new URLSearchParams({
+                q: address, // Mandatory address query
+                n: 10,      // Limit to 10 results
+                t: 80,      // Tolerance set to 80
+            });
+            const apiUrl = 'https://www.als.gov.hk/lookup?' + params.toString();
+
+            try {
+                const response = await fetch(apiUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'Accept-Language': 'en,zh-Hant',
+                    }
+                });
+
+                if (!response.ok) {
+                    switch (response.status) {
+                        case 400: throw new Error('Bad Request');
+                        case 413: throw new Error('Payload Too Large');
+                        case 429: throw new Error('Too Many Requests');
+                        case 500: throw new Error('Server Error');
+                        default: throw new Error(`HTTP Error: ${response.status}`);
+                    }
+                }
+
+                const data = await response.json();
+                return processResult(address, data);
+            } catch (error) {
+                return { input: address, error: error.message };
+            }
+        }
+
+        function processResult(input, data) {
+            if (!data.SuggestedAddress) {
+                return { input, error: 'No results found' };
+            }
+
+            const suggestion = Array.isArray(data.SuggestedAddress) 
+                ? data.SuggestedAddress[0] // Take the top result
+                : data.SuggestedAddress;
+
+            const premises = suggestion.Address.PremisesAddress;
+            const eng = premises.EngPremisesAddress || {};
+            const chi = premises.ChiPremisesAddress || {};
+            const geo = premises.GeospatialInformation || {};
+
+            // Handle Block with BlockDescriptorPrecedenceIndicator
+            const engBlockDescriptor = eng.EngBlock?.BlockDescriptor || '';
+            const engBlockNo = eng.EngBlock?.BlockNo || '';
+            const engPrecedence = eng.EngBlock?.BlockDescriptorPrecedenceIndicator || 'N'; // Default to 'N'
+            const engBlock = engBlockDescriptor && engBlockNo 
+                ? (engPrecedence === 'Y' ? `${engBlockDescriptor} ${engBlockNo}` : `${engBlockNo} ${engBlockDescriptor}`)
+                : engBlockDescriptor || engBlockNo;
+
+            const chiBlockDescriptor = chi.ChiBlock?.BlockDescriptor || '';
+            const chiBlockNo = chi.ChiBlock?.BlockNo || '';
+            const chiPrecedence = chi.ChiBlock?.BlockDescriptorPrecedenceIndicator || 'N'; // Default to 'N'
+            const chiBlock = chiBlockDescriptor && chiBlockNo 
+                ? (chiPrecedence === 'Y' ? `${chiBlockDescriptor} ${chiBlockNo}` : `${chiBlockNo} ${chiBlockDescriptor}`)
+                : chiBlockDescriptor || chiBlockNo;
+
+            return {
+                input,
+                districtEn: eng.EngDistrict?.DcDistrict || '',
+                regionEn: eng.Region || '',
+                districtZh: chi.ChiDistrict?.DcDistrict || '',
+                regionZh: chi.Region || '',
+                locationEn: eng.EngStreet?.LocationName || eng.EngVillage?.LocationName || '',
+                locationZh: chi.ChiStreet?.LocationName || chi.ChiVillage?.LocationName || '',
+                estateEn: eng.EngEstate?.EstateName || '',
+                estateZh: chi.ChiEstate?.EstateName || '',
+                streetEn: `${eng.EngStreet?.StreetName || ''} ${eng.EngStreet?.BuildingNoFrom || ''}${eng.EngStreet?.BuildingNoTo ? '-' + eng.EngStreet.BuildingNoTo : ''}`.trim(),
+                streetZh: `${chi.ChiStreet?.StreetName || ''} ${chi.ChiStreet?.BuildingNoFrom || ''}${chi.ChiStreet?.BuildingNoTo ? '-' + chi.ChiStreet.BuildingNoTo : ''}`.trim(),
+                buildingEn: eng.BuildingName || '',
+                buildingZh: chi.BuildingName || '',
+                blockEn: engBlock.trim(),
+                blockZh: chiBlock.trim(),
+                geoAddress: premises.GeoAddress || '',
+                hk1980: geo.Easting && geo.Northing ? `(${geo.Easting}, ${geo.Northing})` : '',
+                wgs84: geo.Latitude && geo.Longitude ? `(${geo.Latitude}, ${geo.Longitude})` : '',
+                score: suggestion.ValidationInformation.Score || ''
+            };
+        }
+
+        function displayResults() {
+            const tbody = document.getElementById('resultBody');
+            tbody.innerHTML = '';
+            results.forEach(result => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${result.input}</td>
+                    <td>${result.districtEn || result.error || ''}</td>
+                    <td>${result.regionEn || ''}</td>
+                    <td>${result.districtZh || ''}</td>
+                    <td>${result.regionZh || ''}</td>
+                    <td>${result.locationEn || ''}</td>
+                    <td>${result.locationZh || ''}</td>
+                    <td>${result.estateEn || ''}</td>
+                    <td>${result.estateZh || ''}</td>
+                    <td>${result.streetEn || ''}</td>
+                    <td>${result.streetZh || ''}</td>
+                    <td>${result.buildingEn || ''}</td>
+                    <td>${result.buildingZh || ''}</td>
+                    <td>${result.blockEn || ''}</td>
+                    <td>${result.blockZh || ''}</td>
+                    <td>${result.geoAddress || ''}</td>
+                    <td>${result.hk1980 || ''}</td>
+                    <td>${result.wgs84 || ''}</td>
+                    <td>${result.score || ''}</td>
+                `;
+                tbody.appendChild(row);
+            });
+            document.getElementById('downloadBtn').disabled = results.length === 0;
+        }
+
+        async function resolveSingleAddress() {
+            const address = document.getElementById('addressInput').value.trim();
+            if (!address) {
+                document.getElementById('progress').innerHTML = '<span class="error">Please enter an address.</span>';
+                return;
+            }
+
+            document.getElementById('progress').textContent = 'Processing...';
+            const result = await resolveAddress(address);
+            results = [result]; // Replace previous results for single lookup
+            displayResults();
+            document.getElementById('progress').textContent = 'Done.';
+        }
+
+        async function processBatchFile() {
+            const fileInput = document.getElementById('fileInput');
+            const file = fileInput.files[0];
+            if (!file) {
+                document.getElementById('progress').innerHTML = '<span class="error">Please upload a file.</span>';
+                return;
+            }
+
+            results = [];
+            const progress = document.getElementById('progress');
+            progress.textContent = 'Reading file...';
+
+            if (file.name.endsWith('.csv')) {
+                Papa.parse(file, {
+                    complete: async (result) => {
+                        await processBatch(result.data);
+                    },
+                    header: true,
+                    skipEmptyLines: true
+                });
+            } else if (file.name.endsWith('.xlsx')) {
+                const reader = new FileReader();
+                reader.onload = async (e) => {
+                    const data = new Uint8Array(e.target.result);
+                    const workbook = XLSX.read(data, { type: 'array' });
+                    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                    const json = XLSX.utils.sheet_to_json(sheet);
+                    await processBatch(json);
+                };
+                reader.readAsArrayBuffer(file);
+            }
+        }
+
+        async function processBatch(data) {
+            const addresses = data.map(row => Object.values(row)[0]); // Assume first column is address
+            const total = addresses.length;
+            document.getElementById('progress').textContent = `Processing 0/${total} addresses...`;
+
+            for (let i = 0; i < total; i++) {
+                if (!addresses[i]) continue; // Skip empty rows
+                const result = await resolveAddress(addresses[i]);
+                results.push({ ...data[i], ...result }); // Merge original row with result
+                displayResults();
+                document.getElementById('progress').textContent = `Processing ${i + 1}/${total} addresses...`;
+                await delay(1000); // 1-second delay between API calls
+            }
+
+            document.getElementById('progress').textContent = 'Batch processing complete.';
+        }
+
+        function downloadResults() {
+            if (results.length === 0) return;
+
+            const headers = [
+                'Input Address', 'District (EN)', 'Region (EN)', 'District (ZH)', 'Region (ZH)',
+                'Location (EN)', 'Location (ZH)', 'Estate (EN)', 'Estate (ZH)', 'Street (EN)', 'Street (ZH)',
+                'Building (EN)', 'Building (ZH)', 'Block (EN)', 'Block (ZH)', 'GeoAddress',
+                'HK1980 Coordinates', 'WGS84 Coordinates', 'Score'
+            ];
+            const fileInput = document.getElementById('fileInput').files[0];
+            const isExcel = fileInput && fileInput.name.endsWith('.xlsx');
+
+            if (fileInput && isExcel) {
+                // For Excel: Append new columns to original data
+                const workbook = XLSX.utils.book_new();
+                const worksheet = XLSX.utils.json_to_sheet(results.map(r => ({
+                    ...r,
+                    'Input Address': r.input,
+                    'District (EN)': r.districtEn || r.error || '',
+                    'Region (EN)': r.regionEn || '',
+                    'District (ZH)': r.districtZh || '',
+                    'Region (ZH)': r.regionZh || '',
+                    'Location (EN)': r.locationEn || '',
+                    'Location (ZH)': r.locationZh || '',
+                    'Estate (EN)': r.estateEn || '',
+                    'Estate (ZH)': r.estateZh || '',
+                    'Street (EN)': r.streetEn || '',
+                    'Street (ZH)': r.streetZh || '',
+                    'Building (EN)': r.buildingEn || '',
+                    'Building (ZH)': r.buildingZh || '',
+                    'Block (EN)': r.blockEn || '',
+                    'Block (ZH)': r.blockZh || '',
+                    'GeoAddress': r.geoAddress || '',
+                    'HK1980 Coordinates': r.hk1980 || '',
+                    'WGS84 Coordinates': r.wgs84 || '',
+                    'Score': r.score || ''
+                })));
+                XLSX.utils.book_append_sheet(workbook, worksheet, 'Results');
+                XLSX.writeFile(workbook, 'resolved_addresses.xlsx');
+            } else {
+                // For CSV or single result
+                const csv = Papa.unparse({
+                    fields: headers,
+                    data: results.map(r => [
+                        r.input, r.districtEn || r.error || '', r.regionEn || '', r.districtZh || '', r.regionZh || '',
+                        r.locationEn || '', r.locationZh || '', r.estateEn || '', r.estateZh || '', r.streetEn || '', r.streetZh || '',
+                        r.buildingEn || '', r.buildingZh || '', r.blockEn || '', r.blockZh || '', r.geoAddress || '',
+                        r.hk1980 || '', r.wgs84 || '', r.score || ''
+                    ])
+                });
+                const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'resolved_addresses.csv';
+                link.click();
+            }
+        }
+    </script>
+</body>
+</html>
