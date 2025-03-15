@@ -12,12 +12,50 @@
   <script src="https://cdn.jsdelivr.net/npm/node-forge@1.3.1/dist/forge.min.js"></script>
   <!-- XLSX for Excel file generation -->
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <style>
+    .overlay {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      z-index: 10;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 80%;
+      max-width: 400px;
+    }
+    .video-container {
+      position: relative;
+      margin-bottom: 1rem;
+    }
+    .duplicate-row {
+      background-color: #fef3c7; /* Light yellow for highlighting duplicates */
+    }
+  </style>
 </head>
 <body class="bg-gray-100">
   <div class="container mx-auto p-4 max-w-4xl">
     <h1 class="text-2xl font-bold mb-4 text-center">Personal Code Scanner</h1>
-    <div class="mb-4 bg-black rounded-lg overflow-hidden">
-      <video id="video" class="w-full" autoplay></video>
+    <div class="video-container">
+      <div class="mb-4 bg-black rounded-lg overflow-hidden">
+        <video id="video" class="w-full" autoplay></video>
+      </div>
+      <div id="success-overlay" class="overlay bg-green-600 hidden">
+        <span id="success-overlay-message"></span>
+        <button id="close-success" class="ml-4 text-white hover:text-gray-200">✕</button>
+      </div>
+      <div id="duplicate-overlay" class="overlay bg-yellow-600 hidden">
+        <span id="duplicate-overlay-message"></span>
+        <button id="close-duplicate" class="ml-4 text-white hover:text-gray-200">✕</button>
+      </div>
+      <div id="error-overlay" class="overlay bg-red-600 hidden">
+        <span id="error-overlay-message"></span>
+        <button id="close-error" class="ml-4 text-white hover:text-gray-200">✕</button>
+      </div>
     </div>
     <div id="result" class="hidden p-4 bg-white rounded-lg shadow-md mb-4">
       <h2 class="text-xl font-semibold mb-2">Scanned Result</h2>
@@ -49,7 +87,7 @@
 
   <script>
     (async () => {
-      // Placeholder for the public certificate (replace with actual PEM from sandbox)
+      // Updated certificate and serial number
       const certPem = `-----BEGIN CERTIFICATE-----
 MIIEVDCCAzygAwIBAgIEeKVFWTANBgkqhkiG9w0BAQsFADB/MQswCQYDVQQGEwJI
 SzExMC8GA1UEChMoRElHSS1TSUdOIENFUlRJRklDQVRJT04gU0VSVklDRVMgTElN
@@ -76,6 +114,7 @@ hvjWltvLuqeMiK2w4CJL6LxVr3JewPcifg6UubMkKpvEatN4n00mjNiQYnD6J6nl
 wtBxcDsCyJGgagAf45wcfrLqlCT6Ue5GdwkBosBBAHmUEZoJXFi3QwTlH6aM4qtq
 RJ4ukTBXacI=
 -----END CERTIFICATE-----`;
+      const expectedSn = '1saahap';
 
       // DOM elements
       const video = document.getElementById('video');
@@ -87,6 +126,15 @@ RJ4ukTBXacI=
       const errorDiv = document.getElementById('error');
       const errorMessage = document.getElementById('error-message');
       const logBody = document.getElementById('log-body');
+      const successOverlay = document.getElementById('success-overlay');
+      const successOverlayMessage = document.getElementById('success-overlay-message');
+      const duplicateOverlay = document.getElementById('duplicate-overlay');
+      const duplicateOverlayMessage = document.getElementById('duplicate-overlay-message');
+      const errorOverlay = document.getElementById('error-overlay');
+      const errorOverlayMessage = document.getElementById('error-overlay-message');
+      const closeSuccess = document.getElementById('close-success');
+      const closeDuplicate = document.getElementById('close-duplicate');
+      const closeError = document.getElementById('close-error');
 
       let isScanning = true;
 
@@ -127,10 +175,28 @@ RJ4ukTBXacI=
       async function processQRCode(data) {
         try {
           const json = JSON.parse(data);
+          const logs = JSON.parse(localStorage.getItem('logs') || '[]');
+
+          // Check for duplicate QR code
+          const isDuplicate = logs.some(log => log.qrCode === data);
+          if (isDuplicate) {
+            const logEntry = {
+              timestamp: new Date().toLocaleString(),
+              hash: json.body.hash,
+              engName: json.body.engName,
+              ageGroup: json.body.ageGroup,
+              qrCode: data
+            };
+            logs.push(logEntry);
+            localStorage.setItem('logs', JSON.stringify(logs));
+            updateLogTable(logs);
+            showDuplicateOverlay(json.body.engName);
+            return;
+          }
 
           // Step 1: Check type and version
           if (json.type !== 'LPQR' || json.version !== '1') {
-            showError('Unrecognised Code');
+            showErrorOverlay('Unrecognised Code');
             return;
           }
 
@@ -141,19 +207,19 @@ RJ4ukTBXacI=
           const [hour, minute, second] = timePart.split(':').map(Number);
           const generatedDate = new Date(year, month - 1, day, hour, minute, second);
           if (isNaN(generatedDate.getTime())) {
-            showError('Invalid timestamp format');
+            showErrorOverlay('Invalid timestamp format');
             return;
           }
           const now = new Date();
           const diffMinutes = (now - generatedDate) / (1000 * 60);
           if (diffMinutes > 5) {
-            showError('Expired Code');
+            showErrorOverlay('Expired Code');
             return;
           }
 
           // Step 3: Check serial number
-          if (json.sn !== '1saahap') { // Current certificate serial number
-            showError('Invalid Code');
+          if (json.sn !== expectedSn) {
+            showErrorOverlay('Invalid Code');
             return;
           }
 
@@ -175,19 +241,18 @@ RJ4ukTBXacI=
           const signatureBytes = forge.util.decode64(json.signature);
           const verified = publicKey.verify(digest, signatureBytes);
           if (!verified) {
-            showError('Invalid Code');
+            showErrorOverlay('Invalid Code');
             return;
           }
 
           // All checks passed: Log and display
           const logEntry = {
-            timestamp: new Date().toLocaleString(), // Local time zone
+            timestamp: new Date().toLocaleString(),
             hash: body.hash,
             engName: body.engName,
             ageGroup: body.ageGroup,
-            qrCode: data // Store original QR code string
+            qrCode: data
           };
-          const logs = JSON.parse(localStorage.getItem('logs') || '[]');
           logs.push(logEntry);
           localStorage.setItem('logs', JSON.stringify(logs));
           updateLogTable(logs);
@@ -199,6 +264,7 @@ RJ4ukTBXacI=
           `;
           resultDiv.classList.remove('hidden');
           timerDisplay.textContent = 'Disappearing in 15s';
+          showSuccessOverlay(body.engName);
 
           let timer = 15;
           const interval = setInterval(() => {
@@ -214,23 +280,61 @@ RJ4ukTBXacI=
 
         } catch (e) {
           console.error('Processing error:', e);
-          showError('Unrecognised Code');
+          showErrorOverlay('Unrecognised Code');
         }
       }
 
-      // Show error message
-      function showError(message) {
-        errorMessage.textContent = message;
-        errorDiv.classList.remove('hidden');
-        setTimeout(() => {
-          errorDiv.classList.add('hidden');
+      // Show success overlay with name
+      function showSuccessOverlay(name) {
+        successOverlayMessage.textContent = `✅ Verification Successful: ${name}`;
+        successOverlay.classList.remove('hidden');
+        const timeout = setTimeout(() => {
+          successOverlay.classList.add('hidden');
           isScanning = true;
         }, 5000);
+        closeSuccess.onclick = () => {
+          clearTimeout(timeout);
+          successOverlay.classList.add('hidden');
+          isScanning = true;
+        };
       }
 
-      // Update log table
+      // Show duplicate overlay with name
+      function showDuplicateOverlay(name) {
+        duplicateOverlayMessage.textContent = `⚠️ Duplicate QR Code Detected: ${name}`;
+        duplicateOverlay.classList.remove('hidden');
+        const timeout = setTimeout(() => {
+          duplicateOverlay.classList.add('hidden');
+          isScanning = true;
+        }, 5000);
+        closeDuplicate.onclick = () => {
+          clearTimeout(timeout);
+          duplicateOverlay.classList.add('hidden');
+          isScanning = true;
+        };
+      }
+
+      // Show error overlay
+      function showErrorOverlay(message) {
+        errorOverlayMessage.textContent = `❌ ${message}`;
+        errorOverlay.classList.remove('hidden');
+        const timeout = setTimeout(() => {
+          errorOverlay.classList.add('hidden');
+          isScanning = true;
+        }, 5000);
+        closeError.onclick = () => {
+          clearTimeout(timeout);
+          errorOverlay.classList.add('hidden');
+          isScanning = true;
+        };
+      }
+
+      // Update log table with duplicate highlighting
       function updateLogTable(logs) {
         logBody.innerHTML = '';
+        const qrCodeCounts = {};
+        logs.forEach(log => qrCodeCounts[log.qrCode] = (qrCodeCounts[log.qrCode] || 0) + 1);
+
         logs.forEach(log => {
           const row = document.createElement('tr');
           row.innerHTML = `
@@ -239,6 +343,9 @@ RJ4ukTBXacI=
             <td class="p-2 border-b">${log.ageGroup}</td>
             <td class="p-2 border-b">${log.hash}</td>
           `;
+          if (qrCodeCounts[log.qrCode] > 1) {
+            row.classList.add('duplicate-row');
+          }
           logBody.appendChild(row);
         });
       }
@@ -247,7 +354,7 @@ RJ4ukTBXacI=
       const initialLogs = JSON.parse(localStorage.getItem('logs') || '[]');
       updateLogTable(initialLogs);
 
-      // Download logs as password-protected Excel
+      // Download logs with fallback encryption
       document.getElementById('download-btn').addEventListener('click', async () => {
         const logs = JSON.parse(localStorage.getItem('logs') || '[]');
         if (logs.length === 0) {
@@ -261,35 +368,55 @@ RJ4ukTBXacI=
           return;
         }
 
-        // Prepare data for Excel
         const excelData = logs.map(log => ({
-          Timestamp: log.timestamp,
-          "English Name": log.engName,
-          "Age Group": log.ageGroup,
-          Hash: log.hash,
-          "QR Code": log.qrCode
+          Timestamp: String(log.timestamp),
+          "English Name": String(log.engName),
+          "Age Group": String(log.ageGroup),
+          Hash: String(log.hash),
+          "QR Code": String(log.qrCode)
         }));
         const worksheet = XLSX.utils.json_to_sheet(excelData);
         const workbook = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(workbook, worksheet, "Logs");
 
-        // Generate password-protected Excel file
-        const excelBuffer = XLSX.write(workbook, {
-          bookType: 'xlsx',
-          type: 'array',
-          password: password // Excel native encryption
-        });
+        try {
+          const excelBuffer = XLSX.write(workbook, {
+            bookType: 'xlsx',
+            type: 'array',
+            password: password
+          });
+          const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'personal_code_logs.xlsx';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        } catch (e) {
+          console.error('Excel password protection failed:', e);
+          alert('Native Excel encryption failed. Falling back to custom encryption.');
 
-        // Download the file
-        const blob = new Blob([excelBuffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'personal_code_logs.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+          const excelBuffer = XLSX.write(workbook, { bookType: 'xlsx', type: 'binary' });
+          const key = forge.util.createBuffer(password.padEnd(32, '\0'), 'utf8');
+          const iv = forge.random.getBytesSync(16);
+          const cipher = forge.cipher.createCipher('AES-CBC', key);
+          cipher.start({ iv: iv });
+          cipher.update(forge.util.createBuffer(excelBuffer, 'raw'));
+          cipher.finish();
+          const encrypted = iv + cipher.output.getBytes();
+
+          const blob = new Blob([forge.util.binary.raw.decode(encrypted)], { type: 'application/octet-stream' });
+          const url = window.URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'personal_code_logs_encrypted.xlsx';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          window.URL.revokeObjectURL(url);
+        }
       });
 
       // Clear logs
