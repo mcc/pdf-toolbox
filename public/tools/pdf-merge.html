@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Merger</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- Libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Sortable/1.14.0/Sortable.min.js"></script>
+    <style>
+        #previewPanel {
+            position: fixed;
+            right: 0;
+            top: 0;
+            width: 50%;
+            height: 100vh;
+            overflow-y: auto;
+            background-color: white;
+            box-shadow: -2px 0 5px rgba(0,0,0,0.1);
+        }
+        #leftPanel {
+            width: 50%;
+            padding-right: 1rem;
+        }
+        .file-item {
+            position: relative;
+            border: 2px solid blue;
+            margin-bottom: 1.25rem;
+        }
+        .file-item .hint {
+            visibility: hidden;
+            position: absolute;
+            top: -2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: #333;
+            color: white;
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            white-space: nowrap;
+            font-size: 0.875rem;
+        }
+        .file-item:hover .hint {
+            visibility: visible;
+        }
+    </style>
+</head>
+<body class="p-4">
+    <div id="leftPanel" class="w-1/2 pr-4">
+        <!-- Centered Header -->
+        <p class="text-center mb-4">Upload PDF files, select pages to merge, and download the combined PDF.</p>
+
+        <!-- Centered Buttons -->
+        <div class="flex justify-center mb-4">
+            <label for="fileInput" class="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">Add PDF File</label>
+            <input type="file" multiple accept="application/pdf" id="fileInput" class="hidden">
+            <button id="mergeButton" class="bg-green-500 text-white px-4 py-2 rounded ml-4">Merge PDFs</button>
+        </div>
+
+        <!-- Centered Checkbox -->
+        <div class="flex justify-center mb-4">
+            <label class="flex items-center">
+                <input type="checkbox" id="skipBlankPages" checked class="mr-2">
+                Auto-skip blank pages
+            </label>
+        </div>
+
+        <!-- File List Container -->
+        <div id="fileListContainer" class="border rounded p-4">
+            <div id="fileList"></div>
+        </div>
+    </div>
+
+    <!-- Fixed Preview Panel -->
+    <div id="previewPanel" class="p-4">
+        <div id="previewInfo" class="mb-2 text-center"></div>
+        <canvas id="previewCanvas" class="border"></canvas>
+    </div>
+
+    <script>
+        // Set pdf.js worker source
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+
+        // Store file data
+        let fileList = [];
+
+        // Initialize on DOM load
+        document.addEventListener('DOMContentLoaded', function() {
+            Sortable.create(document.getElementById('fileList'), {
+                animation: 150,
+                onEnd: function(evt) {
+                    const movedItem = fileList.splice(evt.oldIndex, 1)[0];
+                    fileList.splice(evt.newIndex, 0, movedItem);
+                    document.querySelectorAll('.file-item').forEach((item, index) => {
+                        item.setAttribute('data-file-index', index);
+                        item.querySelectorAll('[data-file-index]').forEach(el => {
+                            el.setAttribute('data-file-index', index);
+                        });
+                    });
+                }
+            });
+
+            document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+            document.getElementById('mergeButton').addEventListener('click', mergePDFs);
+        });
+
+        // Update title text based on selected pages
+        function updateTitle(fileItem, fileData) {
+            const selectedCount = fileData.selectedPages.filter(Boolean).length;
+            const totalCount = fileData.numPages;
+            const titleText = fileItem.querySelector('.title-text');
+            const accordionIcon = fileItem.querySelector('.accordion-icon');
+            if (titleText && accordionIcon) {
+                titleText.textContent = `${fileData.fileName} (${selectedCount} / ${totalCount} pages selected) `;
+                accordionIcon.textContent = fileItem.querySelector('.thumbnails').classList.contains('hidden') ? '▶' : '▼';
+            }
+        }
+
+        // Handle file uploads
+        async function handleFileSelect(event) {
+            const files = event.target.files;
+            const skipBlankPages = document.getElementById('skipBlankPages').checked;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const arrayBuffer = await file.arrayBuffer();
+                const pdfDoc = await pdfjsLib.getDocument({data: arrayBuffer}).promise;
+                const numPages = pdfDoc.numPages;
+                const selectedPages = new Array(numPages).fill(true);
+                let hasBlankPages = false;
+
+                if (skipBlankPages) {
+                    for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                        const page = await pdfDoc.getPage(pageNum);
+                        const text = await page.getTextContent();
+                        if (text.items.length === 0) {
+                            selectedPages[pageNum - 1] = false;
+                            hasBlankPages = true;
+                        }
+                    }
+                }
+
+                const fileItem = document.createElement('div');
+                fileItem.className = 'file-item';
+
+                const title = document.createElement('h3');
+                title.className = 'text-lg font-bold mb-2 bg-blue-100 p-2 cursor-pointer flex justify-between items-center';
+                const titleText = document.createElement('span');
+                titleText.className = 'title-text';
+                titleText.textContent = `${file.name} (${numPages} / ${numPages} pages selected) `;
+                const accordionIcon = document.createElement('span');
+                accordionIcon.className = 'accordion-icon';
+                accordionIcon.textContent = '▶'; // Default collapsed state
+                title.appendChild(titleText);
+                title.appendChild(accordionIcon);
+                fileItem.appendChild(title);
+
+                const hint = document.createElement('span');
+                hint.className = 'hint';
+                hint.textContent = 'Drag and drop to rearrange files ⇅';
+                fileItem.appendChild(hint);
+
+                const thumbnailsDiv = document.createElement('div');
+                thumbnailsDiv.className = `flex flex-wrap thumbnails ${hasBlankPages ? '' : 'hidden'}`;
+
+                for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+                    const page = await pdfDoc.getPage(pageNum);
+                    const scale = 0.2;
+                    const viewport = page.getViewport({scale});
+                    const canvas = document.createElement('canvas');
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    const context = canvas.getContext('2d');
+                    await page.render({canvasContext: context, viewport}).promise;
+
+                    const img = document.createElement('img');
+                    img.src = canvas.toDataURL();
+                    img.className = 'w-[100px] h-auto';
+                    img.setAttribute('data-file-index', fileList.length);
+                    img.setAttribute('data-page-number', pageNum);
+                    img.addEventListener('click', showPreview);
+
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.checked = selectedPages[pageNum - 1];
+                    checkbox.className = 'absolute top-1 left-1';
+                    checkbox.setAttribute('data-file-index', fileList.length);
+                    checkbox.setAttribute('data-page-number', pageNum);
+                    checkbox.addEventListener('change', (event) => {
+                        togglePageSelection(event);
+                        const fileIndex = parseInt(event.target.getAttribute('data-file-index'));
+                        updateTitle(fileItem, fileList[fileIndex]);
+                    });
+
+                    const thumbContainer = document.createElement('div');
+                    thumbContainer.className = 'relative m-1';
+                    thumbContainer.appendChild(img);
+                    thumbContainer.appendChild(checkbox);
+                    thumbnailsDiv.appendChild(thumbContainer);
+                }
+
+                fileItem.appendChild(thumbnailsDiv);
+                document.getElementById('fileList').appendChild(fileItem);
+
+                title.addEventListener('click', () => {
+                    thumbnailsDiv.classList.toggle('hidden');
+                    updateTitle(fileItem, fileList[fileList.length - 1]);
+                });
+
+                fileList.push({
+                    fileName: file.name,
+                    arrayBuffer: arrayBuffer,
+                    pdfDoc: pdfDoc,
+                    numPages: numPages,
+                    selectedPages: selectedPages
+                });
+
+                updateTitle(fileItem, fileList[fileList.length - 1]);
+            }
+            document.getElementById('fileInput').value = '';
+        }
+
+        // Toggle page selection
+        function togglePageSelection(event) {
+            const checkbox = event.target;
+            const fileIndex = parseInt(checkbox.getAttribute('data-file-index'));
+            const pageNum = parseInt(checkbox.getAttribute('data-page-number'));
+            fileList[fileIndex].selectedPages[pageNum - 1] = checkbox.checked;
+        }
+
+        // Show page preview
+        async function showPreview(event) {
+            const img = event.target;
+            const fileIndex = parseInt(img.getAttribute('data-file-index'));
+            const pageNum = parseInt(img.getAttribute('data-page-number'));
+            const fileName = fileList[fileIndex].fileName;
+            document.getElementById('previewInfo').textContent = `Previewing: ${fileName} - Page ${pageNum}`;
+
+            const pdfDoc = fileList[fileIndex].pdfDoc;
+            const page = await pdfDoc.getPage(pageNum);
+            const scale = 1;
+            const viewport = page.getViewport({scale});
+            const canvas = document.getElementById('previewCanvas');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            const context = canvas.getContext('2d');
+            await page.render({canvasContext: context, viewport}).promise;
+        }
+
+        // Merge selected pages and download
+        async function mergePDFs() {
+            const mergedPdf = await PDFLib.PDFDocument.create();
+            for (const file of fileList) {
+                const donorPdf = await PDFLib.PDFDocument.load(file.arrayBuffer);
+                const selectedIndices = file.selectedPages
+                    .map((selected, index) => selected ? index : -1)
+                    .filter(index => index !== -1);
+                const copiedPages = await mergedPdf.copyPages(donorPdf, selectedIndices);
+                for (const page of copiedPages) {
+                    mergedPdf.addPage(page);
+                }
+            }
+            const mergedPdfBytes = await mergedPdf.save();
+            const blob = new Blob([mergedPdfBytes], {type: 'application/pdf'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = fileList[0].fileName.replace('.pdf', '') + '-merged.pdf';
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>
