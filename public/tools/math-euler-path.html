@@ -1,29 +1,29 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="zh-HK">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>一筆過 Solver</title>
+    <title>一筆過解題器</title>
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 <body class="bg-gray-100 flex flex-col items-center min-h-screen p-4">
-    <h1 class="text-2xl font-bold text-gray-800 mb-4">一筆過 Solver</h1>
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">一筆過解題器</h1>
     <canvas id="canvas" width="800" height="600" class="border border-gray-300 rounded-lg shadow-md"></canvas>
     <div class="mt-4 flex flex-wrap gap-2">
-        <button id="addNodeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Add Node</button>
-        <button id="addEdgeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Add Edge</button>
-        <button id="stepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">Solve Step by Step</button>
-        <button id="autoStepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">Auto Solve</button>
-        <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Clear</button>
-        <button id="shareBtn" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">Share</button>
+        <button id="addNodeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">加點</button>
+        <button id="addEdgeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">加邊</button>
+        <button id="stepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">逐步解題</button>
+        <button id="autoStepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">自動解題</button>
+        <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">清除</button>
+        <button id="shareBtn" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">分享</button>
     </div>
     <div class="mt-4 text-gray-700 max-w-md">
-        <p><strong>Instructions:</strong></p>
+        <p><strong>使用說明：</strong></p>
         <ul class="list-disc list-inside">
-            <li>Click "Add Node" and click on the canvas to place nodes (A, B, C...).</li>
-            <li>Click "Add Edge", then click two nodes to connect them.</li>
-            <li>Click "Solve Step by Step" or "Auto Solve" to find the path (restarts if complete).</li>
-            <li>Use "Share" to generate a URL for your graph.</li>
+            <li>按「加點」然後喺畫布上點擊來放置點 (A, B, C...)。</li>
+            <li>按「加邊」，然後點擊兩個點來連繫佢哋。</li>
+            <li>按「逐步解題」或「自動解題」來搵出一筆過路徑。</li>
+            <li>用「分享」生成你嘅圖表 URL。</li>
         </ul>
     </div>
     <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded shadow-lg hidden"></div>
@@ -72,6 +72,17 @@
             toast.textContent = message;
             toast.classList.remove('hidden');
             setTimeout(() => { toast.classList.add('hidden'); }, 3000);
+        }
+
+        function resetSolver() {
+            highlightedEdges.clear();
+            problemNodes.clear();
+            problemEdges.clear();
+            edgePath = [];
+            currentStep = 0;
+            isSolved = false;
+            if (autoInterval) clearInterval(autoInterval);
+            draw();
         }
 
         function draw() {
@@ -127,6 +138,7 @@
                 adjacency.get(node1.id).push(node2.id);
                 adjacency.get(node2.id).push(node1.id);
                 edges.push(new Edge(node1, node2));
+                resetSolver(); // Reset solver when adding an edge
             }
         }
 
@@ -140,6 +152,7 @@
                 const newNode = new Node(newId, x, y);
                 nodes.push(newNode);
                 adjacency.set(newId, []);
+                resetSolver(); // Reset solver when adding a node
                 draw();
             } else if (mode === 'addEdge') {
                 const clickedNode = getNodeAt(x, y);
@@ -166,14 +179,7 @@
             nodes = [];
             edges = [];
             adjacency.clear();
-            highlightedEdges.clear();
-            problemNodes.clear();
-            problemEdges.clear();
-            edgePath = [];
-            currentStep = 0;
-            selectedNode = null;
-            isSolved = false;
-            if (autoInterval) clearInterval(autoInterval);
+            resetSolver();
             draw();
         }
 
@@ -235,15 +241,15 @@
 
         function solve() {
             if (nodes.length === 0) {
-                showToast("Please add at least one node.");
+                showToast("請至少加一個點。");
                 return false;
             }
             if (edges.length === 0) {
-                showToast("Please add at least one edge between nodes.");
+                showToast("請至少加一條邊。");
                 return false;
             }
             if (!isConnected()) {
-                showToast("The graph is not connected.");
+                showToast("圖表唔連繫。");
                 return false;
             }
 
@@ -256,7 +262,7 @@
             }
 
             if (oddDegreeNodes.length > 2) {
-                showToast("No Eulerian path exists (more than 2 odd-degree nodes).");
+                showToast("無一筆過路徑（多過兩個奇數度點）。");
                 problemNodes.clear();
                 problemEdges.clear();
                 oddDegreeNodes.forEach(id => problemNodes.add(id));
@@ -300,18 +306,16 @@
         function solveStep() {
             if (!isSolved) {
                 if (!solve()) return;
-            } else if (currentStep === edgePath.length) {
-                // Restart from beginning
-                currentStep = 0;
-                highlightedEdges.clear();
-                draw();
+            } else if (currentStep >= edgePath.length) {
+                resetSolver();
+                if (!solve()) return;
             }
             if (currentStep < edgePath.length) {
                 highlightedEdges.set(edgePath[currentStep], currentStep + 1);
                 currentStep++;
                 draw();
             } else if (currentStep === edgePath.length) {
-                showToast("Path complete!");
+                showToast("路徑完成！");
             }
         }
 
@@ -319,11 +323,9 @@
             if (autoInterval) clearInterval(autoInterval);
             if (!isSolved) {
                 if (!solve()) return;
-            } else if (currentStep === edgePath.length) {
-                // Restart from beginning
-                currentStep = 0;
-                highlightedEdges.clear();
-                draw();
+            } else if (currentStep >= edgePath.length) {
+                resetSolver();
+                if (!solve()) return;
             }
             autoInterval = setInterval(() => {
                 if (currentStep < edgePath.length) {
@@ -332,14 +334,14 @@
                     draw();
                 } else {
                     clearInterval(autoInterval);
-                    showToast("Path complete!");
+                    showToast("路徑完成！");
                 }
             }, 1000);
         }
 
         function share() {
             if (nodes.length === 0) {
-                showToast("Nothing to share yet!");
+                showToast("未有嘢可以分享！");
                 return;
             }
             let nodeStr = nodes.map(n => `${n.x},${n.y}`).join('|');
@@ -348,7 +350,7 @@
             const encodedData = encodeURIComponent(graphData);
             const url = `${window.location.origin}${window.location.pathname}?graph=${encodedData}`;
             navigator.clipboard.writeText(url).then(() => {
-                showToast("Graph URL copied to clipboard!");
+                showToast("圖表 URL 已複製到剪貼簿！");
             });
         }
 
@@ -378,7 +380,7 @@
                     }
                     draw();
                 } catch (e) {
-                    showToast("Failed to load graph from URL.");
+                    showToast("無法從 URL 載入圖表。");
                 }
             }
         }
