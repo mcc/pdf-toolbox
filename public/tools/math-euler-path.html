@@ -5,28 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>一筆過解題器</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        canvas {
+            width: 100%;
+            height: auto;
+            max-width: 600px;
+            max-height: 600px;
+        }
+        .mode-button {
+            transition: border-width 0.2s;
+        }
+        .mode-button.active {
+            border-width: 4px;
+            border-color: #ffff00;
+        }
+    </style>
 </head>
 <body class="bg-gray-100 flex flex-col items-center min-h-screen p-4">
     <h1 class="text-2xl font-bold text-gray-800 mb-4">一筆過解題器</h1>
-    <canvas id="canvas" width="800" height="600" class="border border-gray-300 rounded-lg shadow-md"></canvas>
-    <div class="mt-4 flex flex-wrap gap-2">
-        <button id="addNodeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">加點</button>
-        <button id="addEdgeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">加邊</button>
-        <button id="stepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">逐步解題</button>
-        <button id="autoStepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">自動解題</button>
-        <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">清除</button>
-        <button id="shareBtn" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">分享</button>
+    <canvas id="canvas" class="border border-gray-300 rounded-lg shadow-md"></canvas>
+    <div class="mt-4 flex flex-wrap justify-center gap-2">
+        <button id="addNodeBtn" class="mode-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-blue-500">加點</button>
+        <button id="addEdgeBtn" class="mode-button bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-blue-500">加邊</button>
+        <button id="deleteNodeBtn" class="mode-button bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-yellow-500">刪點</button>
+        <button id="undoBtn" class="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-gray-500">復原</button>
+        <button id="stepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-green-500">逐步解題</button>
+        <button id="autoStepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-green-500">自動解題</button>
+        <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-red-500">清除</button>
+        <button id="shareBtn" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded text-sm md:text-base border-2 border-purple-500">分享</button>
     </div>
-    <div class="mt-4 text-gray-700 max-w-md">
+    <div class="mt-4 text-gray-700 max-w-md text-sm md:text-base">
         <p><strong>使用說明：</strong></p>
         <ul class="list-disc list-inside">
-            <li>按「加點」然後喺畫布上點擊來放置點 (A, B, C...)。</li>
+            <li>按「加點」然後喺畫布上點擊來放置點 (A, B, C...)，會自動對齊到12x12格。</li>
             <li>按「加邊」，然後點擊兩個點來連繫佢哋。</li>
+            <li>按「刪點」，然後點擊一個點來刪除。</li>
+            <li>按「復原」取消上一個動作。</li>
             <li>按「逐步解題」或「自動解題」來搵出一筆過路徑。</li>
             <li>用「分享」生成你嘅圖表 URL。</li>
         </ul>
     </div>
-    <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded shadow-lg hidden"></div>
+    <div id="toast" class="fixed top-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded shadow-lg hidden text-sm md:text-base z-10"></div>
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
@@ -34,6 +53,8 @@
         
         const addNodeBtn = document.getElementById('addNodeBtn');
         const addEdgeBtn = document.getElementById('addEdgeBtn');
+        const deleteNodeBtn = document.getElementById('deleteNodeBtn');
+        const undoBtn = document.getElementById('undoBtn');
         const stepBtn = document.getElementById('stepBtn');
         const autoStepBtn = document.getElementById('autoStepBtn');
         const clearBtn = document.getElementById('clearBtn');
@@ -51,13 +72,29 @@
         let currentStep = 0;
         let autoInterval = null;
         let isSolved = false;
+        let history = [];
+        const GRID_SIZE = 12;
+
+        function resizeCanvas() {
+            const maxSize = 600;
+            const windowWidth = window.innerWidth * 0.9;
+            const windowHeight = window.innerHeight * 0.6;
+
+            let size = Math.min(windowWidth, windowHeight, maxSize);
+            canvas.width = size;
+            canvas.height = size;
+            draw();
+        }
+
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
 
         class Node {
             constructor(id, x, y) {
                 this.id = id;
                 this.name = String.fromCharCode(65 + id);
-                this.x = x;
-                this.y = y;
+                this.x = Math.max(0, Math.min(GRID_SIZE - 1, Math.round(x))); // Ensure within 0-11
+                this.y = Math.max(0, Math.min(GRID_SIZE - 1, Math.round(y))); // Ensure within 0-11
             }
         }
 
@@ -74,6 +111,15 @@
             setTimeout(() => { toast.classList.add('hidden'); }, 3000);
         }
 
+        function saveState() {
+            history.push({
+                nodes: nodes.map(n => ({ id: n.id, x: n.x, y: n.y })),
+                edges: edges.map(e => ({ node1Id: e.node1.id, node2Id: e.node2.id })),
+                adjacency: new Map([...adjacency])
+            });
+            if (history.length > 10) history.shift();
+        }
+
         function resetSolver() {
             highlightedEdges.clear();
             problemNodes.clear();
@@ -85,91 +131,215 @@
             draw();
         }
 
+        function updateButtonHighlight() {
+            addNodeBtn.classList.toggle('active', mode === 'addNode');
+            addEdgeBtn.classList.toggle('active', mode === 'addEdge');
+            deleteNodeBtn.classList.toggle('active', mode === 'deleteNode');
+        }
+
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
+            const cellSize = canvas.width / GRID_SIZE;
+
+            // Draw grid lines (lighter color)
+            ctx.strokeStyle = '#eee'; // Changed from #ddd to #eee
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= GRID_SIZE; i++) {
+                ctx.beginPath();
+                ctx.moveTo(i * cellSize, 0);
+                ctx.lineTo(i * cellSize, canvas.height);
+                ctx.stroke();
+                ctx.beginPath();
+                ctx.moveTo(0, i * cellSize);
+                ctx.lineTo(canvas.width, i * cellSize);
+                ctx.stroke();
+            }
+
+            const nodeRadius = cellSize * 0.4;
+            const fontSize = Math.max(cellSize * 0.5, 10);
+
             edges.forEach(edge => {
                 const key = edge.node1.id < edge.node2.id 
                     ? `${edge.node1.id}-${edge.node2.id}` 
                     : `${edge.node2.id}-${edge.node1.id}`;
                 ctx.strokeStyle = highlightedEdges.has(key) ? 'red' : (problemEdges.has(key) ? 'orange' : 'black');
-                ctx.lineWidth = highlightedEdges.has(key) ? 3 : 1;
+                ctx.lineWidth = highlightedEdges.has(key) ? cellSize * 0.15 : cellSize * 0.05;
                 ctx.beginPath();
-                ctx.moveTo(edge.node1.x, edge.node1.y);
-                ctx.lineTo(edge.node2.x, edge.node2.y);
+                ctx.moveTo((edge.node1.x + 0.5) * cellSize, (edge.node1.y + 0.5) * cellSize);
+                ctx.lineTo((edge.node2.x + 0.5) * cellSize, (edge.node2.y + 0.5) * cellSize);
                 ctx.stroke();
 
                 if (highlightedEdges.has(key)) {
-                    const midX = (edge.node1.x + edge.node2.x) / 2;
-                    const midY = (edge.node1.y + edge.node2.y) / 2;
+                    const midX = (edge.node1.x + edge.node2.x + 1) / 2 * cellSize;
+                    const midY = (edge.node1.y + edge.node2.y + 1) / 2 * cellSize;
                     ctx.fillStyle = 'white';
-                    ctx.fillRect(midX - 10, midY - 10, 20, 20);
+                    ctx.fillRect(midX - cellSize * 0.2, midY - cellSize * 0.2, cellSize * 0.4, cellSize * 0.4);
                     ctx.fillStyle = 'black';
-                    ctx.font = '12px Arial';
+                    ctx.font = `${fontSize}px Arial`;
                     ctx.textAlign = 'center';
-                    ctx.fillText(highlightedEdges.get(key), midX, midY + 4);
+                    ctx.fillText(highlightedEdges.get(key), midX, midY + fontSize / 3);
                 }
             });
 
             nodes.forEach(node => {
                 ctx.beginPath();
-                ctx.arc(node.x, node.y, 15, 0, 2 * Math.PI);
+                ctx.arc((node.x + 0.5) * cellSize, (node.y + 0.5) * cellSize, nodeRadius, 0, 2 * Math.PI);
                 ctx.fillStyle = problemNodes.has(node.id) ? 'red' : 'blue';
                 ctx.fill();
+
+                if (selectedNode === node && mode === 'addEdge') {
+                    ctx.strokeStyle = 'yellow';
+                    ctx.lineWidth = cellSize * 0.15;
+                    ctx.stroke();
+                }
+
                 ctx.fillStyle = 'white';
-                ctx.font = '12px Arial';
+                ctx.font = `${fontSize}px Arial`;
                 ctx.textAlign = 'center';
-                ctx.fillText(node.name, node.x, node.y + 4);
+                ctx.fillText(node.name, (node.x + 0.5) * cellSize, (node.y + 0.5) * cellSize + fontSize / 3);
             });
         }
 
         function getNodeAt(x, y) {
-            for (const node of nodes) {
-                const dx = node.x - x;
-                const dy = node.y - y;
-                if (dx * dx + dy * dy < 225) {
-                    return node;
+            const cellSize = canvas.scrollWidth / GRID_SIZE;
+            const gridX = Math.floor(x / cellSize);
+            const gridY = Math.floor(y / cellSize);
+            if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) return null;
+            return nodes.find(node => node.x === gridX && node.y === gridY);
+        }
+
+        function isGridOccupied(x, y) {
+            return nodes.some(node => node.x === x && node.y === y);
+        }
+
+        function handleClick(x, y) {
+            
+            const cellSize = canvas.scrollWidth / GRID_SIZE;
+            const gridX = Math.floor(x / cellSize); // Use floor to snap to current cell
+            const gridY = Math.floor(y / cellSize); // Use floor to snap to current cell
+            console.log(cellSize, canvas, x, gridX, y,gridY);
+            if (gridX < 0 || gridX >= GRID_SIZE || gridY < 0 || gridY >= GRID_SIZE) return;
+
+            if (mode === 'addNode') {
+                if (!isGridOccupied(gridX, gridY)) {
+                    saveState();
+                    const newId = nodes.length;
+                    const newNode = new Node(newId, gridX, gridY);
+                    nodes.push(newNode);
+                    adjacency.set(newId, []);
+                    resetSolver();
+                    draw();
+                } else {
+                    showToast("此格已有一個點！");
+                }
+            } else if (mode === 'addEdge') {
+                const clickedNode = getNodeAt(x, y);
+                if (clickedNode) {
+                    if (!selectedNode) {
+                        selectedNode = clickedNode;
+                        showToast("請點擊另一個點來連繫");
+                        draw();
+                    } else if (selectedNode !== clickedNode) {
+                        saveState();
+                        addEdge(selectedNode, clickedNode);
+                        selectedNode = null;
+                        draw();
+                    }
+                }
+            } else if (mode === 'deleteNode') {
+                const clickedNode = getNodeAt(x, y);
+                if (clickedNode) {
+                    saveState();
+                    deleteNode(clickedNode);
+                    draw();
                 }
             }
-            return null;
         }
+
+        canvas.addEventListener('click', (event) => {
+            
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+            console.log(event.clientX, rect.left, x);
+            console.log(event.clientY, rect.top, y);
+            handleClick(x, y);
+        });
+
+        canvas.addEventListener('touchstart', (event) => {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const touch = event.touches[0];
+            const x = touch.clientX - rect.left;
+            const y = touch.clientY - rect.top;
+            handleClick(x, y);
+        }, { passive: false });
 
         function addEdge(node1, node2) {
             if (!adjacency.get(node1.id).includes(node2.id)) {
                 adjacency.get(node1.id).push(node2.id);
                 adjacency.get(node2.id).push(node1.id);
                 edges.push(new Edge(node1, node2));
-                resetSolver(); // Reset solver when adding an edge
+                resetSolver();
             }
         }
 
-        canvas.addEventListener('click', (event) => {
-            const rect = canvas.getBoundingClientRect();
-            const x = event.clientX - rect.left;
-            const y = event.clientY - rect.top;
-
-            if (mode === 'addNode') {
-                const newId = nodes.length;
-                const newNode = new Node(newId, x, y);
-                nodes.push(newNode);
-                adjacency.set(newId, []);
-                resetSolver(); // Reset solver when adding a node
-                draw();
-            } else if (mode === 'addEdge') {
-                const clickedNode = getNodeAt(x, y);
-                if (clickedNode) {
-                    if (!selectedNode) {
-                        selectedNode = clickedNode;
-                    } else if (selectedNode !== clickedNode) {
-                        addEdge(selectedNode, clickedNode);
-                        selectedNode = null;
-                        draw();
-                    }
-                }
+        function deleteNode(node) {
+            nodes = nodes.filter(n => n.id !== node.id);
+            edges = edges.filter(e => e.node1.id !== node.id && e.node2.id !== node.id);
+            adjacency.delete(node.id);
+            for (const [id, neighbors] of adjacency) {
+                adjacency.set(id, neighbors.filter(n => n !== node.id));
             }
-        });
+            resetSolver();
+        }
 
-        addNodeBtn.addEventListener('click', () => { mode = 'addNode'; });
-        addEdgeBtn.addEventListener('click', () => { mode = 'addEdge'; selectedNode = null; });
+        function undo() {
+            if (history.length === 0) {
+                showToast("無動作可以復原！");
+                return;
+            }
+            const lastState = history.pop();
+            nodes = lastState.nodes.map(n => new Node(n.id, n.x, n.y));
+            edges = [];
+            adjacency = new Map();
+            nodes.forEach(n => adjacency.set(n.id, []));
+            lastState.edges.forEach(e => {
+                const node1 = nodes.find(n => n.id === e.node1Id);
+                const node2 = nodes.find(n => n.id === e.node2Id);
+                if (node1 && node2) {
+                    edges.push(new Edge(node1, node2));
+                    adjacency.get(node1.id).push(node2.id);
+                    adjacency.get(node2.id).push(node1.id);
+                }
+            });
+            selectedNode = null;
+            resetSolver();
+            draw();
+        }
+
+        addNodeBtn.addEventListener('click', () => { 
+            mode = 'addNode'; 
+            selectedNode = null; 
+            showToast("加點模式：請喺畫布上點擊");
+            updateButtonHighlight();
+            draw(); 
+        });
+        addEdgeBtn.addEventListener('click', () => { 
+            mode = 'addEdge'; 
+            selectedNode = null; 
+            showToast("加邊模式：請點擊兩個點");
+            updateButtonHighlight();
+            draw(); 
+        });
+        deleteNodeBtn.addEventListener('click', () => { 
+            mode = 'deleteNode'; 
+            selectedNode = null; 
+            showToast("刪點模式：請點擊一個點");
+            updateButtonHighlight();
+            draw(); 
+        });
+        undoBtn.addEventListener('click', undo);
         stepBtn.addEventListener('click', solveStep);
         autoStepBtn.addEventListener('click', autoSolve);
         clearBtn.addEventListener('click', clear);
@@ -179,6 +349,8 @@
             nodes = [];
             edges = [];
             adjacency.clear();
+            selectedNode = null;
+            history = [];
             resetSolver();
             draw();
         }
@@ -344,7 +516,7 @@
                 showToast("未有嘢可以分享！");
                 return;
             }
-            let nodeStr = nodes.map(n => `${n.x},${n.y}`).join('|');
+            let nodeStr = nodes.map(n => `${n.id},${n.x},${n.y}`).join('|');
             let edgeStr = edges.map(e => `${e.node1.id}-${e.node2.id}`).join('|');
             const graphData = `n${nodeStr};e${edgeStr}`;
             const encodedData = encodeURIComponent(graphData);
@@ -363,8 +535,8 @@
                     const [nodePart, edgePart] = graphData.split(';');
                     if (nodePart.startsWith('n')) {
                         const nodeCoords = nodePart.slice(1).split('|').filter(Boolean);
-                        nodes = nodeCoords.map((coord, id) => {
-                            const [x, y] = coord.split(',').map(Number);
+                        nodes = nodeCoords.map(coord => {
+                            const [id, x, y] = coord.split(',').map(Number);
                             return new Node(id, x, y);
                         });
                         nodes.forEach(n => adjacency.set(n.id, []));
@@ -383,6 +555,7 @@
                     showToast("無法從 URL 載入圖表。");
                 }
             }
+            updateButtonHighlight();
         }
 
         loadFromURL();
