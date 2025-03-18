@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>HK Building Data Viewer</title>
+    <style>
+        table {
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 20px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .search-container {
+            margin: 20px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="search-container">
+        <input type="text" id="searchInput" placeholder="Search buildings...">
+        <button onclick="searchBuildings()">Search</button>
+        <button onclick="loadAllData()">Reload All Data</button>
+    </div>
+    
+    <table id="buildingsTable">
+        <thead>
+            <tr>
+                <th>Building Name (EN)</th>
+                <th>Building Name (CH)</th>
+                <th>Street</th>
+                <th>District</th>
+                <th>Region</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody"></tbody>
+    </table>
+
+    <script src="https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.js"></script>
+    <script>
+        let db;
+
+        async function initDatabase() {
+            const config = { locateFile: () => 'https://cdn.jsdelivr.net/npm/sql.js@1.8.0/dist/sql-wasm.wasm' };
+            const SQL = await initSqlJs(config);
+            db = new SQL.Database();
+            
+            db.run(`
+                CREATE TABLE IF NOT EXISTS buildings (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name_en TEXT,
+                    name_ch TEXT,
+                    street TEXT,
+                    district TEXT,
+                    region TEXT
+                )
+            `);
+        }
+
+        async function fetchAndProcessXML(url, region) {
+            const response = await fetch(url);
+            const text = await response.text();
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(text, "text/xml");
+            
+            const buildings = xmlDoc.getElementsByTagName("building");
+            const tableBody = document.getElementById("tableBody");
+            tableBody.innerHTML = "";
+
+            for (let building of buildings) {
+                const nameEn = building.getElementsByTagName("building_name_eng")[0]?.textContent || "";
+                const nameCh = building.getElementsByTagName("building_name_chi")[0]?.textContent || "";
+                const street = building.getElementsByTagName("street_name_eng")[0]?.textContent || "";
+                const district = building.getElementsByTagName("district_eng")[0]?.textContent || "";
+
+                // Insert into SQLite
+                db.run(`
+                    INSERT OR IGNORE INTO buildings (name_en, name_ch, street, district, region)
+                    VALUES (?, ?, ?, ?, ?)
+                `, [nameEn, nameCh, street, district, region]);
+
+                // Add to table
+                const row = document.createElement("tr");
+                row.innerHTML = `
+                    <td>${nameEn}</td>
+                    <td>${nameCh}</td>
+                    <td>${street}</td>
+                    <td>${district}</td>
+                    <td>${region}</td>
+                `;
+                tableBody.appendChild(row);
+            }
+        }
+
+        async function loadAllData() {
+            await initDatabase();
+            await fetchAndProcessXML("https://www.rvd.gov.hk/datagovhk/bnb-nt.xml", "New Territories");
+            await fetchAndProcessXML("https://www.rvd.gov.hk/datagovhk/bnb-u.xml", "HK & Kowloon");
+        }
+
+        function searchBuildings() {
+            const searchTerm = document.getElementById("searchInput").value.toLowerCase();
+            const tableBody = document.getElementById("tableBody");
+            tableBody.innerHTML = "";
+
+            const results = db.exec(`
+                SELECT * FROM buildings 
+                WHERE name_en LIKE ? 
+                OR name_ch LIKE ? 
+                OR street LIKE ? 
+                OR district LIKE ?
+            `, [`%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`, `%${searchTerm}%`]);
+
+            if (results.length > 0) {
+                for (let row of results[0].values) {
+                    const [id, nameEn, nameCh, street, district, region] = row;
+                    const tr = document.createElement("tr");
+                    tr.innerHTML = `
+                        <td>${nameEn}</td>
+                        <td>${nameCh}</td>
+                        <td>${street}</td>
+                        <td>${district}</td>
+                        <td>${region}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                }
+            }
+        }
+
+        // Initial load
+        loadAllData().catch(console.error);
+
+        // Add enter key support for search
+        document.getElementById("searchInput").addEventListener("keypress", function(event) {
+            if (event.key === "Enter") {
+                searchBuildings();
+            }
+        });
+    </script>
+</body>
+</html>
