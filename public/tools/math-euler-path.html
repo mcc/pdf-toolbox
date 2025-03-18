@@ -26,7 +26,7 @@
             justify-content: center;
             gap: 0.5rem;
         }
-        #congratsOverlay {
+        #congratsOverlay, #shareOverlay {
             display: none;
             position: fixed;
             top: 0;
@@ -37,6 +37,12 @@
             z-index: 20;
             justify-content: center;
             align-items: center;
+        }
+        #sharePreview {
+            max-width: 200px;
+            max-height: 200px;
+            margin: 10px auto;
+            background: white;
         }
     </style>
 </head>
@@ -72,12 +78,36 @@
             <button id="closeCongrats" class="mt-4 bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">繼續挑戰</button>
         </div>
     </div>
+    <div id="shareOverlay" class="flex">
+        <div class="bg-white p-6 rounded-lg text-center shadow-lg max-w-md w-full">
+            <h2 class="text-2xl font-bold mb-4">分享挑戰</h2>
+            <div class="mb-4">
+                <label class="block text-left font-semibold">1. 純鏈接</label>
+                <input id="shareLink" type="text" readonly class="w-full p-2 mt-1 border rounded" />
+                <button id="copyLinkBtn" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">複製鏈接</button>
+            </div>
+            <div>
+                <label class="block text-left font-semibold">2. 帶SVG縮圖的HTML代碼</label>
+                <textarea id="shareCode" readonly class="w-full h-32 p-2 mt-1 border rounded font-mono text-sm"></textarea>
+                <div id="sharePreview" class="mt-2"></div>
+                <button id="copyCodeBtn" class="mt-2 bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">複製代碼</button>
+            </div>
+            <button id="closeShare" class="mt-4 bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded">關閉</button>
+        </div>
+    </div>
     <script>
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
         const toast = document.getElementById('toast');
         const congratsOverlay = document.getElementById('congratsOverlay');
         const closeCongrats = document.getElementById('closeCongrats');
+        const shareOverlay = document.getElementById('shareOverlay');
+        const shareLink = document.getElementById('shareLink');
+        const shareCode = document.getElementById('shareCode');
+        const sharePreview = document.getElementById('sharePreview');
+        const copyLinkBtn = document.getElementById('copyLinkBtn');
+        const copyCodeBtn = document.getElementById('copyCodeBtn');
+        const closeShare = document.getElementById('closeShare');
         
         const designModeBtn = document.getElementById('designModeBtn');
         const gameModeBtn = document.getElementById('gameModeBtn');
@@ -158,11 +188,107 @@
         function hideCongrats() {
             congratsOverlay.style.display = 'none';
             gamePath = [];
-            gameEdges.clear();
+            gameEdges = new Map();
             draw();
         }
 
+        function showSharePopup() {
+            if (nodes.length === 0) {
+                showToast("未有嘢可以分享！");
+                return;
+            }
+
+            // Generate share URL
+            let nodeStr = nodes.map(n => `${n.id},${n.x},${n.y}`).join('|');
+            let edgeStr = edges.map(e => `${e.node1.id}-${e.node2.id}`).join('|');
+            const graphData = `n${nodeStr};e${edgeStr}`;
+            const encodedData = encodeURIComponent(graphData);
+            const url = `${window.location.origin}${window.location.pathname}?graph=${encodedData}&mode=game`;
+
+            // Populate link option
+            shareLink.value = url;
+
+            // Generate SVG thumbnail (only edges)
+            const svgWidth = 200;
+            const svgHeight = 200;
+            
+            const cellSize = canvas.scrollWidth / GRID_SIZE;
+            const nodeRadius = cellSize * 0.4;
+            const scale = svgWidth / (GRID_SIZE * cellSize);
+            let svg = `<svg width="${svgWidth}" height="${svgHeight}" viewBox="0 0 ${svgWidth} ${svgHeight}" xmlns="http://www.w3.org/2000/svg">`;
+            svg += '<rect width="100%" height="100%" fill="#f3f4f6" />'; // Light gray background
+            
+            // Draw edges
+            const edgeGroups = new Map();
+            edges.forEach(edge => {
+                const key = edge.node1.id < edge.node2.id 
+                    ? `${edge.node1.id}-${edge.node2.id}` 
+                    : `${edge.node2.id}-${edge.node1.id}`;
+                if (!edgeGroups.has(key)) edgeGroups.set(key, []);
+                edgeGroups.get(key).push(edge);
+            });
+
+            edges.forEach(edge => {
+                const groupKey = edge.node1.id < edge.node2.id 
+                    ? `${edge.node1.id}-${edge.node2.id}` 
+                    : `${edge.node2.id}-${edge.node1.id}`;
+                const group = edgeGroups.get(groupKey);
+                const n = group.length;
+                const index = group.indexOf(edge);
+
+                const x1 = (edge.node1.x + 0.5) * cellSize * scale;
+                const y1 = (edge.node1.y + 0.5) * cellSize * scale;
+                const x2 = (edge.node2.x + 0.5) * cellSize * scale;
+                const y2 = (edge.node2.y + 0.5) * cellSize * scale;
+
+                const dx = x2 - x1;
+                const dy = y2 - y1;
+                const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+                const curvatureFactor = n === 1 ? 0 : (index - (n - 1) / 2) * cellSize * 0.8 * scale;
+                const directionSign = (edge.node1.id < edge.node2.id) ? 1 : -1;
+                const perpX = -dy / dist * curvatureFactor * directionSign;
+                const perpY = dx / dist * curvatureFactor * directionSign;
+                const midX = (x1 + x2) / 2 + perpX;
+                const midY = (y1 + y2) / 2 + perpY;
+
+                svg += `<path d="M ${x1} ${y1} Q ${midX} ${midY} ${x2} ${y2}" stroke="black" stroke-width="${cellSize * 0.05 * scale}" fill="none" />`;
+            });
+
+            svg += '</svg>';
+
+            // Generate embeddable HTML with clickable SVG
+            const htmlCode = `
+                <div style="text-align: center;">
+                    <a href="${url}" target="_blank">${svg}</a>
+                </div>
+            `;
+            shareCode.value = htmlCode;
+
+            // Display SVG preview
+            sharePreview.innerHTML = svg;
+
+            // Show popup
+            shareOverlay.style.display = 'flex';
+        }
+
+        function hideSharePopup() {
+            shareOverlay.style.display = 'none';
+        }
+
         closeCongrats.addEventListener('click', hideCongrats);
+        closeShare.addEventListener('click', hideSharePopup);
+        copyLinkBtn.addEventListener('click', () => {
+            shareLink.select();
+            navigator.clipboard.writeText(shareLink.value).then(() => {
+                showToast("鏈接已複製！");
+            });
+        });
+        copyCodeBtn.addEventListener('click', () => {
+            shareCode.select();
+            navigator.clipboard.writeText(shareCode.value).then(() => {
+                showToast("HTML代碼已複製！");
+            });
+        });
 
         function saveState() {
             undoHistory.push({
@@ -182,7 +308,7 @@
             currentStep = 0;
             isSolved = false;
             gamePath = [];
-            gameEdges.clear();
+            gameEdges = new Map();
             if (autoInterval) clearInterval(autoInterval);
             draw();
         }
@@ -576,13 +702,13 @@
         resetBtn.addEventListener('click', () => {
             if (mode === 'game') {
                 gamePath = [];
-                gameEdges.clear();
+                gameEdges = new Map();
                 draw();
                 showToast("遊戲已重置");
             }
         });
         clearBtn.addEventListener('click', clear);
-        shareBtn.addEventListener('click', share);
+        shareBtn.addEventListener('click', showSharePopup);
 
         function clear() {
             nodes = [];
@@ -809,21 +935,6 @@
                     showToast("路徑完成！");
                 }
             }, 1000);
-        }
-
-        function share() {
-            if (nodes.length === 0) {
-                showToast("未有嘢可以分享！");
-                return;
-            }
-            let nodeStr = nodes.map(n => `${n.id},${n.x},${n.y}`).join('|');
-            let edgeStr = edges.map(e => `${e.node1.id}-${e.node2.id}`).join('|');
-            const graphData = `n${nodeStr};e${edgeStr}`;
-            const encodedData = encodeURIComponent(graphData);
-            const url = `${window.location.origin}${window.location.pathname}?graph=${encodedData}&mode=game`;
-            navigator.clipboard.writeText(url).then(() => {
-                showToast("遊戲模式挑戰 URL 已複製到剪貼簿！");
-            });
         }
 
         function loadFromURL() {
