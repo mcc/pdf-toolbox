@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一筆過 Solver</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col items-center min-h-screen p-4">
+    <h1 class="text-2xl font-bold text-gray-800 mb-4">一筆過 Solver</h1>
+    <canvas id="canvas" width="800" height="600" class="border border-gray-300 rounded-lg shadow-md"></canvas>
+    <div class="mt-4 flex flex-wrap gap-2">
+        <button id="addNodeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Add Node</button>
+        <button id="addEdgeBtn" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded">Add Edge</button>
+        <button id="stepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">Solve Step by Step</button>
+        <button id="autoStepBtn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded">Auto Solve</button>
+        <button id="clearBtn" class="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded">Clear</button>
+        <button id="shareBtn" class="bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded">Share</button>
+    </div>
+    <div class="mt-4 text-gray-700 max-w-md">
+        <p><strong>Instructions:</strong></p>
+        <ul class="list-disc list-inside">
+            <li>Click "Add Node" and click on the canvas to place nodes (A, B, C...).</li>
+            <li>Click "Add Edge", then click two nodes to connect them.</li>
+            <li>Click "Solve Step by Step" or "Auto Solve" to find the path (restarts if complete).</li>
+            <li>Use "Share" to generate a URL for your graph.</li>
+        </ul>
+    </div>
+    <div id="toast" class="fixed bottom-4 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded shadow-lg hidden"></div>
+    <script>
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const toast = document.getElementById('toast');
+        
+        const addNodeBtn = document.getElementById('addNodeBtn');
+        const addEdgeBtn = document.getElementById('addEdgeBtn');
+        const stepBtn = document.getElementById('stepBtn');
+        const autoStepBtn = document.getElementById('autoStepBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const shareBtn = document.getElementById('shareBtn');
+
+        let mode = 'addNode';
+        let selectedNode = null;
+        let nodes = [];
+        let edges = [];
+        let adjacency = new Map();
+        let highlightedEdges = new Map();
+        let problemNodes = new Set();
+        let problemEdges = new Set();
+        let edgePath = [];
+        let currentStep = 0;
+        let autoInterval = null;
+        let isSolved = false;
+
+        class Node {
+            constructor(id, x, y) {
+                this.id = id;
+                this.name = String.fromCharCode(65 + id);
+                this.x = x;
+                this.y = y;
+            }
+        }
+
+        class Edge {
+            constructor(node1, node2) {
+                this.node1 = node1;
+                this.node2 = node2;
+            }
+        }
+
+        function showToast(message) {
+            toast.textContent = message;
+            toast.classList.remove('hidden');
+            setTimeout(() => { toast.classList.add('hidden'); }, 3000);
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            edges.forEach(edge => {
+                const key = edge.node1.id < edge.node2.id 
+                    ? `${edge.node1.id}-${edge.node2.id}` 
+                    : `${edge.node2.id}-${edge.node1.id}`;
+                ctx.strokeStyle = highlightedEdges.has(key) ? 'red' : (problemEdges.has(key) ? 'orange' : 'black');
+                ctx.lineWidth = highlightedEdges.has(key) ? 3 : 1;
+                ctx.beginPath();
+                ctx.moveTo(edge.node1.x, edge.node1.y);
+                ctx.lineTo(edge.node2.x, edge.node2.y);
+                ctx.stroke();
+
+                if (highlightedEdges.has(key)) {
+                    const midX = (edge.node1.x + edge.node2.x) / 2;
+                    const midY = (edge.node1.y + edge.node2.y) / 2;
+                    ctx.fillStyle = 'white';
+                    ctx.fillRect(midX - 10, midY - 10, 20, 20);
+                    ctx.fillStyle = 'black';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(highlightedEdges.get(key), midX, midY + 4);
+                }
+            });
+
+            nodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 15, 0, 2 * Math.PI);
+                ctx.fillStyle = problemNodes.has(node.id) ? 'red' : 'blue';
+                ctx.fill();
+                ctx.fillStyle = 'white';
+                ctx.font = '12px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText(node.name, node.x, node.y + 4);
+            });
+        }
+
+        function getNodeAt(x, y) {
+            for (const node of nodes) {
+                const dx = node.x - x;
+                const dy = node.y - y;
+                if (dx * dx + dy * dy < 225) {
+                    return node;
+                }
+            }
+            return null;
+        }
+
+        function addEdge(node1, node2) {
+            if (!adjacency.get(node1.id).includes(node2.id)) {
+                adjacency.get(node1.id).push(node2.id);
+                adjacency.get(node2.id).push(node1.id);
+                edges.push(new Edge(node1, node2));
+            }
+        }
+
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (mode === 'addNode') {
+                const newId = nodes.length;
+                const newNode = new Node(newId, x, y);
+                nodes.push(newNode);
+                adjacency.set(newId, []);
+                draw();
+            } else if (mode === 'addEdge') {
+                const clickedNode = getNodeAt(x, y);
+                if (clickedNode) {
+                    if (!selectedNode) {
+                        selectedNode = clickedNode;
+                    } else if (selectedNode !== clickedNode) {
+                        addEdge(selectedNode, clickedNode);
+                        selectedNode = null;
+                        draw();
+                    }
+                }
+            }
+        });
+
+        addNodeBtn.addEventListener('click', () => { mode = 'addNode'; });
+        addEdgeBtn.addEventListener('click', () => { mode = 'addEdge'; selectedNode = null; });
+        stepBtn.addEventListener('click', solveStep);
+        autoStepBtn.addEventListener('click', autoSolve);
+        clearBtn.addEventListener('click', clear);
+        shareBtn.addEventListener('click', share);
+
+        function clear() {
+            nodes = [];
+            edges = [];
+            adjacency.clear();
+            highlightedEdges.clear();
+            problemNodes.clear();
+            problemEdges.clear();
+            edgePath = [];
+            currentStep = 0;
+            selectedNode = null;
+            isSolved = false;
+            if (autoInterval) clearInterval(autoInterval);
+            draw();
+        }
+
+        function dfs(nodeId, visited) {
+            visited.add(nodeId);
+            for (const neighbor of adjacency.get(nodeId)) {
+                if (!visited.has(neighbor)) {
+                    dfs(neighbor, visited);
+                }
+            }
+        }
+
+        function isConnected() {
+            let startNode = null;
+            for (const node of nodes) {
+                if (adjacency.get(node.id).length > 0) {
+                    startNode = node.id;
+                    break;
+                }
+            }
+            if (!startNode) return true;
+            const visited = new Set();
+            dfs(startNode, visited);
+            for (const node of nodes) {
+                if (adjacency.get(node.id).length > 0 && !visited.has(node.id)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        function calculateDegrees() {
+            const degrees = new Map();
+            for (const node of nodes) {
+                degrees.set(node.id, adjacency.get(node.id).length);
+            }
+            return degrees;
+        }
+
+        function findEulerianPath(start) {
+            const adjCopy = new Map();
+            for (const [nodeId, neighbors] of adjacency) {
+                adjCopy.set(nodeId, [...neighbors]);
+            }
+            const stack = [start];
+            const path = [];
+            while (stack.length > 0) {
+                const current = stack[stack.length - 1];
+                if (adjCopy.get(current).length > 0) {
+                    const neighbor = adjCopy.get(current).pop();
+                    adjCopy.get(neighbor).splice(adjCopy.get(neighbor).indexOf(current), 1);
+                    stack.push(neighbor);
+                } else {
+                    path.push(stack.pop());
+                }
+            }
+            return path.reverse();
+        }
+
+        function solve() {
+            if (nodes.length === 0) {
+                showToast("Please add at least one node.");
+                return false;
+            }
+            if (edges.length === 0) {
+                showToast("Please add at least one edge between nodes.");
+                return false;
+            }
+            if (!isConnected()) {
+                showToast("The graph is not connected.");
+                return false;
+            }
+
+            const degrees = calculateDegrees();
+            const oddDegreeNodes = [];
+            for (const [nodeId, degree] of degrees) {
+                if (degree % 2 === 1) {
+                    oddDegreeNodes.push(nodeId);
+                }
+            }
+
+            if (oddDegreeNodes.length > 2) {
+                showToast("No Eulerian path exists (more than 2 odd-degree nodes).");
+                problemNodes.clear();
+                problemEdges.clear();
+                oddDegreeNodes.forEach(id => problemNodes.add(id));
+                edges.forEach(edge => {
+                    const key = edge.node1.id < edge.node2.id 
+                        ? `${edge.node1.id}-${edge.node2.id}` 
+                        : `${edge.node2.id}-${edge.node1.id}`;
+                    if (problemNodes.has(edge.node1.id) || problemNodes.has(edge.node2.id)) {
+                        problemEdges.add(key);
+                    }
+                });
+                draw();
+                return false;
+            }
+
+            let startNode;
+            if (oddDegreeNodes.length === 0) {
+                startNode = nodes.find(node => degrees.get(node.id) > 0)?.id;
+            } else {
+                startNode = oddDegreeNodes[0];
+            }
+
+            const path = findEulerianPath(startNode);
+            edgePath = [];
+            for (let i = 0; i < path.length - 1; i++) {
+                const node1 = path[i];
+                const node2 = path[i + 1];
+                const key = node1 < node2 ? `${node1}-${node2}` : `${node2}-${node1}`;
+                edgePath.push(key);
+            }
+
+            currentStep = 0;
+            highlightedEdges.clear();
+            problemNodes.clear();
+            problemEdges.clear();
+            isSolved = true;
+            draw();
+            return true;
+        }
+
+        function solveStep() {
+            if (!isSolved) {
+                if (!solve()) return;
+            } else if (currentStep === edgePath.length) {
+                // Restart from beginning
+                currentStep = 0;
+                highlightedEdges.clear();
+                draw();
+            }
+            if (currentStep < edgePath.length) {
+                highlightedEdges.set(edgePath[currentStep], currentStep + 1);
+                currentStep++;
+                draw();
+            } else if (currentStep === edgePath.length) {
+                showToast("Path complete!");
+            }
+        }
+
+        function autoSolve() {
+            if (autoInterval) clearInterval(autoInterval);
+            if (!isSolved) {
+                if (!solve()) return;
+            } else if (currentStep === edgePath.length) {
+                // Restart from beginning
+                currentStep = 0;
+                highlightedEdges.clear();
+                draw();
+            }
+            autoInterval = setInterval(() => {
+                if (currentStep < edgePath.length) {
+                    highlightedEdges.set(edgePath[currentStep], currentStep + 1);
+                    currentStep++;
+                    draw();
+                } else {
+                    clearInterval(autoInterval);
+                    showToast("Path complete!");
+                }
+            }, 1000);
+        }
+
+        function share() {
+            if (nodes.length === 0) {
+                showToast("Nothing to share yet!");
+                return;
+            }
+            let nodeStr = nodes.map(n => `${n.x},${n.y}`).join('|');
+            let edgeStr = edges.map(e => `${e.node1.id}-${e.node2.id}`).join('|');
+            const graphData = `n${nodeStr};e${edgeStr}`;
+            const encodedData = encodeURIComponent(graphData);
+            const url = `${window.location.origin}${window.location.pathname}?graph=${encodedData}`;
+            navigator.clipboard.writeText(url).then(() => {
+                showToast("Graph URL copied to clipboard!");
+            });
+        }
+
+        function loadFromURL() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const graphParam = urlParams.get('graph');
+            if (graphParam) {
+                try {
+                    const graphData = decodeURIComponent(graphParam);
+                    const [nodePart, edgePart] = graphData.split(';');
+                    if (nodePart.startsWith('n')) {
+                        const nodeCoords = nodePart.slice(1).split('|').filter(Boolean);
+                        nodes = nodeCoords.map((coord, id) => {
+                            const [x, y] = coord.split(',').map(Number);
+                            return new Node(id, x, y);
+                        });
+                        nodes.forEach(n => adjacency.set(n.id, []));
+                    }
+                    if (edgePart && edgePart.startsWith('e')) {
+                        const edgePairs = edgePart.slice(1).split('|').filter(Boolean);
+                        edgePairs.forEach(pair => {
+                            const [n1, n2] = pair.split('-').map(Number);
+                            const node1 = nodes.find(n => n.id === n1);
+                            const node2 = nodes.find(n => n.id === n2);
+                            if (node1 && node2) addEdge(node1, node2);
+                        });
+                    }
+                    draw();
+                } catch (e) {
+                    showToast("Failed to load graph from URL.");
+                }
+            }
+        }
+
+        loadFromURL();
+    </script>
+</body>
+</html>

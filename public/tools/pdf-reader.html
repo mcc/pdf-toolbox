@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Review App</title>
+    <style>
+        #viewerContainer {
+            position: absolute;
+            width: 80%;
+            height: 100vh;
+            overflow: auto;
+            float: left;
+        }
+        .page {
+            position: relative;
+        }
+        .highlightOverlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+        }
+        .highlight {
+            position: absolute;
+            background-color: yellow;
+            opacity: 0.5;
+            pointer-events: auto;
+        }
+        #sidebar {
+            position: fixed;
+            top: 0;
+            right: 0;
+            width: 20%;
+            height: 100vh;
+            background: #f0f0f0;
+            padding: 10px;
+            box-sizing: border-box;
+        }
+        #highlightButton {
+            position: fixed;
+            display: none;
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 5px 10px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div id="viewerContainer">
+        <div id="viewer" class="pdfViewer"></div>
+    </div>
+    <div id="sidebar">
+        <h3>Bookmarks</h3>
+        <ul id="bookmarkList"></ul>
+        <button id="bookmarkButton">Bookmark Current Page</button>
+    </div>
+    <button id="highlightButton">Highlight Selection</button>
+
+    <!-- Include both PDF.js core and viewer scripts -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf_viewer.min.js"></script>
+    <script>
+        // Set the worker source
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.10.377/pdf.worker.min.js';
+
+        // Replace with your PDF URL or a local file path
+        const url = 'https://mozilla.github.io/pdf.js/web/compressed.tracemonkey-pldi-09.pdf';
+        const pdfViewerContainer = document.getElementById('viewerContainer');
+        const pdfViewer = document.getElementById('viewer');
+        const bookmarkList = document.getElementById('bookmarkList');
+        const bookmarkButton = document.getElementById('bookmarkButton');
+        const highlightButton = document.getElementById('highlightButton');
+
+        let pdfDoc = null;
+        let pdfViewerInstance = null;
+        let highlights = JSON.parse(localStorage.getItem('highlights')) || [];
+        let bookmarks = JSON.parse(localStorage.getItem('bookmarks')) || [];
+
+        // Load PDF
+        pdfjsLib.getDocument(url).promise.then(pdf => {
+            pdfDoc = pdf;
+            // Initialize the PDFViewer correctly from pdfjsViewer namespace
+            pdfViewerInstance = new pdfjsViewer.PDFViewer({
+                container: pdfViewerContainer,
+                viewer: pdfViewer
+            });
+            pdfViewerInstance.setDocument(pdf);
+
+            // Add overlays and render highlights when pages are rendered
+            pdfViewerInstance.eventBus.on('pagesloaded', () => {
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    pdfViewerInstance.getPageView(i - 1).then(pageView => {
+                        const pageDiv = pageView.div;
+                        let overlay = pageDiv.querySelector('.highlightOverlay');
+                        if (!overlay) {
+                            overlay = document.createElement('div');
+                            overlay.className = 'highlightOverlay';
+                            pageDiv.appendChild(overlay);
+                        }
+                        renderHighlights(i, overlay);
+                    });
+                }
+            });
+        }).catch(error => {
+            console.error('Error loading PDF:', error);
+        });
+
+        // Handle text selection and show highlight button
+        document.addEventListener('mouseup', () => {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0 && selection.toString().length > 0) {
+                const range = selection.getRangeAt(0);
+                const rect = range.getBoundingClientRect();
+                highlightButton.style.display = 'block';
+                highlightButton.style.left = `${rect.left + window.scrollX}px`;
+                highlightButton.style.top = `${rect.top + rect.height + window.scrollY}px`;
+            } else {
+                highlightButton.style.display = 'none';
+            }
+        });
+
+        // Highlight selected text
+        highlightButton.addEventListener('click', () => {
+            const selection = window.getSelection();
+            if (selection.rangeCount > 0) {
+                const range = selection.getRangeAt(0);
+                const pageNumber = getPageNumberFromElement(range.startContainer);
+                if (pageNumber) {
+                    const startIndex = getCharIndex(range, true);
+                    const endIndex = getCharIndex(range, false);
+                    const highlight = {
+                        page: pageNumber,
+                        start: startIndex,
+                        end: endIndex,
+                        color: 'yellow'
+                    };
+                    highlights.push(highlight);
+                    saveToLocalStorage();
+                    renderHighlights(pageNumber);
+                    selection.removeAllRanges();
+                    highlightButton.style.display = 'none';
+                }
+            }
+        });
+
+        // Bookmark current page
+        bookmarkButton.addEventListener('click', () => {
+            const currentPage = pdfViewerInstance.currentPageNumber;
+            if (!bookmarks.includes(currentPage)) {
+                bookmarks.push(currentPage);
+                bookmarks.sort((a, b) => a - b);
+                saveToLocalStorage();
+                renderBookmarks();
+            }
+        });
+
+        // Render highlights for a specific page
+        function renderHighlights(pageNumber, overlay) {
+            if (!overlay) {
+                const pageDiv = pdfViewer.querySelector(`.page[data-page-number="${pageNumber}"]`);
+                overlay = pageDiv.querySelector('.highlightOverlay');
+            }
+            overlay.innerHTML = '';
+            const pageHighlights = highlights.filter(h => h.page === pageNumber);
+            pdfDoc.getPage(pageNumber).then(page => {
+                page.getTextContent().then(textContent => {
+                    pageHighlights.forEach(highlight => {
+                        const range = createRangeFromIndices(pageNumber, textContent, highlight.start, highlight.end);
+                        if (range) {
+                            const rects = range.getClientRects();
+                            for (let rect of rects) {
+                                const highlightDiv = document.createElement('div');
+                                highlightDiv.className = 'highlight';
+                                highlightDiv.style.backgroundColor = highlight.color;
+                                highlightDiv.style.left = `${rect.left - overlay.getBoundingClientRect().left}px`;
+                                highlightDiv.style.top = `${rect.top - overlay.getBoundingClientRect().top}px`;
+                                highlightDiv.style.width = `${rect.width}px`;
+                                highlightDiv.style.height = `${rect.height}px`;
+                                overlay.appendChild(highlightDiv);
+                            }
+                        }
+                    });
+                });
+            });
+        }
+
+        // Render bookmarks in sidebar
+        function renderBookmarks() {
+            bookmarkList.innerHTML = '';
+            bookmarks.forEach(page => {
+                const li = document.createElement('li');
+                li.textContent = `Page ${page}`;
+                li.style.cursor = 'pointer';
+                li.addEventListener('click', () => {
+                    pdfViewerInstance.currentPageNumber = page;
+                });
+                bookmarkList.appendChild(li);
+            });
+        }
+
+        // Get page number from an element
+        function getPageNumberFromElement(element) {
+            let parent = element;
+            while (parent && !parent.classList.contains('page')) {
+                parent = parent.parentElement;
+            }
+            return parent ? parseInt(parent.dataset.pageNumber) : null;
+        }
+
+        // Calculate character index from selection
+        function getCharIndex(range, isStart) {
+            const container = isStart ? range.startContainer : range.endContainer;
+            const offset = isStart ? range.startOffset : range.endOffset;
+            const pageNumber = getPageNumberFromElement(container);
+            if (!pageNumber) return 0;
+
+            const textLayer = pdfViewer.querySelector(`.page[data-page-number="${pageNumber}"] .textLayer`);
+            if (!textLayer) return 0;
+
+            let charCount = 0;
+            const spans = textLayer.querySelectorAll('span');
+            for (let span of spans) {
+                const textNode = span.firstChild;
+                if (!textNode) continue;
+                if (textNode === container) {
+                    return charCount + offset;
+                }
+                charCount += textNode.textContent.length;
+            }
+            return charCount;
+        }
+
+        // Create a Range object from character indices
+        function createRangeFromIndices(pageNumber, textContent, startIndex, endIndex) {
+            const textLayer = pdfViewer.querySelector(`.page[data-page-number="${pageNumber}"] .textLayer`);
+            if (!textLayer) return null;
+
+            let charCount = 0;
+            let startNode = null, endNode = null;
+            let startOffset = 0, endOffset = 0;
+            const spans = textLayer.querySelectorAll('span');
+
+            for (let span of spans) {
+                const textNode = span.firstChild;
+                if (!textNode) continue;
+                const textLength = textNode.textContent.length;
+                const nextCharCount = charCount + textLength;
+
+                if (!startNode && startIndex >= charCount && startIndex < nextCharCount) {
+                    startNode = textNode;
+                    startOffset = startIndex - charCount;
+                }
+                if (!endNode && endIndex >= charCount && endIndex <= nextCharCount) {
+                    endNode = textNode;
+                    endOffset = endIndex - charCount;
+                }
+                if (startNode && endNode) break;
+                charCount = nextCharCount;
+            }
+
+            if (startNode && endNode) {
+                const range = document.createRange();
+                range.setStart(startNode, startOffset);
+                range.setEnd(endNode, endOffset);
+                return range;
+            }
+            return null;
+        }
+
+        // Save data to localStorage
+        function saveToLocalStorage() {
+            localStorage.setItem('highlights', JSON.stringify(highlights));
+            localStorage.setItem('bookmarks', JSON.stringify(bookmarks));
+        }
+
+        // Initial rendering
+        renderBookmarks();
+    </script>
+</body>
+</html>

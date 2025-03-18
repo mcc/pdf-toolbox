@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Encrypt/Decrypt App</title>
+    <!-- Include pdf-lib from CDN -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 600px;
+            margin: 20px auto;
+            padding: 20px;
+        }
+        label, input, button {
+            margin: 10px 0;
+        }
+        #message {
+            margin-top: 15px;
+            color: #333;
+        }
+        #downloadLink {
+            margin-top: 15px;
+            display: none;
+            text-decoration: none;
+            color: #007BFF;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+    </style>
+</head>
+<body>
+    <h1>PDF Encrypt/Decrypt App</h1>
+    <form>
+        <label for="pdfFile">Select PDF file:</label><br>
+        <input type="file" id="pdfFile" accept=".pdf"><br>
+
+        <label>Action:</label><br>
+        <input type="radio" name="action" value="encrypt" id="actionEncrypt"> Encrypt
+        <input type="radio" name="action" value="decrypt" id="actionDecrypt"> Decrypt<br>
+
+        <label for="password">Password:</label><br>
+        <input type="password" id="password" placeholder="Enter password"><br>
+
+        <button type="button" id="processBtn">Process PDF</button>
+    </form>
+    <div id="message"></div>
+    <a id="downloadLink">Download Result</a>
+
+    <script>
+        // Access PDFDocument from pdf-lib
+        const { PDFDocument } = PDFLib;
+
+        // Get DOM elements
+        const pdfFileInput = document.getElementById('pdfFile');
+        const processBtn = document.getElementById('processBtn');
+        const messageDiv = document.getElementById('message');
+        const downloadLink = document.getElementById('downloadLink');
+
+        // Process button click handler
+        processBtn.addEventListener('click', async () => {
+            // Validate inputs
+            const file = pdfFileInput.files[0];
+            if (!file) {
+                messageDiv.textContent = 'Please select a PDF file.';
+                return;
+            }
+
+            const actionRadio = document.querySelector('input[name="action"]:checked');
+            if (!actionRadio) {
+                messageDiv.textContent = 'Please select an action (Encrypt or Decrypt).';
+                return;
+            }
+
+            const action = actionRadio.value;
+            const password = document.getElementById('password').value;
+            if (!password) {
+                messageDiv.textContent = 'Please enter a password.';
+                return;
+            }
+
+            // Show processing state
+            messageDiv.textContent = 'Processing...';
+            processBtn.disabled = true;
+
+            try {
+                // Read the PDF file as an ArrayBuffer
+                const pdfBytes = await readFileAsArrayBuffer(file);
+                let resultPdfBytes;
+
+                if (action === 'encrypt') {
+                    // Encryption: Load PDF and save with password
+                    try {
+                        const pdfDoc = await PDFDocument.load(pdfBytes);
+                        resultPdfBytes = await pdfDoc.save({ userPassword: password , ownerPassword: password});
+                    } catch (loadError) {
+                        if (loadError.message.includes('password')) {
+                            messageDiv.textContent = 'The PDF is already encrypted. Please decrypt it first.';
+                        } else {
+                            messageDiv.textContent = 'Error loading PDF: ' + loadError.message;
+                        }
+                        processBtn.disabled = false;
+                        return;
+                    }
+                } else { // decrypt
+                    // Decryption: Load PDF with password and save without it
+                    try {
+                        const pdfDoc = await PDFDocument.load(pdfBytes, { password: password });
+                        resultPdfBytes = await pdfDoc.save();
+                    } catch (loadError) {
+                        if (loadError.message.includes('password')) {
+                            messageDiv.textContent = 'Incorrect password for decryption.';
+                        } else {
+                            messageDiv.textContent = 'Error loading PDF: ' + loadError.message;
+                        }
+                        processBtn.disabled = false;
+                        return;
+                    }
+                }
+
+                // Generate download link
+                const blob = new Blob([resultPdfBytes], { type: 'application/pdf' });
+                const url = URL.createObjectURL(blob);
+                const originalName = file.name.replace('.pdf', '');
+                const newName = action === 'encrypt' ? `${originalName}_encrypted.pdf` : `${originalName}_decrypted.pdf`;
+                downloadLink.href = url;
+                downloadLink.download = newName;
+                downloadLink.style.display = 'block';
+                downloadLink.textContent = `Download ${action === 'encrypt' ? 'Encrypted' : 'Decrypted'} PDF`;
+                messageDiv.textContent = 'Processing complete.';
+            } catch (error) {
+                messageDiv.textContent = 'An error occurred: ' + error.message;
+            } finally {
+                processBtn.disabled = false;
+            }
+        });
+
+        // Function to read file as ArrayBuffer
+        function readFileAsArrayBuffer(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = () => resolve(reader.result);
+                reader.onerror = () => reject(reader.error);
+                reader.readAsArrayBuffer(file);
+            });
+        }
+    </script>
+</body>
+</html>
