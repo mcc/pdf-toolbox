@@ -1,48 +1,194 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="scroll-smooth">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PDF Toolbox</title>
-    <link rel="stylesheet" href="styles.css">
+    <title>My Toolbox</title>
+    <!-- Tailwind CSS with explicit dark mode config -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class', // Use class-based dark mode
+            theme: {
+                extend: {}
+            }
+        }
+    </script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @keyframes slideIn {
+            from { transform: translateY(20px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-in {
+            animation: slideIn 0.5s ease-out forwards;
+        }
+        /* Fallback CSS for background */
+        html {
+            background-color: #f3f4f6; /* gray-100 */
+            color: #1f2937; /* gray-900 */
+            transition: background-color 0.3s, color 0.3s;
+        }
+        html.dark {
+            background-color: #111827; /* gray-900 */
+            color: #f3f4f6; /* gray-100 */
+        }
+    </style>
 </head>
-<body>
-    <h1>My PDF Toolbox</h1>
-    <ul>
-        <li><a href="tools/pdf-remove-blanks.html">PDF Remove Blank Page</a></li>
-        <li><a href="tools/pdf-spliter.html">PDF Split Page</a></li>
-        <li><a href="tools/pdf-merge.html">PDF Merge File</a></li>
-        <li><a href="tools/pdf-add-page-no.html">PDF Add Page Number</a></li>
-        <li><a href="tools/pdf-meta-editor.html">PDF Meta Data Editor</a></li>
-        <!-- Add more tools here -->
-    </ul>
-    <h1>Bus Related</h1>
-    <ul>
-        <li><a href="tools/other-bus-eta.html">Kowloon Bus ETA</a></li>
-        <li><a href="tools/other-bus-dashboard.html">Kowloon Bus Dashboard</a></li>
-    </ul>
-    <h1>iAM Smart Related</h1>
-    <ul>
-        <li><a href="tools/iamsmart-personal-code-scanner.html">Personal Code Scanner and Verifer</a></li>
-    </ul>
-    <h1>Geo Location Related</h1>
-    <ul>
-        <li><a href="tools/other-wgs84-hk80.html">Hong Kong Geodetic Converter (WGS84-HK80 converter)</a></li>
-        <li><a href="tools/other-als-resolver.html">Hong Kong ALS Address Resolver</a></li>
-        
-    </ul>
-    <h1>Math / Algorithm Related</h1>
-    <ul>
-        <li><a href="tools/math-euler-path.html">Eulerian path (一筆畫問題)</a></li>
-        
-    </ul>
-    <h1>Other</h1>
-    <ul>
-        <li><a href="tools/other-working-days.html">Hong Kong Working Days Calculator</a></li>
-        <li><a href="tools/fake-hkid-grok.html">Fake ID Generator</a></li>
-    </ul>
-    
-    
+<body class="min-h-screen transition-colors duration-300 font-sans">
+    <!-- Header -->
+    <header class="sticky top-0 z-50 bg-white dark:bg-gray-800 shadow-lg">
+        <div class="container mx-auto px-4 py-4 flex justify-between items-center">
+            <h1 class="text-2xl font-bold bg-gradient-to-r from-blue-500 to-purple-600 bg-clip-text text-transparent">
+                My Toolbox
+            </h1>
+            <div class="flex items-center space-x-4">
+                <select id="language" class="bg-transparent border-none text-gray-700 dark:text-gray-200 focus:outline-none cursor-pointer">
+                    <option value="en">English</option>
+                    <option value="zh">中文</option>
+                </select>
+                <button id="theme-toggle" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
+                    <i class="fas fa-moon text-gray-700 dark:text-gray-200"></i>
+                </button>
+            </div>
+        </div>
+    </header>
 
+    <!-- Main Content -->
+    <main class="container mx-auto px-4 py-8">
+        <section class="tool-section mb-12" data-en="PDF Toolbox" data-zh="PDF工具箱">
+            <h2 class="text-3xl font-semibold mb-6 text-gray-800 dark:text-gray-100"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <a href="tools/pdf-remove-blanks.html" class="tool-card" data-en="PDF Remove Blank Page" data-zh="PDF移除空白頁"><div class="h-full"></div></a>
+                <a href="tools/pdf-spliter.html" class="tool-card" data-en="PDF Split Page" data-zh="PDF分割頁面"><div class="h-full"></div></a>
+                <a href="tools/pdf-merge.html" class="tool-card" data-en="PDF Merge File" data-zh="PDF合併文件"><div class="h-full"></div></a>
+                <a href="tools/pdf-add-page-no.html" class="tool-card" data-en="PDF Add Page Number" data-zh="PDF添加頁碼"><div class="h-full"></div></a>
+                <a href="tools/pdf-meta-editor.html" class="tool-card" data-en="PDF Meta Data Editor" data-zh="PDF元數據編輯器"><div class="h-full"></div></a>
+            </div>
+        </section>
+
+        <section class="tool-section mb-12" data-en="Bus Related" data-zh="巴士相關">
+            <h2 class="text-3xl font-semibold mb-6 text-gray-800 dark:text-gray-100"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <a href="tools/other-bus-eta.html" class="tool-card" data-en="Kowloon Bus ETA" data-zh="九龍巴士ETA"><div class="h-full"></div></a>
+                <a href="tools/other-bus-dashboard.html" class="tool-card" data-en="Kowloon Bus Dashboard" data-zh="九龍巴士儀表板"><div class="h-full"></div></a>
+            </div>
+        </section>
+
+        <section class="tool-section mb-12" data-en="iAM Smart Related" data-zh="iAM Smart相關">
+            <h2 class="text-3xl font-semibold mb-6 text-gray-800 dark:text-gray-100"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <a href="tools/iamsmart-personal-code-scanner.html" class="tool-card" data-en="Personal Code Scanner and Verifier" data-zh="個人代碼掃描器和驗證器"><div class="h-full"></div></a>
+            </div>
+        </section>
+
+        <section class="tool-section mb-12" data-en="Geo Location Related" data-zh="地理位置相關">
+            <h2 class="text-3xl font-semibold mb-6 text-gray-800 dark:text-gray-100"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <a href="tools/other-wgs84-hk80.html" class="tool-card" data-en="Hong Kong Geodetic Converter (WGS84-HK80 converter)" data-zh="香港測地轉換器 (WGS84-HK80轉換器)"><div class="h-full"></div></a>
+                <a href="tools/other-als-resolver.html" class="tool-card" data-en="Hong Kong ALS Address Resolver" data-zh="香港ALS地址解析器"><div class="h-full"></div></a>
+            </div>
+        </section>
+
+        <section class="tool-section mb-12" data-en="Math / Algorithm Related" data-zh="數學/算法相關">
+            <h2 class="text-3xl font-semibold mb-6 text-gray-800 dark:text-gray-100"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <a href="tools/math-euler-path.html" class="tool-card" data-en="Eulerian path (One-stroke problem)" data-zh="歐拉路徑 (一筆畫問題)"><div class="h-full"></div></a>
+            </div>
+        </section>
+
+        <section class="tool-section mb-12" data-en="Other" data-zh="其他">
+            <h2 class="text-3xl font-semibold mb-6 text-gray-800 dark:text-gray-100"></h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <a href="tools/other-working-days.html" class="tool-card" data-en="Hong Kong Working Days Calculator" data-zh="香港工作日計算器"><div class="h-full"></div></a>
+                <a href="tools/fake-hkid-grok.html" class="tool-card" data-en="Fake ID Generator" data-zh="假身份證生成器"><div class="h-full"></div></a>
+            </div>
+        </section>
+    </main>
+
+    <!-- Footer -->
+    <footer class="bg-gray-200 dark:bg-gray-800 py-4 transition-colors duration-300">
+        <div class="container mx-auto px-4 text-center text-gray-600 dark:text-gray-300">
+            © 2025 My Toolbox. All rights reserved.
+        </div>
+    </footer>
+
+    <script>
+        // Theme Toggle
+        const themeToggle = document.getElementById('theme-toggle');
+        const html = document.documentElement; // Apply to html for background
+        
+        themeToggle.addEventListener('click', () => {
+            html.classList.toggle('dark');
+            const isDark = html.classList.contains('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            themeToggle.querySelector('i').classList.toggle('fa-moon');
+            themeToggle.querySelector('i').classList.toggle('fa-sun');
+        });
+
+        // Load saved theme
+        if (localStorage.getItem('theme') === 'dark') {
+            html.classList.add('dark');
+            themeToggle.querySelector('i').classList.replace('fa-moon', 'fa-sun');
+        }
+
+        // Language Support
+        const languageSelect = document.getElementById('language');
+        const toolSections = document.querySelectorAll('.tool-section');
+        const toolCards = document.querySelectorAll('.tool-card');
+
+        function updateLanguage(lang) {
+            toolSections.forEach(section => {
+                section.querySelector('h2').textContent = section.dataset[lang];
+            });
+            toolCards.forEach(card => {
+                card.querySelector('div').textContent = card.dataset[lang];
+            });
+        }
+
+        languageSelect.addEventListener('change', (e) => {
+            updateLanguage(e.target.value);
+            localStorage.setItem('language', e.target.value);
+        });
+
+        // Load saved language
+        const savedLang = localStorage.getItem('language') || 'en';
+        languageSelect.value = savedLang;
+        updateLanguage(savedLang);
+
+        // Animation on scroll
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.classList.add('animate-slide-in');
+                    entry.target.style.animationDelay = `${entry.target.dataset.delay || 0}s`;
+                }
+            });
+        }, { threshold: 0.1 });
+
+        document.querySelectorAll('.tool-card').forEach((card, index) => {
+            card.dataset.delay = (index % 3) * 0.1;
+            observer.observe(card);
+        });
+
+        // Tool card styling with proper dark mode
+        toolCards.forEach(card => {
+            card.classList.add(
+                'bg-white',
+                'dark:bg-gray-700',
+                'p-6',
+                'rounded-xl',
+                'shadow-md',
+                'hover:shadow-xl',
+                'transition-all',
+                'duration-300',
+                'hover:-translate-y-1',
+                'text-gray-800',
+                'dark:text-gray-100',
+                'hover:bg-gray-50',
+                'dark:hover:bg-gray-600'
+            );
+        });
+    </script>
 </body>
 </html>
