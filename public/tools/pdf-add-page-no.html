@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,17 +9,17 @@
     <script src="js/FileSaver.js"></script>
     <link href="css/tailwind.min.css" rel="stylesheet">
 </head>
-<body class="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-    <div class="container max-w-4xl w-full bg-white rounded-lg shadow-lg p-4 sm:p-6">
-        <h1 class="text-xl sm:text-2xl font-bold text-center mb-4">PDF Page Number Adder</h1>
-        <p class="text-sm text-gray-600 text-center mb-4">Upload PDFs to add page numbers</p>
+<body class="bg-gray-900 min-h-screen flex items-center justify-center p-4 text-gray-100">
+    <div class="container max-w-4xl w-full bg-gray-800 rounded-lg shadow-lg p-4 sm:p-6">
+        <h1 class="text-xl sm:text-2xl font-bold text-center mb-4 text-white">PDF Page Number Adder</h1>
+        <p class="text-sm text-gray-400 text-center mb-4">Upload PDFs to add page numbers</p>
         
-        <input type="file" id="pdfInput" accept=".pdf" multiple class="w-full mb-4 text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-blue-500 file:text-white hover:file:bg-blue-600">
+        <input type="file" id="pdfInput" accept=".pdf" multiple class="w-full mb-4 text-sm file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:bg-blue-600 file:text-white hover:file:bg-blue-700">
         
         <div class="options grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
             <div>
-                <label for="position" class="block text-sm font-medium text-gray-700">Position</label>
-                <select id="position" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                <label for="position" class="block text-sm font-medium text-gray-300">Position</label>
+                <select id="position" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-gray-200 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 text-sm">
                     <option value="bottom-right">Bottom Right</option>
                     <option value="bottom-middle">Bottom Middle</option>
                     <option value="bottom-left">Bottom Left</option>
@@ -29,8 +29,8 @@
                 </select>
             </div>
             <div>
-                <label for="fontSelect" class="block text-sm font-medium text-gray-700">Font</label>
-                <select id="fontSelect" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
+                <label for="fontSelect" class="block text-sm font-medium text-gray-300">Font</label>
+                <select id="fontSelect" class="mt-1 block w-full rounded-md bg-gray-700 border-gray-600 text-gray-200 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 text-sm">
                     <option value="TimesRoman">Times Roman</option>
                     <option value="Helvetica">Helvetica</option>
                     <option value="Courier">Courier</option>
@@ -38,31 +38,31 @@
                 </select>
             </div>
             <div>
-                <label for="customFontInput" class="block text-sm font-medium text-gray-700">Custom Font (.ttf, .otf)</label>
-                <input type="file" id="customFontInput" accept=".ttf,.otf" disabled class="mt-1 block w-full text-sm file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-gray-500 file:text-white hover:file:bg-gray-600 disabled:file:bg-gray-300">
+                <label for="customFontInput" class="block text-sm font-medium text-gray-300">Custom Font (.ttf, .otf)</label>
+                <input type="file" id="customFontInput" accept=".ttf,.otf" disabled class="mt-1 block w-full text-sm file:mr-4 file:py-1 file:px-2 file:rounded file:border-0 file:text-sm file:bg-gray-600 file:text-white hover:file:bg-gray-700 disabled:file:bg-gray-500">
             </div>
             <div>
-                <label for="bgColor" class="block text-sm font-medium text-gray-700">Background Color</label>
-                <input type="color" id="bgColor" value="#FFFFFF" class="mt-1 block w-full h-10 rounded-md border-gray-300 shadow-sm">
+                <label for="bgColor" class="block text-sm font-medium text-gray-300">Background Color</label>
+                <input type="color" id="bgColor" value="#FFFFFF" class="mt-1 block w-full h-10 rounded-md border-gray-600 shadow-sm">
             </div>
             <div class="flex items-center">
-                <input type="checkbox" id="includeFilename" checked class="rounded text-blue-600 focus:ring-blue-200 h-4 w-4">
-                <label for="includeFilename" class="ml-2 text-sm text-gray-700">Include Filename</label>
+                <input type="checkbox" id="includeFilename" checked class="rounded text-blue-500 focus:ring-blue-600 h-4 w-4 bg-gray-700 border-gray-600">
+                <label for="includeFilename" class="ml-2 text-sm text-gray-300">Include Filename</label>
             </div>
             <div class="flex items-center">
-                <input type="checkbox" id="extendBoundary" class="rounded text-blue-600 focus:ring-blue-200 h-4 w-4">
-                <label for="extendBoundary" class="ml-2 text-sm text-gray-700">Extend Boundary</label>
+                <input type="checkbox" id="extendBoundary" class="rounded text-blue-500 focus:ring-blue-600 h-4 w-4 bg-gray-700 border-gray-600">
+                <label for="extendBoundary" class="ml-2 text-sm text-gray-300">Extend Boundary</label>
             </div>
         </div>
 
         <div class="flex flex-wrap justify-center gap-2 mb-4">
-            <button id="processBtn" disabled class="bg-blue-500 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-600 disabled:bg-gray-400">Process PDFs</button>
-            <button id="downloadZipBtn" disabled class="bg-green-500 text-white px-4 py-2 rounded-md text-sm hover:bg-green-600 disabled:bg-gray-400">Download as ZIP</button>
-            <button id="downloadIndividualBtn" disabled class="bg-purple-500 text-white px-4 py-2 rounded-md text-sm hover:bg-purple-600 disabled:bg-gray-400">Download Individually</button>
+            <button id="processBtn" disabled class="bg-blue-600 text-white px-4 py-2 rounded-md text-sm hover:bg-blue-700 disabled:bg-gray-600">Process PDFs</button>
+            <button id="downloadZipBtn" disabled class="bg-green-600 text-white px-4 py-2 rounded-md text-sm hover:bg-green-600 disabled:bg-gray-600">Download as ZIP</button>
+            <button id="downloadIndividualBtn" disabled class="bg-purple-600 text-white px-4 py-2 rounded-md text-sm hover:bg-purple-700 disabled:bg-gray-600">Download Individually</button>
         </div>
 
-        <select id="previewSelect" disabled class="w-full mb-4 rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm"></select>
-        <iframe id="preview" class="w-full h-96 sm:h-[600px] border rounded-md"></iframe>
+        <select id="previewSelect" disabled class="w-full mb-4 rounded-md bg-gray-700 border-gray-600 text-gray-200 shadow-sm focus:border-blue-500 focus:ring focus:ring-blue-500 focus:ring-opacity-50 text-sm"></select>
+        <iframe id="preview" class="w-full h-96 sm:h-[600px] border rounded-md border-gray-700"></iframe>
     </div>
 
     <script>
