@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HK Department of Health Clinics Map</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+        }
+        h1 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        #container {
+            display: flex;
+            flex: 1;
+            overflow: hidden;
+        }
+        #clinic-list {
+            width: 30%;
+            overflow-y: auto;
+            padding: 10px;
+            border-right: 1px solid #ccc;
+        }
+        #clinic-list ul {
+            list-style: none;
+            padding: 0;
+        }
+        #clinic-list li {
+            padding: 10px;
+            cursor: pointer;
+            border-bottom: 1px solid #eee;
+            display: flex;
+            align-items: center;
+        }
+        #clinic-list li:hover {
+            background-color: #f5f5f5;
+        }
+        #clinic-list li.selected {
+            background-color: #e0f7fa;
+            font-weight: bold;
+        }
+        #clinic-list .marker-number {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            line-height: 20px;
+            text-align: center;
+            background-color: #4285f4;
+            color: white;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        #map {
+            width: 70%;
+            height: 100%;
+        }
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            #container {
+                flex-direction: column;
+            }
+            #clinic-list {
+                width: 100%;
+                height: 40%;
+                border-right: none;
+                border-bottom: 1px solid #ccc;
+            }
+            #map {
+                width: 100%;
+                height: 60%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Hong Kong Department of Health Clinics</h1>
+    <div id="container">
+        <div id="clinic-list">
+            <ul id="clinic-items"></ul>
+        </div>
+        <div id="map"></div>
+    </div>
+
+    <script>
+        let map;
+        const markers = [];
+        const infoWindows = [];
+        let selectedMarkerIndex = -1;
+
+        // Initialize the Google Map
+        function initMap() {
+            const hongKong = { lat: 22.3193, lng: 114.1694 };
+            map = new google.maps.Map(document.getElementById("map"), {
+                zoom: 11,
+                center: hongKong
+            });
+
+            // Fetch clinic data from DATA.GOV.HK API
+            fetch('https://api.data.gov.hk/v1/historical-archive/get-file?url=https%3A%2F%2Fwww.dh.gov.hk%2Fopendata%2FLists%2520of%2520Clinics%2520or%2520Centres%2520of%2520the%2520Department%2520of%2520Health%2Fjson%2FDH_Lists_of_Clinics_or_Centres.json&time=latest')
+                .then(response => response.json())
+                .then(data => {
+                    const clinics = data["List of Clinics or Centres"];
+                    populateClinicList(clinics);
+                    clinics.forEach((clinic, index) => {
+                        geocodeAddress(clinic, index);
+                    });
+                })
+                .catch(error => console.error('Error fetching data:', error));
+        }
+
+        // Populate the clinic list
+        function populateClinicList(clinics) {
+            const clinicList = document.getElementById("clinic-items");
+            clinics.forEach((clinic, index) => {
+                const li = document.createElement("li");
+                const markerNumber = document.createElement("span");
+                markerNumber.className = "marker-number";
+                markerNumber.textContent = index + 1;
+                li.appendChild(markerNumber);
+                li.appendChild(document.createTextNode(clinic["Name of Clinic / Centre (English)"]));
+                li.dataset.index = index;
+                li.addEventListener("click", () => {
+                    navigateToClinic(index);
+                });
+                clinicList.appendChild(li);
+            });
+        }
+
+        // Geocode address and add marker
+        function geocodeAddress(clinic, index) {
+            const geocoder = new google.maps.Geocoder();
+            const address = `${clinic["Address (English)"]}, Hong Kong`;
+
+            geocoder.geocode({ address: address }, (results, status) => {
+                if (status === "OK") {
+                    const marker = new google.maps.Marker({
+                        position: results[0].geometry.location,
+                        map: map,
+                        title: clinic["Name of Clinic / Centre (English)"],
+                        label: {
+                            text: String(index + 1),
+                            color: "white",
+                            fontSize: "12px",
+                            fontWeight: "bold"
+                        },
+                        icon: {
+                            url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" // Default blue marker
+                        }
+                    });
+
+                    const infoWindow = new google.maps.InfoWindow({
+                        content: `<h3>${clinic["Name of Clinic / Centre (English)"]}</h3><p>${clinic["Address (English)"]}</p>`
+                    });
+
+                    marker.addListener("click", () => {
+                        navigateToClinic(index);
+                    });
+
+                    markers[index] = marker;
+                    infoWindows[index] = infoWindow;
+                } else {
+                    console.error(`Geocode failed for ${address}: ${status}`);
+                }
+            });
+        }
+
+        // Navigate to a specific clinic and highlight
+        function navigateToClinic(index) {
+            if (selectedMarkerIndex === index) return; // Already selected
+
+            const marker = markers[index];
+            const infoWindow = infoWindows[index];
+            if (marker && infoWindow) {
+                // Reset previous selection
+                if (selectedMarkerIndex !== -1) {
+                    markers[selectedMarkerIndex].setIcon("http://maps.google.com/mapfiles/ms/icons/blue-dot.png");
+                    document.querySelector(`#clinic-items li[data-index="${selectedMarkerIndex}"]`).classList.remove("selected");
+                    infoWindows[selectedMarkerIndex].close();
+                }
+
+                // Highlight new selection
+                map.panTo(marker.getPosition());
+                map.setZoom(15);
+                marker.setIcon("http://maps.google.com/mapfiles/ms/icons/red-dot.png"); // Highlight with red
+                infoWindow.open(map, marker);
+                const selectedItem = document.querySelector(`#clinic-items li[data-index="${index}"]`);
+                selectedItem.classList.add("selected");
+                selectedItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
+
+                selectedMarkerIndex = index;
+            }
+        }
+    </script>
+
+    <!-- Load Google Maps API (replace YOUR_API_KEY with your actual key) -->
+    <script async defer
+        src="https://maps.googleapis.com/maps/api/js?key=YOUR_API_KEY&callback=initMap">
+    </script>
+</body>
+</html>
