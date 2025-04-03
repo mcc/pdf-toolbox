@@ -1,92 +1,81 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>HK Address Lookup Resolver</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="js/tailwindcss.3.4.16.js"></script>
     <style>
+        /* Ensure dark theme applies globally */
         body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
+            @apply bg-gray-900 text-gray-100;
         }
-        .container {
-            max-width: 1400px;
-            margin: auto;
+        html, body {
+            background-color: #1F2937; /* Tailwind's gray-900 */
+            color: #F3F4F6; /* Tailwind's gray-100 */
         }
-        .input-section {
-            margin-bottom: 20px;
+        /* Custom scrollbar for dark theme */
+        ::-webkit-scrollbar {
+            width: 8px;
         }
-        label {
-            display: block;
-            margin-bottom: 5px;
+        ::-webkit-scrollbar-track {
+            @apply bg-gray-800;
         }
-        input, button {
-            padding: 8px;
-            margin-bottom: 10px;
+        ::-webkit-scrollbar-thumb {
+            @apply bg-gray-600 rounded-full;
         }
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-top: 20px;
-        }
-        th, td {
-            border: 1px solid #ddd;
-            padding: 8px;
-            text-align: left;
-        }
-        th {
-            background-color: #f2f2f2;
-        }
-        .error {
-            color: red;
-        }
-        #progress {
-            margin-top: 10px;
+        ::-webkit-scrollbar-thumb:hover {
+            @apply bg-gray-500;
         }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h1>Hong Kong Address Lookup Resolver</h1>
-        <div class="input-section">
-            <label for="addressInput">Enter Address:</label>
-            <input type="text" id="addressInput" placeholder="e.g., 5-15 Hankow Road" style="width: 300px;">
-            <button onclick="resolveSingleAddress()">Resolve Single Address</button>
-            <br>
-            <label for="fileInput">Upload CSV/Excel File (First column: Address):</label>
-            <input type="file" id="fileInput" accept=".csv,.xlsx">
-            <button onclick="processBatchFile()">Process Batch</button>
-            <br>
-            <button onclick="downloadResults()" disabled id="downloadBtn">Download Results</button>
+    <div class="container mx-auto px-4 py-6 max-w-[1400px]">
+        <h1 class="text-3xl font-bold text-center mb-6 text-gray-100">Hong Kong Address Lookup Resolver</h1>
+        <div class="mb-6">
+            <label for="addressInput" class="block text-sm font-medium mb-2 text-gray-300">Enter Address:</label>
+            <div class="flex gap-4">
+                <input type="text" id="addressInput" placeholder="e.g., 5-15 Hankow Road" class="w-80 p-2 rounded-md bg-gray-800 border border-gray-700 text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                <button onclick="resolveSingleAddress()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Resolve Single Address</button>
+            </div>
+            <label for="fileInput" class="block text-sm font-medium mt-4 mb-2 text-gray-300">Upload CSV/Excel File (First column: Address):</label>
+            <div class="flex gap-4">
+                <input type="file" id="fileInput" accept=".csv,.xlsx" class="w-80 p-2 rounded-md bg-gray-800 border border-gray-700 text-gray-100 file:mr-4 file:py-1 file:px-3 file:rounded-md file:border-0 file:bg-gray-700 file:text-gray-200">
+                <button onclick="processBatchFile()" class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Process Batch</button>
+            </div>
+            <button onclick="downloadResults()" disabled id="downloadBtn" class="mt-4 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition disabled:bg-gray-600 disabled:cursor-not-allowed">Download Results</button>
         </div>
-        <h3>Results:</h3>
-        <div id="progress"></div>
-        <table id="resultTable">
-            <thead>
-                <tr>
-                    <th>Input Address</th>
-                    <th>District (EN)</th>
-                    <th>Region (EN)</th>
-                    <th>District (ZH)</th>
-                    <th>Region (ZH)</th>
-                    <th>Location (EN)</th>
-                    <th>Location (ZH)</th>
-                    <th>Estate (EN)</th>
-                    <th>Estate (ZH)</th>
-                    <th>Street (EN)</th>
-                    <th>Street (ZH)</th>
-                    <th>Building (EN)</th>
-                    <th>Building (ZH)</th>
-                    <th>Block (EN)</th>
-                    <th>Block (ZH)</th>
-                    <th>GeoAddress</th>
-                    <th>HK1980 Coordinates</th>
-                    <th>WGS84 Coordinates</th>
-                    <th>Score</th>
-                </tr>
-            </thead>
-            <tbody id="resultBody"></tbody>
-        </table>
+        <h3 class="text-xl font-semibold mb-4 text-gray-100">Results:</h3>
+        <div id="progress" class="mb-4 text-gray-400"></div>
+        <div class="overflow-x-auto">
+            <table id="resultTable" class="w-full border-collapse">
+                <thead>
+                    <tr class="bg-gray-800 text-gray-200">
+                        <th class="p-2 border border-gray-700">Input Address</th>
+                        <th class="p-2 border border-gray-700">District (EN)</th>
+                        <th class="p-2 border border-gray-700">Region (EN)</th>
+                        <th class="p-2 border border-gray-700">District (ZH)</th>
+                        <th class="p-2 border border-gray-700">Region (ZH)</th>
+                        <th class="p-2 border border-gray-700">Location (EN)</th>
+                        <th class="p-2 border border-gray-700">Location (ZH)</th>
+                        <th class="p-2 border border-gray-700">Estate (EN)</th>
+                        <th class="p-2 border border-gray-700">Estate (ZH)</th>
+                        <th class="p-2 border border-gray-700">Street (EN)</th>
+                        <th class="p-2 border border-gray-700">Street (ZH)</th>
+                        <th class="p-2 border border-gray-700">Building (EN)</th>
+                        <th class="p-2 border border-gray-700">Building (ZH)</th>
+                        <th class="p-2 border border-gray-700">Block (EN)</th>
+                        <th class="p-2 border border-gray-700">Block (ZH)</th>
+                        <th class="p-2 border border-gray-700">GeoAddress</th>
+                        <th class="p-2 border border-gray-700">HK1980 Coordinates</th>
+                        <th class="p-2 border border-gray-700">WGS84 Coordinates</th>
+                        <th class="p-2 border border-gray-700">Score</th>
+                    </tr>
+                </thead>
+                <tbody id="resultBody" class="text-gray-300"></tbody>
+            </table>
+        </div>
     </div>
 
     <!-- External Libraries -->
@@ -190,26 +179,27 @@
             tbody.innerHTML = '';
             results.forEach(result => {
                 const row = document.createElement('tr');
+                row.className = 'border-b border-gray-700 hover:bg-gray-800';
                 row.innerHTML = `
-                    <td>${result.input}</td>
-                    <td>${result.districtEn || result.error || ''}</td>
-                    <td>${result.regionEn || ''}</td>
-                    <td>${result.districtZh || ''}</td>
-                    <td>${result.regionZh || ''}</td>
-                    <td>${result.locationEn || ''}</td>
-                    <td>${result.locationZh || ''}</td>
-                    <td>${result.estateEn || ''}</td>
-                    <td>${result.estateZh || ''}</td>
-                    <td>${result.streetEn || ''}</td>
-                    <td>${result.streetZh || ''}</td>
-                    <td>${result.buildingEn || ''}</td>
-                    <td>${result.buildingZh || ''}</td>
-                    <td>${result.blockEn || ''}</td>
-                    <td>${result.blockZh || ''}</td>
-                    <td>${result.geoAddress || ''}</td>
-                    <td>${result.hk1980 || ''}</td>
-                    <td>${result.wgs84 || ''}</td>
-                    <td>${result.score || ''}</td>
+                    <td class="p-2">${result.input}</td>
+                    <td class="p-2">${result.districtEn || result.error || ''}</td>
+                    <td class="p-2">${result.regionEn || ''}</td>
+                    <td class="p-2">${result.districtZh || ''}</td>
+                    <td class="p-2">${result.regionZh || ''}</td>
+                    <td class="p-2">${result.locationEn || ''}</td>
+                    <td class="p-2">${result.locationZh || ''}</td>
+                    <td class="p-2">${result.estateEn || ''}</td>
+                    <td class="p-2">${result.estateZh || ''}</td>
+                    <td class="p-2">${result.streetEn || ''}</td>
+                    <td class="p-2">${result.streetZh || ''}</td>
+                    <td class="p-2">${result.buildingEn || ''}</td>
+                    <td class="p-2">${result.buildingZh || ''}</td>
+                    <td class="p-2">${result.blockEn || ''}</td>
+                    <td class="p-2">${result.blockZh || ''}</td>
+                    <td class="p-2">${result.geoAddress || ''}</td>
+                    <td class="p-2">${result.hk1980 || ''}</td>
+                    <td class="p-2">${result.wgs84 || ''}</td>
+                    <td class="p-2">${result.score || ''}</td>
                 `;
                 tbody.appendChild(row);
             });
@@ -219,7 +209,7 @@
         async function resolveSingleAddress() {
             const address = document.getElementById('addressInput').value.trim();
             if (!address) {
-                document.getElementById('progress').innerHTML = '<span class="error">Please enter an address.</span>';
+                document.getElementById('progress').innerHTML = '<span class="text-red-500">Please enter an address.</span>';
                 return;
             }
 
@@ -234,7 +224,7 @@
             const fileInput = document.getElementById('fileInput');
             const file = fileInput.files[0];
             if (!file) {
-                document.getElementById('progress').innerHTML = '<span class="error">Please upload a file.</span>';
+                document.getElementById('progress').innerHTML = '<span class="text-red-500">Please upload a file.</span>';
                 return;
             }
 
