@@ -1,0 +1,519 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TOTP Generator</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsSHA/2.4.2/sha.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+    <div class="w-full max-w-2xl p-6 bg-white rounded-lg shadow-lg">
+        <h1 class="text-3xl font-bold text-center text-gray-800 mb-6">TOTP Generator</h1>
+        <div class="input-container grid gap-4 mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <input type="text" id="titleInput" placeholder="Enter title" class="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+                <input type="text" id="secretInput" placeholder="Enter base32 secret" class="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                <button onclick="addTOTP()" class="p-3 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Add TOTP</button>
+                <button onclick="document.getElementById('qrFileInput').click()" class="p-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition">Upload QR</button>
+                <button onclick="startQRScanner()" class="p-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition">Scan QR</button>
+                <button onclick="captureScreen()" class="p-3 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 transition">Screen QR</button>
+                <button onclick="showSaveModal()" class="p-3 bg-yellow-600 text-white rounded-md hover:bg-yellow-700 transition">Save</button>
+            </div>
+            <input type="file" id="qrFileInput" accept="image/*" class="hidden" />
+        </div>
+        <div id="qr-reader" class="mx-auto max-w-xs mb-6"></div>
+        <canvas id="screen-capture-canvas" class="hidden"></canvas>
+        <span id="secretsStore" class="hidden"></span>
+        <div id="totpList" class="space-y-4"></div>
+    </div>
+
+    <!-- Save Modal -->
+    <div id="saveModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">Save TOTP Data</h2>
+            <p class="mb-4 text-gray-600">Enter a password to encrypt the data (optional).</p>
+            <input type="password" id="savePassword" placeholder="Enter password (optional)" class="w-full p-3 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeSaveModal()" class="p-2 bg-gray-4
+00 text-white rounded-md hover:bg-gray-500 transition">Cancel</button>
+                <button onclick="savePageWithPassword()" class="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Decrypt Modal -->
+    <div id="decryptModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">Decrypt TOTP Data</h2>
+            <p class="mb-4 text-gray-600">Enter the password to decrypt the data.</p>
+            <input type="password" id="decryptPassword" placeholder="Enter password" class="w-full p-3 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <p id="decryptError" class="text-red-500 hidden mb-4">Incorrect password. Please try again.</p>
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeDecryptModal()" class="p-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 transition">Cancel</button>
+                <button onclick="decryptAndLoad()" class="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Decrypt</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- QR Code Modal -->
+    <div id="qrModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 id="qrModalTitle" class="text-xl font-bold mb-4"></h2>
+            <div id="qrCodeCanvas" class="flex justify-center mb-4"></div>
+            <div class="flex justify-end">
+                <button onclick="closeQRModal()" class="p-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 transition">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let totpList = [];
+        let html5QrcodeScanner = null;
+
+        // Initialize totpList from span on page load
+        window.onload = function() {
+            const secretsStore = document.getElementById('secretsStore');
+            if (secretsStore.textContent) {
+                try {
+                    const data = JSON.parse(secretsStore.textContent);
+                    if (data.isEncrypted) {
+                        showDecryptModal();
+                    } else {
+                        totpList = data.secrets || [];
+                        renderTOTPs();
+                        updateTimers();
+                    }
+                } catch (e) {
+                    console.error('Failed to parse secrets from span:', e);
+                }
+            }
+        };
+
+        function updateSecretsStore(isEncrypted = false, data) {
+            const secretsStore = document.getElementById('secretsStore');
+            const jsonString = isEncrypted 
+                ? JSON.stringify({ isEncrypted: true, encryptedData: data })
+                : JSON.stringify({ isEncrypted: false, secrets: totpList });
+            secretsStore.textContent = (jsonString);
+        }
+
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'fixed bottom-5 left-1/2 transform -translate-x-1/2 bg-gray-800 text-white px-4 py-2 rounded-md opacity-0 transition-opacity duration-300 z-50';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => {
+                toast.className += ' opacity-100';
+                setTimeout(() => {
+                    toast.className = toast.className.replace('opacity-100', 'opacity-0');
+                    setTimeout(() => {
+                        toast.remove();
+                    }, 300);
+                }, 2000);
+            }, 100);
+        }
+
+        function base32toHex(base32) {
+            const base32chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+            let bits = '';
+            let hex = '';
+            for (let i = 0; i < base32.length; i++) {
+                const val = base32chars.indexOf(base32.charAt(i).toUpperCase());
+                bits += val.toString(2).padStart(5, '0');
+            }
+            for (let i = 0; i + 4 <= bits.length; i += 4) {
+                const chunk = bits.substr(i, 4);
+                hex += parseInt(chunk, 2).toString(16);
+            }
+            return hex;
+        }
+
+        function generateTOTP(secret) {
+            const epoch = Math.floor(Date.now() / 1000);
+            const timeStep = 30;
+            const time = Math.floor(epoch / timeStep);
+            const timeHex = time.toString(16).padStart(16, '0');
+
+            const key = base32toHex(secret);
+            const shaObj = new jsSHA('SHA-1', 'HEX');
+            shaObj.setHMACKey(key, 'HEX');
+            shaObj.update(timeHex);
+
+            const hmac = shaObj.getHMAC('HEX');
+            const offset = parseInt(hmac.substr(hmac.length - 1), 16);
+            const otp = (parseInt(hmac.substr(offset * 2, 8), 16) & 0x7fffffff) % 1000000;
+            return otp.toString().padStart(6, '0');
+        }
+
+        function copyTOTP(code) {
+            navigator.clipboard.writeText(code).then(() => {
+                showToast('TOTP copied to clipboard!');
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                alert('Failed to copy TOTP');
+            });
+        }
+
+        function parseQRCodeData(decodedText) {
+            if (!decodedText.startsWith('otpauth://totp/')) {
+                alert('Invalid TOTP QR code');
+                return null;
+            }
+            try {
+                const url = new URL(decodedText);
+                const secret = url.searchParams.get('secret');
+                const issuer = url.searchParams.get('issuer') || '';
+                let label = decodedText.split('totp/')[1].split('?')[0];
+                if (issuer && label.startsWith(issuer + ':')) {
+                    label = label.substring(issuer.length + 1);
+                }
+                const title = issuer ? `${label}@${issuer}` : label;
+                return { title, secret };
+            } catch (e) {
+                alert('Error parsing QR code data');
+                return null;
+            }
+        }
+
+        function addTOTP(title = null, secret = null) {
+            title = title || document.getElementById('titleInput').value.trim();
+            secret = secret || document.getElementById('secretInput').value.trim();
+
+            if (!title || !secret) {
+                alert('Please enter both title and secret');
+                return;
+            }
+
+            totpList.push({ title, secret });
+            document.getElementById('titleInput').value = '';
+            document.getElementById('secretInput').value = '';
+            updateSecretsStore();
+            renderTOTPs();
+            updateTimers();
+        }
+
+        function deleteTOTP(index) {
+            totpList.splice(index, 1);
+            updateSecretsStore();
+            renderTOTPs();
+        }
+
+        function showQRCode(index) {
+            const totp = totpList[index];
+            const title = totp.title;
+            const secret = totp.secret;
+            let label = title;
+            let issuer = '';
+            if (title.includes('@')) {
+                [label, issuer] = title.split('@');
+            }
+            const otpauthUri = `otpauth://totp/${encodeURIComponent(issuer ? `${issuer}:${label}` : label)}?secret=${secret}${issuer ? `&issuer=${encodeURIComponent(issuer)}` : ''}`;
+
+            document.getElementById('qrModalTitle').textContent = title;
+            const qrCodeCanvas = document.getElementById('qrCodeCanvas');
+            qrCodeCanvas.innerHTML = '';
+            new QRCode(qrCodeCanvas, {
+                text: otpauthUri,
+                width: 200,
+                height: 200
+            });
+            document.getElementById('qrModal').classList.remove('hidden');
+        }
+
+        function closeQRModal() {
+            document.getElementById('qrModal').classList.add('hidden');
+            document.getElementById('qrCodeCanvas').innerHTML = '';
+        }
+
+        function renderTOTPs() {
+            const totpListDiv = document.getElementById('totpList');
+            totpListDiv.innerHTML = '';
+
+            totpList.forEach((totp, index) => {
+                const totpDiv = document.createElement('div');
+                totpDiv.className = 'totp-entry p-4 bg-gray-50 border border-gray-200 rounded-md relative';
+                const totpCode = generateTOTP(totp.secret);
+                const titleElement = document.createElement('div');
+                titleElement.className = 'text-xl font-semibold text-gray-800';
+                titleElement.textContent = totp.title;
+                const codeElement = document.createElement('div');
+                codeElement.className = 'totp-code text-2xl font-bold text-blue-600 cursor-pointer select-all hover:bg-gray-200 p-2 rounded';
+                codeElement.id = `totpCode${index}`;
+                codeElement.textContent = totpCode;
+                codeElement.onclick = () => copyTOTP(totpCode);
+                const timerElement = document.createElement('div');
+                timerElement.className = 'totp-timer text-gray-500 text-sm';
+                timerElement.id = `totpTimer${index}`;
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'absolute top-2 right-2 text-red-500 hover:text-red-700 text-xl';
+                deleteBtn.textContent = '×';
+                deleteBtn.onclick = () => deleteTOTP(index);
+                const qrBtn = document.createElement('button');
+                qrBtn.className = 'absolute top-2 right-10 text-gray-500 hover:text-gray-700 text-xl';
+                qrBtn.innerHTML = '📷';
+                qrBtn.onclick = () => showQRCode(index);
+                totpDiv.appendChild(titleElement);
+                totpDiv.appendChild(codeElement);
+                totpDiv.appendChild(timerElement);
+                totpDiv.appendChild(deleteBtn);
+                totpDiv.appendChild(qrBtn);
+                totpListDiv.appendChild(totpDiv);
+            });
+        }
+
+        function updateTimers() {
+            const epoch = Math.floor(Date.now() / 1000);
+            const timeStep = 30;
+            const secondsLeft = timeStep - (epoch % timeStep);
+
+            totpList.forEach((totp, index) => {
+                const timerElement = document.getElementById(`totpTimer${index}`);
+                if (timerElement) {
+                    timerElement.textContent = `Valid for ${secondsLeft} seconds`;
+                }
+                if (secondsLeft === timeStep) {
+                    const codeElement = document.getElementById(`totpCode${index}`);
+                    if (codeElement) {
+                        const newCode = generateTOTP(totp.secret);
+                        codeElement.textContent = newCode;
+                        codeElement.onclick = () => copyTOTP(newCode);
+                    }
+                }
+            });
+
+            setTimeout(updateTimers, 1000);
+        }
+
+        function startQRScanner() {
+            if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear();
+                html5QrcodeScanner = null;
+            }
+            html5QrcodeScanner = new Html5QrcodeScanner('qr-reader', {
+                fps: 10,
+                qrbox: { width: 250, height: 250 }
+            });
+            html5QrcodeScanner.render(
+                (decodedText, decodedResult) => {
+                    const data = parseQRCodeData(decodedText);
+                    if (data) {
+                        addTOTP(data.title, data.secret);
+                        html5QrcodeScanner.clear();
+                        html5QrcodeScanner = null;
+                        document.getElementById('qr-reader').innerHTML = '';
+                    }
+                },
+                (errorMessage) => {
+                    // Ignore scan errors, continue scanning
+                }
+            );
+        }
+
+        async function captureScreen() {
+            try {
+                const stream = await navigator.mediaDevices.getDisplayMedia({
+                    video: { cursor: 'always' }
+                });
+                const video = document.createElement('video');
+                video.srcObject = stream;
+                video.play();
+
+                await new Promise(resolve => {
+                    video.onloadedmetadata = resolve;
+                });
+
+                const canvas = document.getElementById('screen-capture-canvas');
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+                stream.getTracks().forEach(track => track.stop());
+
+                canvas.toBlob(blob => {
+                    const file = new File([blob], 'screen-capture.png', { type: 'image/png' });
+                    const html5QrCode = new Html5Qrcode('qr-reader');
+                    html5QrCode.scanFile(file, true)
+                        .then(decodedText => {
+                            const data = parseQRCodeData(decodedText);
+                            if (data) {
+                                addTOTP(data.title, data.secret);
+                            }
+                            html5QrCode.clear();
+                        })
+                        .catch(err => {
+                            alert(`Error scanning QR code from screen: ${err}`);
+                            html5QrCode.clear();
+                        });
+                }, 'image/png');
+            } catch (err) {
+                alert(`Error capturing screen: ${err}`);
+            }
+        }
+
+        document.getElementById('qrFileInput').addEventListener('change', (e) => {
+            if (e.target.files.length === 0) return;
+            const imageFile = e.target.files[0];
+            const html5QrCode = new Html5Qrcode('qr-reader');
+            html5QrCode.scanFile(imageFile, true)
+                .then(decodedText => {
+                    const data = parseQRCodeData(decodedText);
+                    if (data) {
+                        addTOTP(data.title, data.secret);
+                    }
+                    html5QrCode.clear();
+                    document.getElementById('qrFileInput').value = '';
+                })
+                .catch(err => {
+                    alert(`Error scanning QR code: ${err}`);
+                    html5QrCode.clear();
+                    document.getElementById('qrFileInput').value = '';
+                });
+        });
+
+        function escapeHtml(unsafe) {
+            return unsafe
+                .replace(/&/g, "&")
+                .replace(/</g, "<")
+                .replace(/>/g, ">")
+                .replace(/"/g, "&quote;")
+                .replace(/'/g, "'");
+        }
+
+        function showSaveModal() {
+            document.getElementById('saveModal').classList.remove('hidden');
+            document.getElementById('savePassword').value = '';
+        }
+
+        function closeSaveModal() {
+            document.getElementById('saveModal').classList.add('hidden');
+        }
+
+        function showDecryptModal() {
+            document.getElementById('decryptModal').classList.remove('hidden');
+            document.getElementById('decryptPassword').value = '';
+            document.getElementById('decryptError').classList.add('hidden');
+        }
+
+        function closeDecryptModal() {
+            document.getElementById('decryptModal').classList.add('hidden');
+            totpList = [];
+            renderTOTPs();
+        }
+
+        function closeDecryptModalAfterDecrypt() {
+            document.getElementById('decryptModal').classList.add('hidden');
+        }
+
+        function decryptAndLoad() {
+            const password = document.getElementById('decryptPassword').value;
+            const secretsStore = document.getElementById('secretsStore');
+            try {
+                const data = JSON.parse(secretsStore.textContent);
+                if (!data.isEncrypted) {
+                    totpList = data.secrets || [];
+                    renderTOTPs();
+                    updateTimers();
+                    closeDecryptModalAfterDecrypt();
+                    return;
+                }
+                const decrypted = CryptoJS.AES.decrypt(data.encryptedData, password).toString(CryptoJS.enc.Utf8);
+                if (!decrypted) {
+                    throw new Error('Decryption failed');
+                }
+                totpList = JSON.parse(decrypted);
+                renderTOTPs();
+                updateTimers();
+                closeDecryptModalAfterDecrypt();
+            } catch (e) {
+                document.getElementById('decryptError').classList.remove('hidden');
+                console.error('Decryption failed:', e);
+            }
+        }
+
+        function savePageWithPassword() {
+            closeSaveModal(); // Close the save modal first
+
+            const password = document.getElementById('savePassword').value;
+
+            // Clear the totpList div to prevent leaking OTPs
+            document.getElementById('totpList').innerHTML = '';
+
+            // Update the secretsStore span content in the DOM
+            if (password) {
+                const encryptedData = CryptoJS.AES.encrypt(JSON.stringify(totpList), password).toString();
+                updateSecretsStore(true, encryptedData);
+            } else {
+                updateSecretsStore(false);
+            }
+
+            // Clone the current HTML content from the DOM
+            const htmlContent = document.documentElement.outerHTML;
+
+            // Create a Blob with the HTML content
+            const blob = new Blob([htmlContent], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+
+            // Trigger download
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'totp_generator.html';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+
+            // Re-render TOTP list after saving to restore the UI
+            renderTOTPs();
+        }
+
+        // Initial call to start the timer
+        updateTimers();
+    </script>
+</body>
+</html>
