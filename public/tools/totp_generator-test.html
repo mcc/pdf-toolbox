@@ -1,43 +1,4 @@
-<script type="text/javascript">
-        var gk_isXlsx = false;
-        var gk_xlsxFileLookup = {};
-        var gk_fileData = {};
-        function filledCell(cell) {
-          return cell !== '' && cell != null;
-        }
-        function loadFileData(filename) {
-        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
-            try {
-                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
-                var firstSheetName = workbook.SheetNames[0];
-                var worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert sheet to JSON to filter blank rows
-                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
-                // Filter out blank rows (rows where all cells are empty, null, or undefined)
-                var filteredData = jsonData.filter(row => row.some(filledCell));
-
-                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
-                var headerRowIndex = filteredData.findIndex((row, index) =>
-                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
-                );
-                // Fallback
-                if (headerRowIndex === -1 || headerRowIndex > 25) {
-                  headerRowIndex = 0;
-                }
-
-                // Convert filtered JSON back to CSV
-                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
-                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
-                return csv;
-            } catch (e) {
-                console.error(e);
-                return "";
-            }
-        }
-        return gk_fileData[filename] || "";
-        }
-        </script><!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
@@ -79,8 +40,7 @@
             <p class="mb-4 text-gray-600">Enter a password to encrypt the data (optional).</p>
             <input type="password" id="savePassword" placeholder="Enter password (optional)" class="w-full p-3 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
             <div class="flex justify-end space-x-2">
-                <button onclick="closeSaveModal()" class="p-2 bg-gray-4
-00 text-white rounded-md hover:bg-gray-500 transition">Cancel</button>
+                <button onclick="closeSaveModal()" class="p-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 transition">Cancel</button>
                 <button onclick="savePageWithPassword()" class="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Save</button>
             </div>
         </div>
@@ -111,9 +71,23 @@
         </div>
     </div>
 
+    <!-- Edit Modal -->
+    <div id="editModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+            <h2 class="text-xl font-bold mb-4">Edit TOTP</h2>
+            <input type="text" id="editTitle" placeholder="Enter title" class="w-full p-3 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <input type="text" id="editSecret" placeholder="Enter base32 secret" class="w-full p-3 border border-gray-300 rounded-md mb-4 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeEditModal()" class="p-2 bg-gray-400 text-white rounded-md hover:bg-gray-500 transition">Cancel</button>
+                <button onclick="saveEdit()" class="p-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition">Save</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         let totpList = [];
         let html5QrcodeScanner = null;
+        let editingIndex = null;
 
         // Initialize totpList from span on page load
         window.onload = function() {
@@ -139,7 +113,7 @@
             const jsonString = isEncrypted 
                 ? JSON.stringify({ isEncrypted: true, encryptedData: data })
                 : JSON.stringify({ isEncrypted: false, secrets: totpList });
-            secretsStore.textContent = (jsonString);
+            secretsStore.textContent = escapeHtml(jsonString);
         }
 
         function showToast(message) {
@@ -207,8 +181,8 @@
             try {
                 const url = new URL(decodedText);
                 const secret = url.searchParams.get('secret');
-                const issuer = url.searchParams.get('issuer') || '';
-                let label = decodedText.split('totp/')[1].split('?')[0];
+                const issuer = url.searchParams.get('issuer') ? decodeURIComponent(url.searchParams.get('issuer')) : '';
+                let label = decodeURIComponent(decodedText.split('totp/')[1].split('?')[0]);
                 if (issuer && label.startsWith(issuer + ':')) {
                     label = label.substring(issuer.length + 1);
                 }
@@ -241,6 +215,36 @@
             totpList.splice(index, 1);
             updateSecretsStore();
             renderTOTPs();
+        }
+
+        function showEditModal(index) {
+            editingIndex = index;
+            const totp = totpList[index];
+            document.getElementById('editTitle').value = totp.title;
+            document.getElementById('editSecret').value = totp.secret;
+            document.getElementById('editModal').classList.remove('hidden');
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.add('hidden');
+            editingIndex = null;
+        }
+
+        function saveEdit() {
+            const title = document.getElementById('editTitle').value.trim();
+            const secret = document.getElementById('editSecret').value.trim();
+
+            if (!title || !secret) {
+                alert('Please enter both title and secret');
+                return;
+            }
+
+            if (editingIndex !== null) {
+                totpList[editingIndex] = { title, secret };
+                updateSecretsStore();
+                renderTOTPs();
+                closeEditModal();
+            }
         }
 
         function showQRCode(index) {
@@ -276,10 +280,10 @@
 
             totpList.forEach((totp, index) => {
                 const totpDiv = document.createElement('div');
-                totpDiv.className = 'totp-entry p-4 bg-gray-50 border border-gray-200 rounded-md relative';
+                totpDiv.className = 'totp-entry p-4 bg-gray-50 border border-gray-200 rounded-md relative min-h-[120px]';
                 const totpCode = generateTOTP(totp.secret);
                 const titleElement = document.createElement('div');
-                titleElement.className = 'text-xl font-semibold text-gray-800';
+                titleElement.className = 'text-xl font-semibold text-gray-800 break-words pr-20';
                 titleElement.textContent = totp.title;
                 const codeElement = document.createElement('div');
                 codeElement.className = 'totp-code text-2xl font-bold text-blue-600 cursor-pointer select-all hover:bg-gray-200 p-2 rounded';
@@ -294,14 +298,19 @@
                 deleteBtn.textContent = '×';
                 deleteBtn.onclick = () => deleteTOTP(index);
                 const qrBtn = document.createElement('button');
-                qrBtn.className = 'absolute top-2 right-10 text-gray-500 hover:text-gray-700 text-xl';
+                qrBtn.className = 'absolute bottom-2 right-10 text-gray-500 hover:text-gray-700 text-xl';
                 qrBtn.innerHTML = '📷';
                 qrBtn.onclick = () => showQRCode(index);
+                const editBtn = document.createElement('button');
+                editBtn.className = 'absolute bottom-2 right-2 text-gray-500 hover:text-gray-700 text-xl';
+                editBtn.innerHTML = '✏️';
+                editBtn.onclick = () => showEditModal(index);
                 totpDiv.appendChild(titleElement);
                 totpDiv.appendChild(codeElement);
                 totpDiv.appendChild(timerElement);
                 totpDiv.appendChild(deleteBtn);
                 totpDiv.appendChild(qrBtn);
+                totpDiv.appendChild(editBtn);
                 totpListDiv.appendChild(totpDiv);
             });
         }
@@ -421,7 +430,7 @@
                 .replace(/&/g, "&")
                 .replace(/</g, "<")
                 .replace(/>/g, ">")
-                .replace(/"/g, "&quote;")
+                .replace(/"/g, "&quotes;")
                 .replace(/'/g, "'");
         }
 
