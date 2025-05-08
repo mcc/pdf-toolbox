@@ -103,10 +103,10 @@
             });
 
             // Fetch clinic data from DATA.GOV.HK API
-            fetch('https://api.data.gov.hk/v1/historical-archive/get-file?url=https%3A%2F%2Fwww.dh.gov.hk%2Fopendata%2FLists%2520of%2520Clinics%2520or%2520Centres%2520of%2520the%2520Department%2520of%2520Health%2Fjson%2FDH_Lists_of_Clinics_or_Centres.json&time=latest')
+            fetch('https://api-proxy.tool2tool.com/api/proxy?u=https://www.schooldental.gov.hk/wsmile/psi/Item8SchoolDentalCareService_e.csv')
                 .then(response => response.json())
                 .then(data => {
-                    const clinics = data["List of Clinics or Centres"];
+                    const clinics = data;
                     populateClinicList(clinics);
                     clinics.forEach((clinic, index) => {
                         geocodeAddress(clinic, index);
@@ -124,7 +124,7 @@
                 markerNumber.className = "marker-number";
                 markerNumber.textContent = index + 1;
                 li.appendChild(markerNumber);
-                li.appendChild(document.createTextNode(clinic["Name of Clinic / Centre (English)"]));
+                li.appendChild(document.createTextNode(clinic["School Dental Clinic"]));
                 li.dataset.index = index;
                 li.addEventListener("click", () => {
                     navigateToClinic(index);

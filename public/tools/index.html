@@ -1,0 +1,437 @@
+<script type="text/javascript">
+        var gk_isXlsx = false;
+        var gk_xlsxFileLookup = {};
+        var gk_fileData = {};
+        function filledCell(cell) {
+          return cell !== '' && cell != null;
+        }
+        function loadFileData(filename) {
+        if (gk_isXlsx && gk_xlsxFileLookup[filename]) {
+            try {
+                var workbook = XLSX.read(gk_fileData[filename], { type: 'base64' });
+                var firstSheetName = workbook.SheetNames[0];
+                var worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert sheet to JSON to filter blank rows
+                var jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1, blankrows: false, defval: '' });
+                // Filter out blank rows (rows where all cells are empty, null, or undefined)
+                var filteredData = jsonData.filter(row => row.some(filledCell));
+
+                // Heuristic to find the header row by ignoring rows with fewer filled cells than the next row
+                var headerRowIndex = filteredData.findIndex((row, index) =>
+                  row.filter(filledCell).length >= filteredData[index + 1]?.filter(filledCell).length
+                );
+                // Fallback
+                if (headerRowIndex === -1 || headerRowIndex > 25) {
+                  headerRowIndex = 0;
+                }
+
+                // Convert filtered JSON back to CSV
+                var csv = XLSX.utils.aoa_to_sheet(filteredData.slice(headerRowIndex)); // Create a new sheet from filtered array of arrays
+                csv = XLSX.utils.sheet_to_csv(csv, { header: 1 });
+                return csv;
+            } catch (e) {
+                console.error(e);
+                return "";
+            }
+        }
+        return gk_fileData[filename] || "";
+        }
+        </script><!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Wordle Game</title>
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" href="icon.png">
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 20px;
+      max-width: 100vw;
+      overflow-x: hidden;
+    }
+    #game {
+      display: grid;
+      grid-template-rows: repeat(6, 60px);
+      gap: 5px;
+      margin-bottom: 20px;
+    }
+    .row {
+      display: flex;
+      gap: 5px;
+    }
+    .tile {
+      width: 60px;
+      height: 60px;
+      border: 2px solid #ccc;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2em;
+      text-transform: uppercase;
+      background-color: white;
+    }
+    .correct { background-color: #6aaa64; color: white; border-color: #6aaa64; }
+    .present { background-color: #c9b458; color: white; border-color: #c9b458; }
+    .absent { background-color: #787c7e; color: white; border-color: #787c7e; }
+    #keyboard {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      width: 100%;
+      max-width: 500px;
+      box-sizing: border-box;
+    }
+    .key-row {
+      display: flex;
+      gap: 5px;
+      justify-content: center;
+      flex-wrap: wrap;
+    }
+    .key {
+      padding: 10px;
+      border: none;
+      background-color: #d3d6da;
+      font-size: clamp(0.8em, 4vw, 1em);
+      cursor: pointer;
+      text-transform: uppercase;
+      flex: 1;
+      max-width: 40px;
+      text-align: center;
+      box-sizing: border-box;
+    }
+    .key:hover { background-color: #bbb; }
+    #custom-word {
+      margin: 20px 0;
+      padding: 10px;
+      font-size: 1em;
+      text-transform: uppercase;
+      display: block;
+    }
+    #custom-word.hidden, #start-btn.hidden, #game.hidden, #keyboard.hidden, #share-section.hidden, #restart-btn.hidden {
+      display: none;
+    }
+    #message { margin-top: 20px; font-size: 1.2em; }
+    #install-btn, #start-btn, #copy-url-btn, #restart-btn {
+      padding: 10px 20px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      cursor: pointer;
+      margin: 10px;
+    }
+    #install-btn:hover, #start-btn:hover, #copy-url-btn:hover, #restart-btn:hover {
+      background-color: #0056b3;
+    }
+    #share-section {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      margin-top: 20px;
+    }
+    #qr-code { margin: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Wordle</h1>
+  <input type="text" id="custom-word" placeholder="Enter a 5-letter word" maxlength="5">
+  <button id="start-btn">Start</button>
+  <div id="game" class="hidden"></div>
+  <div id="keyboard" class="hidden"></div>
+  <div id="share-section" class="hidden">
+    <p>Share this game:</p>
+    <canvas id="qr-code"></canvas>
+    <button id="copy-url-btn">Copy URL</button>
+  </div>
+  <div id="message"></div>
+  <button id="restart-btn" class="hidden">Restart</button>
+  <button id="install-btn" class="hidden">Install Wordle</button>
+
+  <script>
+    let targetWord = '';
+    let currentRow = 0;
+    let currentTile = 0;
+    let gameOver = false;
+    let deferredPrompt;
+
+    const gameDiv = document.getElementById('game');
+    const keyboardDiv = document.getElementById('keyboard');
+    const messageDiv = document.getElementById('message');
+    const customWordInput = document.getElementById('custom-word');
+    const startBtn = document.getElementById('start-btn');
+    const installBtn = document.getElementById('install-btn');
+    const shareSection = document.getElementById('share-section');
+    const qrCodeCanvas = document.getElementById('qr-code');
+    const copyUrlBtn = document.getElementById('copy-url-btn');
+    const restartBtn = document.getElementById('restart-btn');
+
+    // Check URL for hashed word
+    const urlParams = new URLSearchParams(window.location.search);
+    const hashedWord = urlParams.get('word');
+    if (hashedWord) {
+      try {
+        targetWord = atob(hashedWord).toUpperCase();
+        if (targetWord.length === 5 && /^[A-Z]{5}$/.test(targetWord)) {
+          startGame();
+        } else {
+          resetToWordEntry('Invalid word in URL. Please enter a new word.');
+        }
+      } catch (e) {
+        resetToWordEntry('Invalid word in URL. Please enter a new word.');
+      }
+    } else {
+      resetToWordEntry();
+    }
+
+    // Initialize game board
+    for (let i = 0; i < 6; i++) {
+      const row = document.createElement('div');
+      row.className = 'row';
+      for (let j = 0; j < 5; j++) {
+        const tile = document.createElement('div');
+        tile.className = 'tile';
+        row.appendChild(tile);
+      }
+      gameDiv.appendChild(row);
+    }
+
+    // Initialize keyboard with swapped ENTER and BACK
+    const keyboardLayout = [
+      'Q W E R T Y U I O P',
+      'A S D F G H J K L',
+      'BACK Z X C V B N M ENTER'
+    ];
+    keyboardLayout.forEach(row => {
+      const keyRow = document.createElement('div');
+      keyRow.className = 'key-row';
+      row.split(' ').forEach(key => {
+        const button = document.createElement('button');
+        button.className = 'key';
+        button.textContent = key;
+        button.addEventListener('click', () => handleKey(key));
+        keyRow.appendChild(button);
+      });
+      keyboardDiv.appendChild(keyRow);
+    });
+
+    // Handle start button
+    startBtn.addEventListener('click', () => {
+      const word = customWordInput.value.toUpperCase();
+      if (word.length === 5 && /^[A-Z]{5}$/.test(word)) {
+        targetWord = word;
+        const hashed = btoa(word);
+        const newUrl = `${window.location.origin}${window.location.pathname}?word=${hashed}`;
+        window.history.pushState({}, '', newUrl);
+        startGame();
+        generateShareOptions(newUrl);
+        messageDiv.textContent = 'Game started! Share the link or QR code.';
+      } else {
+        messageDiv.textContent = 'Please enter a valid 5-letter word.';
+      }
+    });
+
+    // Handle copy URL
+    copyUrlBtn.addEventListener('click', () => {
+      const url = window.location.href;
+      navigator.clipboard.writeText(url).then(() => {
+        messageDiv.textContent = 'URL copied to clipboard!';
+      }).catch(() => {
+        messageDiv.textContent = 'Failed to copy URL.';
+      });
+    });
+
+    // Handle restart
+    restartBtn.addEventListener('click', () => {
+      window.history.pushState({}, '', window.location.pathname);
+      resetToWordEntry();
+    });
+
+    // Handle keyboard input
+    document.addEventListener('keydown', (e) => {
+      if (gameOver) return;
+      const key = e.key.toUpperCase();
+      if (key === 'BACKSPACE') handleKey('BACK');
+      else if (key === 'ENTER') handleKey('ENTER');
+      else if (/^[A-Z]$/.test(key)) handleKey(key);
+    });
+
+    // Handle key press
+    function handleKey(key) {
+      if (gameOver) return;
+      const rows = document.querySelectorAll('.row');
+      const currentRowDiv = rows[currentRow];
+
+      if (key === 'BACK' && currentTile
+
+ > 0) {
+        currentTile--;
+        currentRowDiv.children[currentTile].textContent = '';
+      } else if (key === 'ENTER' && currentTile === 5) {
+        const guess = Array.from(currentRowDiv.children)
+          .map(tile => tile.textContent)
+          .join('');
+        if (guess.length === 5) {
+          checkGuess(guess, currentRowDiv);
+        }
+      } else if (/^[A-Z]$/.test(key) && currentTile < 5) {
+        currentRowDiv.children[currentTile].textContent = key;
+        currentTile++;
+      }
+    }
+
+    // Check guess
+    function checkGuess(guess, rowDiv) {
+      const result = [];
+      const targetArray = targetWord.split('');
+      const guessArray = guess.split('');
+
+      // Mark correct letters
+      for (let i = 0; i < 5; i++) {
+        if (guessArray[i] === targetArray[i]) {
+          result[i] = 'correct';
+          targetArray[i] = null;
+        }
+      }
+
+      // Mark present and absent letters
+      for (let i = 0; i < 5; i++) {
+        if (!result[i]) {
+          if (targetArray.includes(guessArray[i])) {
+            result[i] = 'present';
+            targetArray[targetArray.indexOf(guessArray[i])] = null;
+          } else {
+            result[i] = 'absent';
+          }
+        }
+      }
+
+      // Update tiles
+      for (let i = 0; i < 5; i++) {
+        rowDiv.children[i].classList.add(result[i]);
+      }
+
+      // Update keyboard
+      const keys = document.querySelectorAll('.key');
+      keys.forEach(key => {
+        const letter = key.textContent;
+        if (letter.length === 1) {
+          const index = guessArray.indexOf(letter);
+          if (index !== -1) {
+            if (result[index] === 'correct') key.style.backgroundColor = '#6aaa64';
+            else if (result[index] === 'present' && key.style.backgroundColor !== '#6aaa64')
+              key.style.backgroundColor = '#c9b458';
+            else if (result[index] === 'absent' && !key.style.backgroundColor)
+              key.style.backgroundColor = '#787c7e';
+          }
+        }
+      });
+
+      // Check win or lose
+      if (guess === targetWord) {
+        messageDiv.textContent = 'Congratulations! You won!';
+        gameOver = true;
+        restartBtn.classList.remove('hidden');
+      } else if (currentRow === 5) {
+        messageDiv.textContent = `Game over! The word was ${targetWord}.`;
+        gameOver = true;
+        restartBtn.classList.remove('hidden');
+      } else {
+        currentRow++;
+        currentTile = 0;
+      }
+    }
+
+    // Start game
+    function startGame() {
+      customWordInput.classList.add('hidden');
+      startBtn.classList.add('hidden');
+      gameDiv.classList.remove('hidden');
+      keyboardDiv.classList.remove('hidden');
+      shareSection.classList.remove('hidden');
+      resetGame();
+    }
+
+    // Reset game state
+    function resetGame() {
+      currentRow = 0;
+      currentTile = 0;
+      gameOver = false;
+      messageDiv.textContent = '';
+      const tiles = document.querySelectorAll('.tile');
+      tiles.forEach(tile => {
+        tile.textContent = '';
+        tile.className = 'tile';
+      });
+      const keys = document.querySelectorAll('.key');
+      keys.forEach(key => {
+        key.style.backgroundColor = '#d3d6da';
+      });
+      restartBtn.classList.add('hidden');
+    }
+
+    // Reset to word entry phase
+    function resetToWordEntry(message = '') {
+      customWordInput.classList.remove('hidden');
+      startBtn.classList.remove('hidden');
+      gameDiv.classList.add('hidden');
+      keyboardDiv.classList.add('hidden');
+      shareSection.classList.add('hidden');
+      restartBtn.classList.add('hidden');
+      customWordInput.value = '';
+      messageDiv.textContent = message;
+      resetGame();
+    }
+
+    // Generate QR code and share options
+    function generateShareOptions(url) {
+      QRCode.toCanvas(qrCodeCanvas, url, { width: 150 }, (error) => {
+        if (error) console.error('QR code generation failed:', error);
+      });
+    }
+
+    // PWA installation
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      installBtn.classList.remove('hidden');
+    });
+
+    installBtn.addEventListener('click', async () => {
+      if (deferredPrompt) {
+        deferredPrompt.prompt();
+        const { outcome } = await deferredPrompt.userChoice;
+        if (outcome === 'accepted') {
+          console.log('User accepted the install prompt');
+        } else {
+          console.log('User dismissed the install prompt');
+        }
+        deferredPrompt = null;
+        installBtn.classList.add('hidden');
+      }
+    });
+
+    // Service Worker registration
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').then(
+          (registration) => {
+            console.log('ServiceWorker registered:', registration);
+          },
+          (error) => {
+            console.error('ServiceWorker registration failed:', error);
+          }
+        );
+      });
+    }
+  </script>
+</body>
+</html>
