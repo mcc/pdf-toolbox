@@ -12,7 +12,7 @@ jobs:
     steps:
       # Check out the repository
       - name: Checkout repository
-        uses: mcc/pdf-toolbox@latest
+        uses: actions/checkout@v4
 
       # Set up Python
       - name: Set up Python
