@@ -1,0 +1,46 @@
+name: Update Holiday JSON from URL
+
+on:
+  schedule:
+    - cron: '0 0 * * *' # Runs daily at midnight UTC
+  workflow_dispatch: # Allows manual triggering
+
+jobs:
+  update-json:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Check out the repository
+      - name: Checkout repository
+        uses: mcc/pdf-toolbox@latest
+
+      # Set up Python
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # Install dependencies
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests
+
+      # Run Python script to compare and update JSON
+      - name: Compare and update JSON
+        env:
+          JSON_URL: https://www.1823.gov.hk/common/ical/en.json # Store URL in GitHub Secrets
+          JSON_FILE_PATH: 'data.json' # Path to JSON file in repo
+        run: |
+          python .github/scripts/update_json.py $JSON_URL $JSON_FILE_PATH
+
+      # Commit and push changes if any
+      - name: Commit changes
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add $JSON_FILE_PATH
+          git diff --staged --quiet || git commit -m "Update JSON file from URL"
+          git push
+        env:
+          JSON_FILE_PATH: 'data.json'
