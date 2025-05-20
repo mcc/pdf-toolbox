@@ -3,8 +3,8 @@
 let temp = {
     themes: []
 };
-temp.themes =  temp.themes.concat(CONFIG_POKEMON_NAMING_THEMES);
 temp.themes =  temp.themes.concat(CONFIG_HONG_KONG_COMMON_NAMING_THEMES);
+temp.themes =  temp.themes.concat(CONFIG_POKEMON_NAMING_THEMES);
 const CONFIG_NAMING_THEMES = temp;
 console.log(CONFIG_NAMING_THEMES)
 // Mutator lists
