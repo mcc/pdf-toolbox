@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>JSON to Table Converter</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f2f5;
+        }
+        /* Custom scrollbar for textarea */
+        textarea::-webkit-scrollbar {
+            width: 8px;
+        }
+        textarea::-webkit-scrollbar-track {
+            background: #e0e0e0;
+            border-radius: 10px;
+        }
+        textarea::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        textarea::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body class="flex flex-col items-center justify-center min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-4xl border border-gray-200">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">JSON to Table Converter</h1>
+
+        <div class="mb-6">
+            <label for="jsonInput" class="block text-gray-700 text-sm font-semibold mb-2">
+                Paste your JSON here:
+            </label>
+            <textarea
+                id="jsonInput"
+                rows="10"
+                placeholder='[{"name": "Alice", "age": 30, "city": "New York"}, {"name": "Bob", "age": 24, "city": "London"}]'
+                class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-gray-800 text-sm resize-y"
+            ></textarea>
+        </div>
+
+        <div class="flex justify-center mb-8">
+            <button
+                id="convertButton"
+                class="bg-blue-600 hover:bg-blue-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+            >
+                Convert to Table
+            </button>
+        </div>
+
+        <div id="output" class="w-full overflow-x-auto bg-gray-50 p-4 rounded-lg border border-gray-200 min-h-[100px] flex items-center justify-center text-gray-600 text-center">
+            <p>Your converted table will appear here.</p>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // Get references to the DOM elements
+            const jsonInput = document.getElementById('jsonInput');
+            const convertButton = document.getElementById('convertButton');
+            const outputDiv = document.getElementById('output');
+
+            /**
+             * Displays a message in the output area.
+             * @param {string} message - The message to display.
+             * @param {string} type - The type of message ('info', 'error').
+             */
+            function displayMessage(message, type) {
+                let textColor = 'text-gray-600';
+                if (type === 'error') {
+                    textColor = 'text-red-600';
+                } else if (type === 'success') {
+                    textColor = 'text-green-600';
+                }
+                outputDiv.innerHTML = `<p class="${textColor} text-center p-4">${message}</p>`;
+            }
+
+            /**
+             * Converts a JSON array of objects into an HTML table.
+             * @param {Array<Object>} jsonData - The parsed JSON data (array of objects).
+             * @returns {string} - The HTML string of the table.
+             */
+            function convertJsonToTable(jsonData) {
+                if (!Array.isArray(jsonData) || jsonData.length === 0) {
+                    displayMessage('JSON data must be a non-empty array of objects.', 'error');
+                    return '';
+                }
+
+                // Extract headers from the keys of the first object
+                const headers = Object.keys(jsonData[0]);
+                let tableHtml = `
+                    <table class="min-w-full divide-y divide-gray-300 rounded-lg overflow-hidden shadow-md">
+                        <thead class="bg-gray-200">
+                            <tr>
+                                ${headers.map(header => `<th class="px-6 py-3 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">${header}</th>`).join('')}
+                            </tr>
+                        </thead>
+                        <tbody class="bg-white divide-y divide-gray-200">
+                `;
+
+                // Populate table rows with data
+                jsonData.forEach(item => {
+                    tableHtml += '<tr>';
+                    headers.forEach(header => {
+                        // Handle potential missing keys gracefully
+                        const value = item[header] !== undefined && item[header] !== null ? item[header] : '';
+                        // Convert objects/arrays within cells to string for display
+                        const displayValue = typeof value === 'object' ? JSON.stringify(value) : value;
+                        tableHtml += `<td class="px-6 py-4 whitespace-nowrap text-sm text-gray-800">${displayValue}</td>`;
+                    });
+                    tableHtml += '</tr>';
+                });
+
+                tableHtml += `
+                        </tbody>
+                    </table>
+                `;
+                return tableHtml;
+            }
+
+            // Event listener for the convert button
+            convertButton.addEventListener('click', () => {
+                const jsonString = jsonInput.value.trim();
+
+                if (!jsonString) {
+                    displayMessage('Please enter some JSON data.', 'info');
+                    return;
+                }
+
+                try {
+                    const parsedJson = JSON.parse(jsonString);
+
+                    if (Array.isArray(parsedJson) && parsedJson.every(item => typeof item === 'object' && item !== null)) {
+                        // Check if the array contains objects
+                        if (parsedJson.length > 0) {
+                            const tableHtml = convertJsonToTable(parsedJson);
+                            outputDiv.innerHTML = tableHtml;
+                            outputDiv.classList.remove('justify-center', 'items-center', 'text-center'); // Remove centering for table
+                            outputDiv.classList.add('p-0'); // Remove padding that might interfere with table styling
+                        } else {
+                            displayMessage('The JSON array is empty. Please provide an array of objects.', 'info');
+                            outputDiv.classList.add('justify-center', 'items-center', 'text-center');
+                            outputDiv.classList.remove('p-0');
+                        }
+                    } else if (typeof parsedJson === 'object' && parsedJson !== null) {
+                        // If it's a single object, wrap it in an array for consistency
+                        displayMessage('The JSON is a single object. Converting it as a single-row table.', 'info');
+                        const tableHtml = convertJsonToTable([parsedJson]);
+                        outputDiv.innerHTML = tableHtml;
+                        outputDiv.classList.remove('justify-center', 'items-center', 'text-center');
+                        outputDiv.classList.add('p-0');
+                    }
+                    else {
+                        displayMessage('Invalid JSON format. Please provide a JSON array of objects or a single JSON object.', 'error');
+                        outputDiv.classList.add('justify-center', 'items-center', 'text-center');
+                        outputDiv.classList.remove('p-0');
+                    }
+                } catch (error) {
+                    displayMessage(`Error parsing JSON: ${error.message}. Please check your JSON syntax.`, 'error');
+                    outputDiv.classList.add('justify-center', 'items-center', 'text-center');
+                    outputDiv.classList.remove('p-0');
+                }
+            });
+
+            // Initial message when the page loads
+            displayMessage('Your converted table will appear here.', 'info');
+        });
+    </script>
+</body>
+</html>
