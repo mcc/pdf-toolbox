@@ -28,8 +28,8 @@
         }
     </style>
 </head>
-<body class="flex flex-col items-center justify-center min-h-screen p-4">
-    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-4xl border border-gray-200">
+<body class="flex flex-col items-center justify-start min-h-screen p-4">
+    <div class="bg-white p-8 rounded-xl shadow-lg w-full max-w-full lg:max-w-screen-xl border border-gray-200">
         <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">JSON to Table Converter</h1>
 
         <div class="mb-6">
@@ -44,6 +44,26 @@
             ></textarea>
         </div>
 
+        <div class="mb-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
+            <label for="jsonPromptInput" class="block text-blue-800 text-sm font-semibold mb-2">
+                ✨ Generate Sample JSON (e.g., "list of 3 products with name, price, and stock"):
+            </label>
+            <div class="flex flex-col sm:flex-row gap-2">
+                <input
+                    type="text"
+                    id="jsonPromptInput"
+                    placeholder="Describe the JSON you want to generate..."
+                    class="flex-grow p-2 border border-blue-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-400 text-gray-800 text-sm"
+                />
+                <button
+                    id="generateJsonButton"
+                    class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+                >
+                    Generate
+                </button>
+            </div>
+        </div>
+
         <div class="flex justify-center mb-8">
             <button
                 id="convertButton"
@@ -56,6 +76,27 @@
         <div id="output" class="w-full overflow-x-auto bg-gray-50 p-4 rounded-lg border border-gray-200 min-h-[100px] flex items-center justify-center text-gray-600 text-center">
             <p>Your converted table will appear here.</p>
         </div>
+
+        <div class="mt-6 pt-6 border-t border-gray-200 flex flex-col sm:flex-row justify-center gap-4">
+            <button
+                id="copyTableButton"
+                class="bg-green-600 hover:bg-green-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                Copy Table (Tab-Separated)
+            </button>
+            <button
+                id="summarizeTableButton"
+                class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-3 px-6 rounded-lg shadow-md transition duration-300 ease-in-out transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled
+            >
+                ✨ Summarize Table Content
+            </button>
+        </div>
+
+        <div id="summaryOutput" class="w-full bg-yellow-50 p-4 rounded-lg border border-yellow-200 min-h-[50px] flex items-center justify-center text-gray-800 text-center mt-4 hidden">
+            <p>Summary will appear here.</p>
+        </div>
     </div>
 
     <script>
@@ -64,20 +105,32 @@
             const jsonInput = document.getElementById('jsonInput');
             const convertButton = document.getElementById('convertButton');
             const outputDiv = document.getElementById('output');
+            const jsonPromptInput = document.getElementById('jsonPromptInput');
+            const generateJsonButton = document.getElementById('generateJsonButton');
+            const summarizeTableButton = document.getElementById('summarizeTableButton');
+            const copyTableButton = document.getElementById('copyTableButton'); // New copy button
+            const summaryOutput = document.getElementById('summaryOutput');
+
+            let currentParsedJson = null; // To store the last successfully parsed JSON for summarization and copying
 
             /**
-             * Displays a message in the output area.
+             * Displays a message in the target output area.
              * @param {string} message - The message to display.
-             * @param {string} type - The type of message ('info', 'error').
+             * @param {string} type - The type of message ('info', 'error', 'success').
+             * @param {HTMLElement} targetDiv - The div to display the message in.
              */
-            function displayMessage(message, type) {
+            function displayMessage(message, type, targetDiv) {
                 let textColor = 'text-gray-600';
                 if (type === 'error') {
                     textColor = 'text-red-600';
                 } else if (type === 'success') {
                     textColor = 'text-green-600';
+                } else if (type === 'info') {
+                    textColor = 'text-gray-600';
                 }
-                outputDiv.innerHTML = `<p class="${textColor} text-center p-4">${message}</p>`;
+                targetDiv.innerHTML = `<p class="${textColor} text-center p-4">${message}</p>`;
+                targetDiv.classList.remove('hidden');
+                targetDiv.classList.add('flex', 'items-center', 'justify-center', 'text-center');
             }
 
             /**
@@ -87,7 +140,7 @@
              */
             function convertJsonToTable(jsonData) {
                 if (!Array.isArray(jsonData) || jsonData.length === 0) {
-                    displayMessage('JSON data must be a non-empty array of objects.', 'error');
+                    displayMessage('JSON data must be a non-empty array of objects.', 'error', outputDiv);
                     return '';
                 }
 
@@ -123,12 +176,41 @@
                 return tableHtml;
             }
 
+            /**
+             * Converts parsed JSON data into a tab-separated string.
+             * @param {Array<Object>} jsonData - The parsed JSON data (array of objects).
+             * @returns {string} - The tab-separated string.
+             */
+            function convertJsonToTabSeparated(jsonData) {
+                if (!Array.isArray(jsonData) || jsonData.length === 0) {
+                    return '';
+                }
+
+                const headers = Object.keys(jsonData[0]);
+                let tabSeparated = headers.join('\t') + '\n'; // Header row
+
+                jsonData.forEach(item => {
+                    const row = headers.map(header => {
+                        const value = item[header] !== undefined && item[header] !== null ? item[header] : '';
+                        // Ensure objects/arrays are stringified for tab-separated output
+                        return typeof value === 'object' ? JSON.stringify(value) : String(value);
+                    }).join('\t');
+                    tabSeparated += row + '\n';
+                });
+
+                return tabSeparated;
+            }
+
             // Event listener for the convert button
             convertButton.addEventListener('click', () => {
                 const jsonString = jsonInput.value.trim();
+                summaryOutput.classList.add('hidden'); // Hide summary output on new conversion attempt
+                summarizeTableButton.disabled = true; // Disable summarize button initially
+                copyTableButton.disabled = true; // Disable copy button initially
 
                 if (!jsonString) {
-                    displayMessage('Please enter some JSON data.', 'info');
+                    displayMessage('Please enter some JSON data.', 'info', outputDiv);
+                    currentParsedJson = null;
                     return;
                 }
 
@@ -136,39 +218,164 @@
                     const parsedJson = JSON.parse(jsonString);
 
                     if (Array.isArray(parsedJson) && parsedJson.every(item => typeof item === 'object' && item !== null)) {
-                        // Check if the array contains objects
                         if (parsedJson.length > 0) {
                             const tableHtml = convertJsonToTable(parsedJson);
                             outputDiv.innerHTML = tableHtml;
-                            outputDiv.classList.remove('justify-center', 'items-center', 'text-center'); // Remove centering for table
-                            outputDiv.classList.add('p-0'); // Remove padding that might interfere with table styling
+                            outputDiv.classList.remove('justify-center', 'items-center', 'text-center');
+                            outputDiv.classList.remove('p-4'); // Remove padding that might interfere with table styling
+                            outputDiv.classList.add('p-0');
+                            currentParsedJson = parsedJson; // Store for summarization and copying
+                            summarizeTableButton.disabled = false; // Enable summarize button
+                            copyTableButton.disabled = false; // Enable copy button
                         } else {
-                            displayMessage('The JSON array is empty. Please provide an array of objects.', 'info');
+                            displayMessage('The JSON array is empty. Please provide an array of objects.', 'info', outputDiv);
                             outputDiv.classList.add('justify-center', 'items-center', 'text-center');
+                            outputDiv.classList.add('p-4');
                             outputDiv.classList.remove('p-0');
+                            currentParsedJson = null;
                         }
                     } else if (typeof parsedJson === 'object' && parsedJson !== null) {
-                        // If it's a single object, wrap it in an array for consistency
-                        displayMessage('The JSON is a single object. Converting it as a single-row table.', 'info');
+                        displayMessage('The JSON is a single object. Converting it as a single-row table.', 'info', outputDiv);
                         const tableHtml = convertJsonToTable([parsedJson]);
                         outputDiv.innerHTML = tableHtml;
                         outputDiv.classList.remove('justify-center', 'items-center', 'text-center');
+                        outputDiv.classList.remove('p-4');
                         outputDiv.classList.add('p-0');
+                        currentParsedJson = [parsedJson]; // Store as array for consistency
+                        summarizeTableButton.disabled = false; // Enable summarize button
+                        copyTableButton.disabled = false; // Enable copy button
                     }
                     else {
-                        displayMessage('Invalid JSON format. Please provide a JSON array of objects or a single JSON object.', 'error');
+                        displayMessage('Invalid JSON format. Please provide a JSON array of objects or a single JSON object.', 'error', outputDiv);
                         outputDiv.classList.add('justify-center', 'items-center', 'text-center');
+                        outputDiv.classList.add('p-4');
                         outputDiv.classList.remove('p-0');
+                        currentParsedJson = null;
                     }
                 } catch (error) {
-                    displayMessage(`Error parsing JSON: ${error.message}. Please check your JSON syntax.`, 'error');
+                    displayMessage(`Error parsing JSON: ${error.message}. Please check your JSON syntax.`, 'error', outputDiv);
                     outputDiv.classList.add('justify-center', 'items-center', 'text-center');
+                    outputDiv.classList.add('p-4');
                     outputDiv.classList.remove('p-0');
+                    currentParsedJson = null;
                 }
             });
 
+            // Function to call Gemini API for text generation
+            async function callGeminiApi(prompt, targetDiv, button, loadingText) {
+                const originalButtonText = button.textContent;
+                button.disabled = true;
+                button.textContent = loadingText;
+                displayMessage('Generating...', 'info', targetDiv);
+
+                let chatHistory = [];
+                chatHistory.push({ role: "user", parts: [{ text: prompt }] });
+                const payload = { contents: chatHistory };
+                const apiKey = ""; // If you want to use models other than gemini-2.0-flash or imagen-3.0-generate-002, provide an API key here. Otherwise, leave this as-is.
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`;
+
+                try {
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+
+                    if (result.candidates && result.candidates.length > 0 &&
+                        result.candidates[0].content && result.candidates[0].content.parts &&
+                        result.candidates[0].content.parts.length > 0) {
+                        const text = result.candidates[0].content.parts[0].text;
+                        return text;
+                    } else {
+                        console.error("Gemini API response structure unexpected:", result);
+                        displayMessage('Failed to get a valid response from the AI. Please try again.', 'error', targetDiv);
+                        return null;
+                    }
+                } catch (error) {
+                    console.error("Error calling Gemini API:", error);
+                    displayMessage(`Error communicating with AI: ${error.message}`, 'error', targetDiv);
+                    return null;
+                } finally {
+                    button.disabled = false;
+                    button.textContent = originalButtonText;
+                }
+            }
+
+            // Event listener for Generate Sample JSON button
+            generateJsonButton.addEventListener('click', async () => {
+                const prompt = jsonPromptInput.value.trim();
+                if (!prompt) {
+                    displayMessage('Please describe the JSON you want to generate.', 'info', outputDiv);
+                    return;
+                }
+
+                const fullPrompt = `Generate a JSON array of objects based on the following description. Ensure the output is valid JSON and only the JSON, no extra text or markdown formatting: "${prompt}"`;
+                const generatedJsonText = await callGeminiApi(fullPrompt, outputDiv, generateJsonButton, 'Generating...');
+
+                if (generatedJsonText) {
+                    try {
+                        // Attempt to parse to validate and re-stringify for pretty printing
+                        const parsed = JSON.parse(generatedJsonText);
+                        jsonInput.value = JSON.stringify(parsed, null, 2); // Pretty print
+                        displayMessage('Sample JSON generated successfully! Click "Convert to Table" to see it.', 'success', outputDiv);
+                    } catch (e) {
+                        console.error("Generated text is not valid JSON:", generatedJsonText, e);
+                        displayMessage('AI generated invalid JSON. Please try a different prompt or fix manually.', 'error', outputDiv);
+                        jsonInput.value = generatedJsonText; // Still show what was generated
+                    }
+                }
+            });
+
+            // Event listener for Summarize Table Content button
+            summarizeTableButton.addEventListener('click', async () => {
+                if (!currentParsedJson) {
+                    displayMessage('No table data to summarize. Please convert JSON first.', 'info', summaryOutput);
+                    return;
+                }
+
+                const dataString = JSON.stringify(currentParsedJson);
+                const prompt = `Summarize the key insights, patterns, or interesting observations from the following JSON data. Keep the summary concise and relevant to the data provided. Data: ${dataString}`;
+
+                const summaryText = await callGeminiApi(prompt, summaryOutput, summarizeTableButton, 'Summarizing...');
+
+                if (summaryText) {
+                    summaryOutput.innerHTML = `<p class="text-gray-800 p-4">${summaryText}</p>`;
+                    summaryOutput.classList.remove('hidden');
+                } else {
+                    summaryOutput.classList.add('hidden'); // Hide if no summary
+                }
+            });
+
+            // Event listener for Copy Table button
+            copyTableButton.addEventListener('click', () => {
+                if (!currentParsedJson) {
+                    displayMessage('No table data to copy. Please convert JSON first.', 'info', outputDiv);
+                    return;
+                }
+
+                const tabSeparatedData = convertJsonToTabSeparated(currentParsedJson);
+
+                // Use a temporary textarea to copy to clipboard
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = tabSeparatedData;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                try {
+                    document.execCommand('copy');
+                    displayMessage('Table data copied to clipboard (tab-separated)!', 'success', outputDiv);
+                } catch (err) {
+                    console.error('Failed to copy text: ', err);
+                    displayMessage('Failed to copy table data. Please try again or copy manually.', 'error', outputDiv);
+                } finally {
+                    document.body.removeChild(tempTextArea);
+                }
+            });
+
+
             // Initial message when the page loads
-            displayMessage('Your converted table will appear here.', 'info');
+            displayMessage('Your converted table will appear here.', 'info', outputDiv);
+            summaryOutput.classList.add('hidden'); // Ensure summary is hidden initially
         });
     </script>
 </body>
