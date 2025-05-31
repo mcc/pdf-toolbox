@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Cloud Generator</title>
+    <script src="https://cdn.jsdelivr.net/npm/wordcloud@1.2.2/src/wordcloud2.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen p-4 sm:p-6 md:p-8">
+    <div class="max-w-7xl mx-auto">
+        <h1 class="text-2xl sm:text-3xl font-bold text-gray-800 mb-6 text-center">Text Cloud Generator</h1>
+        <div class="flex flex-col lg:flex-row gap-6">
+            <!-- Form Section -->
+            <div class="lg:w-1/3 bg-white p-6 rounded-lg shadow-md">
+                <form id="wordcloud-form" class="space-y-4">
+                    <div>
+                        <label for="keywords" class="block text-sm font-medium text-gray-700">Keywords (one per line, first has highest priority)</label>
+                        <textarea id="keywords" placeholder="apple
+banana
+orange" required
+                            class="mt-1 w-full h-32 p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 resize-none"></textarea>
+                    </div>
+
+                    <div>
+                        <label for="width" class="block text-sm font-medium text-gray-700">Width (px)</label>
+                        <input type="number" id="width" value="800" min="100" required
+                            class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label for="height" class="block text-sm font-medium text-gray-700">Height (px)</label>
+                        <input type="number" id="height" value="400" min="100" required
+                            class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                    </div>
+
+                    <div>
+                        <label for="shape" class="block text-sm font-medium text-gray-700">Shape</label>
+                        <select id="shape" class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+                            <option value="circle">Circle</option>
+                            <option value="cardioid">Cardioid</option>
+                            <option value="diamond">Diamond</option>
+                            <option value="square">Square</option>
+                            <option value="triangle">Triangle</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="theme" class="block text-sm font-medium text-gray-700">Color Theme</label>
+                        <select id="theme" class="mt-1 w-full p-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500"></select>
+                    </div>
+
+                    <button type="submit" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 transition">Generate Word Cloud</button>
+                </form>
+            </div>
+
+            <!-- Canvas Section -->
+            <div class="lg:w-2/3 bg-white p-4 rounded-lg shadow-md">
+                <div id="error-message" class="hidden text-red-600 text-center mb-4"></div>
+                <canvas id="wordcloud" class="w-full border border-gray-200"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Check if WordCloud is loaded
+        if (typeof WordCloud === "undefined") {
+            alert("Error: WordCloud library failed to load. Please check your internet connection or try again later.");
+            console.error("WordCloud library is not available.");
+        }
+
+        // Sample color themes (extend to 100 as needed)
+        const colorThemes = [
+            { name: "Ocean", colors: ["#1e3a8a", "#3b82f6", "#93c5fd", "#dbeafe"] },
+            { name: "Sunset", colors: ["#7c2d12", "#ea580c", "#f97316", "#fed7aa"] },
+            { name: "Forest", colors: ["#14532d", "#15803d", "#22c55e", "#86efac"] },
+            { name: "Berry", colors: ["#4c1d95", "#7e22ce", "#a855f7", "#d8b4fe"] },
+            { name: "Monochrome", colors: ["#1f2937", "#4b5563", "#6b7280", "#9ca3af"] },
+            // Add more themes up to 100...
+        ];
+
+        // Populate color theme dropdown
+        const themeSelect = document.getElementById("theme");
+        colorThemes.forEach(theme => {
+            const option = document.createElement("option");
+            option.value = theme.name;
+            option.textContent = theme.name;
+            themeSelect.appendChild(option);
+        });
+
+        // Form submission
+        document.getElementById("wordcloud-form").addEventListener("submit", function (e) {
+            e.preventDefault();
+
+            // Clear previous error messages
+            const errorMessage = document.getElementById("error-message");
+            errorMessage.classList.add("hidden");
+            errorMessage.textContent = "";
+
+            try {
+                // Get form values
+                const keywordsInput = document.getElementById("keywords").value.trim();
+                const width = parseInt(document.getElementById("width").value);
+                const height = parseInt(document.getElementById("height").value);
+                const shape = document.getElementById("shape").value;
+                const selectedTheme = colorThemes.find(theme => theme.name === document.getElementById("theme").value);
+
+                // Validate inputs
+                if (!keywordsInput) {
+                    throw new Error("Please enter at least one keyword.");
+                }
+                if (isNaN(width) || width < 100) {
+                    throw new Error("Width must be at least 100 pixels.");
+                }
+                if (isNaN(height) || height < 100) {
+                    throw new Error("Height must be at least 100 pixels.");
+                }
+
+                // Parse keywords and assign weights in descending order
+                const keywords = keywordsInput.split("\n").map(line => line.trim()).filter(word => word);
+                if (keywords.length === 0) {
+                    throw new Error("No valid keywords provided.");
+                }
+                const wordList = keywords.map((word, index) => {
+                    const weight = Math.max(1, 10 - index); // First word: 10, second: 9, ..., down to 1
+                    return [word, weight];
+                });
+
+                console.log("Word list:", wordList); // Debug: Log the word list
+
+                // Set canvas dimensions
+                const canvas = document.getElementById("wordcloud");
+                canvas.width = width;
+                canvas.height = height;
+
+                // Verify canvas context
+                const ctx = canvas.getContext("2d");
+                if (!ctx) {
+                    throw new Error("Failed to get canvas context.");
+                }
+
+                // Generate random color from theme
+                const getRandomColor = () => {
+                    const colors = selectedTheme.colors;
+                    return colors[Math.floor(Math.random() * colors.length)];
+                };
+
+                // Generate word cloud
+                if (typeof WordCloud !== "undefined") {
+                    WordCloud(canvas, {
+                        list: wordList,
+                        gridSize: Math.max(8, Math.round(width / 50)),
+                        weightFactor: 10, // Scale weights for visibility
+                        fontFamily: "Arial, sans-serif",
+                        fontWeight: "bold",
+                        color: getRandomColor,
+                        shape: shape,
+                        rotateRatio: 0.5, // Slight rotation for variety
+                        rotationSteps: 2,
+                        backgroundColor: "#fff",
+                        shuffle: true,
+                    });
+                    console.log("Word cloud generation attempted.");
+                } else {
+                    throw new Error("WordCloud library is not loaded.");
+                }
+            } catch (error) {
+                errorMessage.textContent = error.message;
+                errorMessage.classList.remove("hidden");
+                console.error("Error generating word cloud:", error);
+            }
+        });
+    </script>
+</body>
+</html>
