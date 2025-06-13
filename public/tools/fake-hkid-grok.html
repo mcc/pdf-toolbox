@@ -100,7 +100,7 @@
                                 <option value="sequential">Sequential</option>
                             </select>
                             <div class="flex-1">
-                                <input id="start-number" type="number" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" value="100000" min="0" max="999999" disabled>
+                                <input id="start-number" class="shadow border rounded w-full py-2 px-3 text-gray-700 focus:outline-none focus:ring-2 focus:ring-blue-500" value="100000" type="text" inputmode="numeric" pattern="\d*" maxlength="6" disabled>
                             </div>
                         </div>
                     </div>
@@ -428,7 +428,7 @@
             });
             const checkDigitNum = (11 - (sum % 11)) % 11;
             const checkDigit = checkDigitNum === 10 ? 'A' : checkDigitNum.toString();
-            return { full: `${hkidPrefix}${digits}(${checkDigit})`, main: `${hkidPrefix}${digits}`, check: checkDigit };
+            return { full: `${hkidPrefix}${digits}(${checkDigit})`, main: `${hkidPrefix}${digits}`, check: checkDigit, digits:parseInt(digits, 10) };
         }
 
         // Generate Macau ID
@@ -564,7 +564,7 @@
             let idResult;
             if (idType === 'hkid') {
                 if (suffixMode === 'sequential') {
-                    if (currentNumber === null) currentNumber = parseInt(document.getElementById('start-number').value) || 0;
+                    currentNumber = parseInt(document.getElementById('start-number').value) || 0;
                     idResult = generateHKID(prefix, currentNumber);
                     currentNumber = idResult.digits + 1;
                     if (currentNumber > 999999) currentNumber = 0;
@@ -574,7 +574,7 @@
                 }
             } else if (idType === 'macau') {
                 if (suffixMode === 'sequential') {
-                    if (currentNumber === null) currentNumber = parseInt(document.getElementById('start-number').value) || 0;
+                    currentNumber = parseInt(document.getElementById('start-number').value) || 0;
                     idResult = generateMacauID(currentNumber);
                     currentNumber = parseInt(idResult.main) + 1;
                     if (currentNumber > 99999999) currentNumber = 0;
