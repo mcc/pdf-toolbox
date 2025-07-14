@@ -88,6 +88,15 @@
             width: 90%;
             max-width: 400px;
         }
+        /* Style for hidden file input */
+        input[type="file"].hidden-input {
+            width: 0.1px;
+            height: 0.1px;
+            opacity: 0;
+            overflow: hidden;
+            position: absolute;
+            z-index: -1;
+        }
     </style>
 </head>
 <body class="bg-gray-100 text-gray-800">
@@ -107,24 +116,38 @@
     <div class="container mx-auto p-4">
         <header class="bg-white rounded-lg shadow-md p-6 mb-6">
             <h1 class="text-3xl font-bold text-center text-gray-700">Interactive PDF Editor</h1>
-            <p class="text-center text-gray-500 mt-2">Upload a PDF, click to add text, and drag to position.</p>
+            <p class="text-center text-gray-500 mt-2">Upload a PDF, add text, and save/load your progress.</p>
 
             <!-- Controls -->
             <div class="flex flex-wrap justify-center items-center gap-4 mt-6">
+                <!-- PDF Upload -->
                 <div>
-                    <label for="pdf-upload" class="block text-sm font-medium text-gray-700 mb-1">Upload PDF</label>
+                    <label for="pdf-upload" class="block text-sm font-medium text-gray-700 mb-1">1. Upload PDF</label>
                     <input type="file" id="pdf-upload" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
                 </div>
+                <!-- Load Progress -->
+                <div>
+                     <label for="load-progress-label" class="block text-sm font-medium text-gray-700 mb-1">2. Load Progress (Optional)</label>
+                     <input type="file" id="load-progress" accept=".json" class="hidden-input">
+                     <label for="load-progress" id="load-progress-label" class="bg-green-500 text-white font-bold py-2 px-4 rounded-md shadow-md hover:bg-green-600 cursor-pointer">Load JSON</label>
+                </div>
+                <!-- Font Size -->
                 <div>
                     <label for="font-size" class="block text-sm font-medium text-gray-700 mb-1">Font Size (pt)</label>
                     <input type="number" id="font-size" value="12" min="1" class="w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                 </div>
+                 <!-- Grid Toggle -->
                  <div class="flex items-center self-end pt-5">
                     <input type="checkbox" id="show-grid" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                     <label for="show-grid" class="ml-2 block text-sm text-gray-900">Show Grid</label>
                 </div>
+                <!-- Save Progress -->
                 <div class="self-end">
-                    <button id="save-pdf" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-md shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                    <button id="save-progress" class="bg-green-600 text-white font-bold py-2 px-6 rounded-md shadow-md hover:bg-green-700 disabled:bg-gray-400" disabled>Save Progress</button>
+                </div>
+                <!-- Save PDF -->
+                <div class="self-end">
+                    <button id="save-pdf" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-md shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400" disabled>
                         Save & Download PDF
                     </button>
                 </div>
@@ -159,6 +182,8 @@
         const textInput = document.getElementById('text-input');
         const saveTextButton = document.getElementById('save-text');
         const cancelTextButton = document.getElementById('cancel-text');
+        const saveProgressButton = document.getElementById('save-progress');
+        const loadProgressInput = document.getElementById('load-progress');
 
         // State
         let originalPdfBytes = null;
@@ -172,6 +197,8 @@
         showGridCheckbox.addEventListener('change', toggleGridVisibility);
         saveTextButton.addEventListener('click', confirmAddText);
         cancelTextButton.addEventListener('click', () => textModal.classList.add('hidden'));
+        saveProgressButton.addEventListener('click', saveProgress);
+        loadProgressInput.addEventListener('change', handleLoadProgress);
 
         async function handlePdfUpload(event) {
             const file = event.target.files[0];
@@ -179,11 +206,13 @@
                 showNotification('Please select a valid PDF file.');
                 return;
             }
-            addedTexts = [];
+            clearAllEdits();
             pdfContainer.innerHTML = '';
             placeholder.classList.add('hidden');
             loadingIndicator.classList.remove('hidden');
             saveButton.disabled = true;
+            saveProgressButton.disabled = true;
+
             try {
                 originalPdfBytes = await file.arrayBuffer();
                 await renderPdf(originalPdfBytes);
@@ -266,6 +295,7 @@
             renderTextOnPage(textItem);
             textModal.classList.add('hidden');
             currentClickPosition = null;
+            updateSaveProgressButtonState();
         }
 
         function renderTextOnPage(textItem) {
@@ -348,6 +378,61 @@
             gridLayers.forEach(layer => layer.style.display = display);
         }
 
+        function saveProgress() {
+            if (addedTexts.length === 0) {
+                showNotification("No edits to save.");
+                return;
+            }
+            const jsonString = JSON.stringify(addedTexts, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'pdf-edits.json';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+
+        function handleLoadProgress(event) {
+            if (!originalPdfBytes) {
+                showNotification("Please load a PDF before loading progress.");
+                event.target.value = null; // Reset file input
+                return;
+            }
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const loadedData = JSON.parse(e.target.result);
+                    if (!Array.isArray(loadedData)) {
+                        throw new Error("Invalid JSON format.");
+                    }
+                    clearAllEdits();
+                    addedTexts = loadedData;
+                    addedTexts.forEach(renderTextOnPage);
+                    updateSaveProgressButtonState();
+                    showNotification("Progress loaded successfully.");
+                } catch (error) {
+                    console.error("Failed to load progress:", error);
+                    showNotification("Could not load or parse the JSON file.");
+                }
+            };
+            reader.readAsText(file);
+            event.target.value = null; // Reset file input
+        }
+        
+        function clearAllEdits() {
+            addedTexts = [];
+            document.querySelectorAll('.added-text').forEach(el => el.remove());
+            updateSaveProgressButtonState();
+        }
+        
+        function updateSaveProgressButtonState() {
+            saveProgressButton.disabled = addedTexts.length === 0;
+        }
+
         async function savePdf() {
             if (!originalPdfBytes) {
                 showNotification('No PDF loaded.');
@@ -366,13 +451,11 @@
                     const page = pages[textItem.pageNumber - 1];
                     const { height } = page.getSize();
                     
-                    // Convert coordinates from the scaled view space to the unscaled PDF space
                     const unscaledX = textItem.x / scale;
                     const unscaledY = textItem.y / scale;
 
                     page.drawText(textItem.text, {
                         x: unscaledX,
-                        // pdf-lib's y-origin is at the bottom-left, so we convert from our top-left visual origin
                         y: height - unscaledY - textItem.fontSize,
                         size: textItem.fontSize,
                         font: font,
@@ -397,9 +480,8 @@
         }
         
         function showNotification(message) {
-            // A simple, non-blocking notification. Could be replaced with a more robust library.
             const notification = document.createElement('div');
-            notification.className = 'fixed top-5 right-5 bg-red-500 text-white py-2 px-4 rounded-lg shadow-lg';
+            notification.className = 'fixed top-5 right-5 bg-blue-500 text-white py-2 px-4 rounded-lg shadow-lg z-2000';
             notification.innerText = message;
             document.body.appendChild(notification);
             setTimeout(() => {
