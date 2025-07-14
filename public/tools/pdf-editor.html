@@ -1,0 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Editor with Grid</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- pdf.js for rendering PDFs -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <!-- pdf-lib.js for creating and modifying PDFs -->
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <!-- Inter font -->
+    <link rel="stylesheet" href="https://rsms.me/inter/inter.css">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        #pdf-container {
+            width: 100%;
+            max-width: 800px;
+            margin: 2rem auto;
+            border: 1px solid #e2e8f0;
+            background-color: #f7fafc;
+        }
+        .pdf-page {
+            position: relative;
+            margin: 0 auto 1rem auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        .pdf-page canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+        }
+        .text-layer, .grid-layer {
+            position: absolute;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            overflow: hidden;
+            pointer-events: none;
+        }
+        .added-text {
+            position: absolute;
+            white-space: pre;
+            cursor: move;
+            transform-origin: 0% 0%;
+            pointer-events: all;
+            border: 1px dashed transparent;
+            user-select: none;
+        }
+        .added-text:hover {
+            border-color: #3b82f6;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 2rem auto;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Modal Styles */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+            width: 90%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+    <!-- Text Input Modal -->
+    <div id="text-modal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 class="text-lg font-semibold mb-4">Add Text</h3>
+            <textarea id="text-input" class="w-full p-2 border border-gray-300 rounded-md mb-4" rows="3" placeholder="Enter your text here..."></textarea>
+            <div class="flex justify-end gap-3">
+                <button id="cancel-text" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-400">Cancel</button>
+                <button id="save-text" class="bg-blue-600 text-white font-bold py-2 px-4 rounded-md hover:bg-blue-700">Add Text</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4">
+        <header class="bg-white rounded-lg shadow-md p-6 mb-6">
+            <h1 class="text-3xl font-bold text-center text-gray-700">Interactive PDF Editor</h1>
+            <p class="text-center text-gray-500 mt-2">Upload a PDF, click to add text, and drag to position.</p>
+
+            <!-- Controls -->
+            <div class="flex flex-wrap justify-center items-center gap-4 mt-6">
+                <div>
+                    <label for="pdf-upload" class="block text-sm font-medium text-gray-700 mb-1">Upload PDF</label>
+                    <input type="file" id="pdf-upload" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
+                </div>
+                <div>
+                    <label for="font-size" class="block text-sm font-medium text-gray-700 mb-1">Font Size (pt)</label>
+                    <input type="number" id="font-size" value="12" min="1" class="w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
+                </div>
+                 <div class="flex items-center self-end pt-5">
+                    <input type="checkbox" id="show-grid" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
+                    <label for="show-grid" class="ml-2 block text-sm text-gray-900">Show Grid</label>
+                </div>
+                <div class="self-end">
+                    <button id="save-pdf" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-md shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400 disabled:cursor-not-allowed" disabled>
+                        Save & Download PDF
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- PDF Rendering Area -->
+        <div id="pdf-viewer" class="bg-white rounded-lg shadow-md p-4 min-h-[300px]">
+            <div id="loading-indicator" class="hidden text-center">
+                 <div class="loader"></div>
+                 <p class="text-gray-600">Loading PDF...</p>
+            </div>
+            <div id="pdf-container"></div>
+             <div id="placeholder" class="text-center text-gray-500 py-20">
+                <p>Please upload a PDF file to begin editing.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+
+        // DOM Elements
+        const pdfUpload = document.getElementById('pdf-upload');
+        const pdfContainer = document.getElementById('pdf-container');
+        const saveButton = document.getElementById('save-pdf');
+        const fontSizeInput = document.getElementById('font-size');
+        const loadingIndicator = document.getElementById('loading-indicator');
+        const placeholder = document.getElementById('placeholder');
+        const showGridCheckbox = document.getElementById('show-grid');
+        const textModal = document.getElementById('text-modal');
+        const textInput = document.getElementById('text-input');
+        const saveTextButton = document.getElementById('save-text');
+        const cancelTextButton = document.getElementById('cancel-text');
+
+        // State
+        let originalPdfBytes = null;
+        let addedTexts = [];
+        let currentClickPosition = null;
+        let activeDrag = { element: null, textItem: null, offsetX: 0, offsetY: 0 };
+
+        // Event Listeners
+        pdfUpload.addEventListener('change', handlePdfUpload);
+        saveButton.addEventListener('click', savePdf);
+        showGridCheckbox.addEventListener('change', toggleGridVisibility);
+        saveTextButton.addEventListener('click', confirmAddText);
+        cancelTextButton.addEventListener('click', () => textModal.classList.add('hidden'));
+
+        async function handlePdfUpload(event) {
+            const file = event.target.files[0];
+            if (!file || file.type !== 'application/pdf') {
+                showNotification('Please select a valid PDF file.');
+                return;
+            }
+            addedTexts = [];
+            pdfContainer.innerHTML = '';
+            placeholder.classList.add('hidden');
+            loadingIndicator.classList.remove('hidden');
+            saveButton.disabled = true;
+            try {
+                originalPdfBytes = await file.arrayBuffer();
+                await renderPdf(originalPdfBytes);
+            } catch (error) {
+                console.error('Error reading file:', error);
+                showNotification('Could not read the PDF file.');
+                loadingIndicator.classList.add('hidden');
+                placeholder.classList.remove('hidden');
+            }
+        }
+
+        async function renderPdf(data) {
+            try {
+                const pdfDoc = await pdfjsLib.getDocument({ data }).promise;
+                for (let i = 1; i <= pdfDoc.numPages; i++) {
+                    const page = await pdfDoc.getPage(i);
+                    const viewport = page.getViewport({ scale: 1.5 });
+                    const pageWrapper = document.createElement('div');
+                    pageWrapper.className = 'pdf-page';
+                    pageWrapper.dataset.pageNumber = i;
+                    pageWrapper.style.width = `${viewport.width}px`;
+                    pageWrapper.style.height = `${viewport.height}px`;
+
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    const textLayer = document.createElement('div');
+                    textLayer.className = 'text-layer';
+                    
+                    const gridLayer = document.createElement('div');
+                    gridLayer.className = 'grid-layer';
+                    gridLayer.style.display = showGridCheckbox.checked ? 'block' : 'none';
+
+                    pageWrapper.append(canvas, textLayer, gridLayer);
+                    pdfContainer.appendChild(pageWrapper);
+
+                    await page.render({ canvasContext: context, viewport }).promise;
+                    drawGrid(gridLayer, viewport.width, viewport.height);
+                    pageWrapper.addEventListener('click', handlePageClick);
+                }
+            } catch (error) {
+                console.error('Error rendering PDF:', error);
+                showNotification('Could not render the PDF. It might be protected.');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+                saveButton.disabled = false;
+            }
+        }
+
+        function handlePageClick(event) {
+            if (event.target.closest('.added-text')) return;
+            const pageWrapper = event.currentTarget;
+            const rect = pageWrapper.getBoundingClientRect();
+            currentClickPosition = {
+                x: event.clientX - rect.left,
+                y: event.clientY - rect.top,
+                pageNumber: parseInt(pageWrapper.dataset.pageNumber, 10)
+            };
+            textInput.value = '';
+            textModal.classList.remove('hidden');
+            textInput.focus();
+        }
+
+        function confirmAddText() {
+            const text = textInput.value;
+            if (!text || !currentClickPosition) return;
+
+            const fontSize = parseInt(fontSizeInput.value, 10);
+            const textItem = {
+                id: `text-${Date.now()}`,
+                text,
+                x: currentClickPosition.x,
+                y: currentClickPosition.y,
+                pageNumber: currentClickPosition.pageNumber,
+                fontSize,
+            };
+            addedTexts.push(textItem);
+            renderTextOnPage(textItem);
+            textModal.classList.add('hidden');
+            currentClickPosition = null;
+        }
+
+        function renderTextOnPage(textItem) {
+            const pageWrapper = document.querySelector(`.pdf-page[data-page-number="${textItem.pageNumber}"]`);
+            if (!pageWrapper) return;
+
+            const textLayer = pageWrapper.querySelector('.text-layer');
+            const textDiv = document.createElement('div');
+            textDiv.id = textItem.id;
+            textDiv.className = 'added-text';
+            textDiv.innerText = textItem.text;
+            textDiv.style.left = `${textItem.x}px`;
+            textDiv.style.top = `${textItem.y}px`;
+            textDiv.style.fontSize = `${textItem.fontSize * 1.33}px`;
+            textDiv.style.color = 'black';
+            textDiv.style.fontFamily = 'Helvetica, Arial, sans-serif';
+            textDiv.style.lineHeight = '1';
+            
+            textDiv.addEventListener('mousedown', startDrag);
+            textLayer.appendChild(textDiv);
+        }
+
+        function startDrag(event) {
+            event.preventDefault();
+            const element = event.target;
+            const textItem = addedTexts.find(t => t.id === element.id);
+            if (!textItem) return;
+
+            activeDrag.element = element;
+            activeDrag.textItem = textItem;
+            activeDrag.offsetX = event.clientX - element.getBoundingClientRect().left;
+            activeDrag.offsetY = event.clientY - element.getBoundingClientRect().top;
+            
+            document.addEventListener('mousemove', dragMove);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function dragMove(event) {
+            if (!activeDrag.element) return;
+            const pageWrapper = activeDrag.element.closest('.pdf-page');
+            const pageRect = pageWrapper.getBoundingClientRect();
+            
+            let newX = event.clientX - pageRect.left - activeDrag.offsetX;
+            let newY = event.clientY - pageRect.top - activeDrag.offsetY;
+
+            // Constrain to page boundaries
+            newX = Math.max(0, Math.min(newX, pageRect.width - activeDrag.element.offsetWidth));
+            newY = Math.max(0, Math.min(newY, pageRect.height - activeDrag.element.offsetHeight));
+
+            activeDrag.element.style.left = `${newX}px`;
+            activeDrag.element.style.top = `${newY}px`;
+        }
+
+        function stopDrag() {
+            if (activeDrag.textItem && activeDrag.element) {
+                activeDrag.textItem.x = parseFloat(activeDrag.element.style.left);
+                activeDrag.textItem.y = parseFloat(activeDrag.element.style.top);
+            }
+            activeDrag = { element: null, textItem: null, offsetX: 0, offsetY: 0 };
+            document.removeEventListener('mousemove', dragMove);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        function drawGrid(gridLayer, width, height) {
+            const spacing = 20;
+            let svgHtml = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;">`;
+            for (let x = 0; x < width; x += spacing) {
+                svgHtml += `<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="#d1d5db" stroke-width="0.5"/>`;
+            }
+            for (let y = 0; y < height; y += spacing) {
+                svgHtml += `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="#d1d5db" stroke-width="0.5"/>`;
+            }
+            svgHtml += '</svg>';
+            gridLayer.innerHTML = svgHtml;
+        }
+
+        function toggleGridVisibility() {
+            const gridLayers = document.querySelectorAll('.grid-layer');
+            const display = showGridCheckbox.checked ? 'block' : 'none';
+            gridLayers.forEach(layer => layer.style.display = display);
+        }
+
+        async function savePdf() {
+            if (!originalPdfBytes) {
+                showNotification('No PDF loaded.');
+                return;
+            }
+            saveButton.disabled = true;
+            saveButton.innerText = 'Processing...';
+            try {
+                const { PDFDocument, rgb, StandardFonts } = PDFLib;
+                const pdfDoc = await PDFDocument.load(originalPdfBytes);
+                const pages = pdfDoc.getPages();
+                const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+                const scale = 1.5; // The scale used for rendering in renderPdf()
+
+                for (const textItem of addedTexts) {
+                    const page = pages[textItem.pageNumber - 1];
+                    const { height } = page.getSize();
+                    
+                    // Convert coordinates from the scaled view space to the unscaled PDF space
+                    const unscaledX = textItem.x / scale;
+                    const unscaledY = textItem.y / scale;
+
+                    page.drawText(textItem.text, {
+                        x: unscaledX,
+                        // pdf-lib's y-origin is at the bottom-left, so we convert from our top-left visual origin
+                        y: height - unscaledY - textItem.fontSize,
+                        size: textItem.fontSize,
+                        font: font,
+                        color: rgb(0, 0, 0),
+                    });
+                }
+                const pdfBytes = await pdfDoc.save();
+                const blob = new Blob([pdfBytes], { type: 'application/pdf' });
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = 'edited-document.pdf';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            } catch (error) {
+                console.error('Error saving PDF:', error);
+                showNotification('An error occurred while saving the PDF.');
+            } finally {
+                saveButton.disabled = false;
+                saveButton.innerText = 'Save & Download PDF';
+            }
+        }
+        
+        function showNotification(message) {
+            // A simple, non-blocking notification. Could be replaced with a more robust library.
+            const notification = document.createElement('div');
+            notification.className = 'fixed top-5 right-5 bg-red-500 text-white py-2 px-4 rounded-lg shadow-lg';
+            notification.innerText = message;
+            document.body.appendChild(notification);
+            setTimeout(() => {
+                notification.remove();
+            }, 3000);
+        }
+    </script>
+</body>
+</html>
