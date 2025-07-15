@@ -44,15 +44,55 @@
         }
         .added-text {
             position: absolute;
-            white-space: pre;
-            cursor: move;
+            white-space: pre-wrap; /* Allow text to wrap */
+            word-break: break-word;
             transform-origin: 0% 0%;
             pointer-events: all;
             border: 1px dashed transparent;
             user-select: none;
+            padding: 2px;
         }
-        .added-text:hover {
-            border-color: #3b82f6;
+        .added-text.selected {
+            border: 1px solid #3b82f6;
+            background-image: 
+                linear-gradient(to right, rgba(156, 163, 175, 0.3) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(156, 163, 175, 0.3) 1px, transparent 1px);
+            background-size: 10px 10px;
+        }
+        .text-controls {
+            display: none;
+            position: absolute;
+            top: -12px;
+            left: -12px;
+            width: calc(100% + 24px);
+            height: calc(100% + 24px);
+        }
+        .added-text.selected .text-controls {
+            display: block;
+        }
+        .control-icon {
+            position: absolute;
+            width: 24px;
+            height: 24px;
+            background-color: #3b82f6;
+            color: white;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .move-handle {
+            cursor: move;
+            top: 50%;
+            left: -15px;
+            transform: translateY(-50%);
+        }
+        .edit-handle {
+            cursor: pointer;
+            top: 50%;
+            right: -15px;
+            transform: translateY(-50%);
         }
         .loader {
             border: 5px solid #f3f3f3;
@@ -67,7 +107,6 @@
             0% { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        /* Modal Styles */
         .modal-overlay {
             position: fixed;
             top: 0;
@@ -88,7 +127,6 @@
             width: 90%;
             max-width: 400px;
         }
-        /* Style for hidden file input */
         input[type="file"].hidden-input {
             width: 0.1px;
             height: 0.1px;
@@ -104,7 +142,7 @@
     <!-- Text Input Modal -->
     <div id="text-modal" class="modal-overlay hidden">
         <div class="modal-content">
-            <h3 class="text-lg font-semibold mb-4">Add Text</h3>
+            <h3 id="modal-title" class="text-lg font-semibold mb-4">Add Text</h3>
             <textarea id="text-input" class="w-full p-2 border border-gray-300 rounded-md mb-4" rows="3" placeholder="Enter your text here..."></textarea>
             <div class="flex justify-end gap-3">
                 <button id="cancel-text" class="bg-gray-300 text-gray-800 font-bold py-2 px-4 rounded-md hover:bg-gray-400">Cancel</button>
@@ -120,32 +158,26 @@
 
             <!-- Controls -->
             <div class="flex flex-wrap justify-center items-center gap-4 mt-6">
-                <!-- PDF Upload -->
                 <div>
                     <label for="pdf-upload" class="block text-sm font-medium text-gray-700 mb-1">1. Upload PDF</label>
                     <input type="file" id="pdf-upload" accept=".pdf" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer">
                 </div>
-                <!-- Load Progress -->
                 <div>
-                     <label for="load-progress-label" class="block text-sm font-medium text-gray-700 mb-1">2. Load Progress (Optional)</label>
+                     <label for="load-progress-label" class="block text-sm font-medium text-gray-700 mb-1">2. Load Progress</label>
                      <input type="file" id="load-progress" accept=".json" class="hidden-input">
                      <label for="load-progress" id="load-progress-label" class="bg-green-500 text-white font-bold py-2 px-4 rounded-md shadow-md hover:bg-green-600 cursor-pointer">Load JSON</label>
                 </div>
-                <!-- Font Size -->
                 <div>
                     <label for="font-size" class="block text-sm font-medium text-gray-700 mb-1">Font Size (pt)</label>
                     <input type="number" id="font-size" value="12" min="1" class="w-24 p-2 border border-gray-300 rounded-md shadow-sm focus:ring-blue-500 focus:border-blue-500">
                 </div>
-                 <!-- Grid Toggle -->
                  <div class="flex items-center self-end pt-5">
                     <input type="checkbox" id="show-grid" class="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500">
                     <label for="show-grid" class="ml-2 block text-sm text-gray-900">Show Grid</label>
                 </div>
-                <!-- Save Progress -->
                 <div class="self-end">
                     <button id="save-progress" class="bg-green-600 text-white font-bold py-2 px-6 rounded-md shadow-md hover:bg-green-700 disabled:bg-gray-400" disabled>Save Progress</button>
                 </div>
-                <!-- Save PDF -->
                 <div class="self-end">
                     <button id="save-pdf" class="bg-blue-600 text-white font-bold py-2 px-6 rounded-md shadow-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:bg-gray-400" disabled>
                         Save & Download PDF
@@ -179,6 +211,7 @@
         const placeholder = document.getElementById('placeholder');
         const showGridCheckbox = document.getElementById('show-grid');
         const textModal = document.getElementById('text-modal');
+        const modalTitle = document.getElementById('modal-title');
         const textInput = document.getElementById('text-input');
         const saveTextButton = document.getElementById('save-text');
         const cancelTextButton = document.getElementById('cancel-text');
@@ -188,17 +221,24 @@
         // State
         let originalPdfBytes = null;
         let addedTexts = [];
-        let currentClickPosition = null;
+        let editingTextItem = null; // Holds the item being added or edited
         let activeDrag = { element: null, textItem: null, offsetX: 0, offsetY: 0 };
+        let selectedTextId = null;
 
         // Event Listeners
         pdfUpload.addEventListener('change', handlePdfUpload);
         saveButton.addEventListener('click', savePdf);
         showGridCheckbox.addEventListener('change', toggleGridVisibility);
-        saveTextButton.addEventListener('click', confirmAddText);
+        saveTextButton.addEventListener('click', saveTextChanges);
         cancelTextButton.addEventListener('click', () => textModal.classList.add('hidden'));
         saveProgressButton.addEventListener('click', saveProgress);
         loadProgressInput.addEventListener('change', handleLoadProgress);
+        pdfContainer.addEventListener('click', handlePageClick);
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.added-text') && !e.target.closest('.modal-content')) {
+                deselectAllText();
+            }
+        });
 
         async function handlePdfUpload(event) {
             const file = event.target.files[0];
@@ -243,17 +283,16 @@
 
                     const textLayer = document.createElement('div');
                     textLayer.className = 'text-layer';
+                    textLayer.style.pointerEvents = 'all'; // Allow clicks on the layer
                     
                     const gridLayer = document.createElement('div');
                     gridLayer.className = 'grid-layer';
-                    gridLayer.style.display = showGridCheckbox.checked ? 'block' : 'none';
 
                     pageWrapper.append(canvas, textLayer, gridLayer);
                     pdfContainer.appendChild(pageWrapper);
 
                     await page.render({ canvasContext: context, viewport }).promise;
                     drawGrid(gridLayer, viewport.width, viewport.height);
-                    pageWrapper.addEventListener('click', handlePageClick);
                 }
             } catch (error) {
                 console.error('Error rendering PDF:', error);
@@ -265,39 +304,77 @@
         }
 
         function handlePageClick(event) {
-            if (event.target.closest('.added-text')) return;
-            const pageWrapper = event.currentTarget;
-            const rect = pageWrapper.getBoundingClientRect();
-            currentClickPosition = {
-                x: event.clientX - rect.left,
-                y: event.clientY - rect.top,
-                pageNumber: parseInt(pageWrapper.dataset.pageNumber, 10)
-            };
+            const target = event.target;
+            const textElement = target.closest('.added-text');
+
+            if (textElement) {
+                // Clicked on an existing text box or its controls
+                selectText(textElement.id);
+                const action = target.closest('[data-action]')?.dataset.action;
+                if (action === 'edit') {
+                    openEditModal(textElement.id);
+                }
+                // Drag is handled by its own listeners
+            } else if (target.closest('.pdf-page')) {
+                // Clicked on the page background, create new text
+                const pageWrapper = target.closest('.pdf-page');
+                const rect = pageWrapper.getBoundingClientRect();
+                const x = event.clientX - rect.left;
+                const y = event.clientY - rect.top;
+                const pageNumber = parseInt(pageWrapper.dataset.pageNumber, 10);
+                openAddModal(x, y, pageNumber);
+            }
+        }
+
+        function openAddModal(x, y, pageNumber) {
+            editingTextItem = { x, y, pageNumber }; // Temporary storage
+            modalTitle.innerText = "Add Text";
+            saveTextButton.innerText = "Add Text";
             textInput.value = '';
             textModal.classList.remove('hidden');
             textInput.focus();
         }
 
-        function confirmAddText() {
-            const text = textInput.value;
-            if (!text || !currentClickPosition) return;
-
-            const fontSize = parseInt(fontSizeInput.value, 10);
-            const textItem = {
-                id: `text-${Date.now()}`,
-                text,
-                x: currentClickPosition.x,
-                y: currentClickPosition.y,
-                pageNumber: currentClickPosition.pageNumber,
-                fontSize,
-            };
-            addedTexts.push(textItem);
-            renderTextOnPage(textItem);
-            textModal.classList.add('hidden');
-            currentClickPosition = null;
-            updateSaveProgressButtonState();
+        function openEditModal(textId) {
+            const textItem = addedTexts.find(t => t.id === textId);
+            if (!textItem) return;
+            editingTextItem = textItem;
+            modalTitle.innerText = "Edit Text";
+            saveTextButton.innerText = "Save Changes";
+            textInput.value = textItem.text;
+            textModal.classList.remove('hidden');
+            textInput.focus();
         }
 
+        function saveTextChanges() {
+            const text = textInput.value;
+            if (!text || !editingTextItem) return;
+
+            if (editingTextItem.id) { // Editing existing item
+                const textItem = addedTexts.find(t => t.id === editingTextItem.id);
+                textItem.text = text;
+                const textDiv = document.getElementById(textItem.id);
+                textDiv.querySelector('.text-content').innerText = text;
+            } else { // Adding new item
+                const fontSize = parseInt(fontSizeInput.value, 10);
+                const newTextItem = {
+                    id: `text-${Date.now()}`,
+                    text,
+                    x: editingTextItem.x,
+                    y: editingTextItem.y,
+                    pageNumber: editingTextItem.pageNumber,
+                    fontSize,
+                };
+                addedTexts.push(newTextItem);
+                renderTextOnPage(newTextItem);
+                selectText(newTextItem.id);
+            }
+
+            textModal.classList.add('hidden');
+            editingTextItem = null;
+            updateSaveProgressButtonState();
+        }
+        
         function renderTextOnPage(textItem) {
             const pageWrapper = document.querySelector(`.pdf-page[data-page-number="${textItem.pageNumber}"]`);
             if (!pageWrapper) return;
@@ -306,42 +383,90 @@
             const textDiv = document.createElement('div');
             textDiv.id = textItem.id;
             textDiv.className = 'added-text';
-            textDiv.innerText = textItem.text;
             textDiv.style.left = `${textItem.x}px`;
             textDiv.style.top = `${textItem.y}px`;
-            textDiv.style.fontSize = `${textItem.fontSize * 1.33}px`;
+            textDiv.style.fontSize = `${textItem.fontSize * 1.33}px`; // Visual scale adjustment
             textDiv.style.color = 'black';
             textDiv.style.fontFamily = 'Helvetica, Arial, sans-serif';
-            textDiv.style.lineHeight = '1';
+            textDiv.style.lineHeight = '1.2';
+            textDiv.style.maxWidth = `${pageWrapper.offsetWidth - textItem.x}px`;
+
+            const contentSpan = document.createElement('span');
+            contentSpan.className = 'text-content';
+            contentSpan.innerText = textItem.text;
+
+            const controlsDiv = document.createElement('div');
+            controlsDiv.className = 'text-controls';
+            controlsDiv.innerHTML = `
+                <div class="control-icon move-handle" data-action="move">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16"><path d="M7.646.146a.5.5 0 0 1 .708 0l2 2a.5.5 0 0 1-.708.708L8.5 1.707V5.5a.5.5 0 0 1-1 0V1.707L6.354 2.854a.5.5 0 1 1-.708-.708l2-2zM8 10a.5.5 0 0 1 .5.5v3.793l1.146-1.147a.5.5 0 0 1 .708.708l-2 2a.5.5 0 0 1-.708 0l-2-2a.5.5 0 0 1 .708-.708L7.5 14.293V10.5A.5.5 0 0 1 8 10zM.146 8.354a.5.5 0 0 1 0-.708l2-2a.5.5 0 1 1 .708.708L1.707 7.5H5.5a.5.5 0 0 1 0 1H1.707l1.147 1.146a.5.5 0 0 1-.708.708l-2-2zM10 8a.5.5 0 0 1 .5-.5h3.793l-1.147-1.146a.5.5 0 0 1 .708-.708l2 2a.5.5 0 0 1 0 .708l-2 2a.5.5 0 0 1-.708-.708L14.293 8.5H10.5A.5.5 0 0 1 10 8z"/></svg>
+                </div>
+                <div class="control-icon edit-handle" data-action="edit">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="currentColor" viewBox="0 0 16 16"><path d="M12.854.146a.5.5 0 0 0-.707 0L10.5 1.793 14.207 5.5l1.647-1.646a.5.5 0 0 0 0-.708l-3-3zm.646 6.061L9.793 2.5 3.293 9H3.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.5h.5a.5.5 0 0 1 .5.5v.207l6.5-6.5zm-7.468 7.468A.5.5 0 0 1 6 13.5V13h-.5a.5.5 0 0 1-.5-.5V12h-.5a.5.5 0 0 1-.5-.5V11h-.5a.5.5 0 0 1-.5-.5V10h-.5a.499.499 0 0 1-.175-.032l-.179.178a.5.5 0 0 0-.11.168l-2 5a.5.5 0 0 0 .65.65l5-2a.5.5 0 0 0 .168-.11l.178-.178z"/></svg>
+                </div>
+            `;
             
-            textDiv.addEventListener('mousedown', startDrag);
+            textDiv.append(contentSpan, controlsDiv);
             textLayer.appendChild(textDiv);
+            
+            const moveHandle = textDiv.querySelector('.move-handle');
+            moveHandle.addEventListener('mousedown', startDrag);
+            moveHandle.addEventListener('touchstart', startDrag, { passive: false });
+        }
+
+        function selectText(textId) {
+            deselectAllText();
+            selectedTextId = textId;
+            const textDiv = document.getElementById(textId);
+            if (textDiv) {
+                textDiv.classList.add('selected');
+            }
+        }
+
+        function deselectAllText() {
+            if (selectedTextId) {
+                const textDiv = document.getElementById(selectedTextId);
+                if (textDiv) textDiv.classList.remove('selected');
+            }
+            selectedTextId = null;
         }
 
         function startDrag(event) {
             event.preventDefault();
-            const element = event.target;
+            const element = event.target.closest('.added-text');
             const textItem = addedTexts.find(t => t.id === element.id);
             if (!textItem) return;
 
             activeDrag.element = element;
             activeDrag.textItem = textItem;
-            activeDrag.offsetX = event.clientX - element.getBoundingClientRect().left;
-            activeDrag.offsetY = event.clientY - element.getBoundingClientRect().top;
             
-            document.addEventListener('mousemove', dragMove);
-            document.addEventListener('mouseup', stopDrag);
+            const isTouchEvent = event.type === 'touchstart';
+            const moveEvent = isTouchEvent ? 'touchmove' : 'mousemove';
+            const endEvent = isTouchEvent ? 'touchend' : 'mouseup';
+            
+            const startX = isTouchEvent ? event.touches[0].clientX : event.clientX;
+            const startY = isTouchEvent ? event.touches[0].clientY : event.clientY;
+
+            activeDrag.offsetX = startX - element.getBoundingClientRect().left;
+            activeDrag.offsetY = startY - element.getBoundingClientRect().top;
+            
+            document.addEventListener(moveEvent, dragMove);
+            document.addEventListener(endEvent, stopDrag);
         }
 
         function dragMove(event) {
             if (!activeDrag.element) return;
+            
+            const isTouchEvent = event.type === 'touchmove';
+            const clientX = isTouchEvent ? event.touches[0].clientX : event.clientX;
+            const clientY = isTouchEvent ? event.touches[0].clientY : event.clientY;
+
             const pageWrapper = activeDrag.element.closest('.pdf-page');
             const pageRect = pageWrapper.getBoundingClientRect();
             
-            let newX = event.clientX - pageRect.left - activeDrag.offsetX;
-            let newY = event.clientY - pageRect.top - activeDrag.offsetY;
+            let newX = clientX - pageRect.left - activeDrag.offsetX;
+            let newY = clientY - pageRect.top - activeDrag.offsetY;
 
-            // Constrain to page boundaries
             newX = Math.max(0, Math.min(newX, pageRect.width - activeDrag.element.offsetWidth));
             newY = Math.max(0, Math.min(newY, pageRect.height - activeDrag.element.offsetHeight));
 
@@ -349,24 +474,28 @@
             activeDrag.element.style.top = `${newY}px`;
         }
 
-        function stopDrag() {
+        function stopDrag(event) {
+            const isTouchEvent = event.type === 'touchend';
+            const moveEvent = isTouchEvent ? 'touchmove' : 'mousemove';
+            const endEvent = isTouchEvent ? 'touchend' : 'mouseup';
+
             if (activeDrag.textItem && activeDrag.element) {
                 activeDrag.textItem.x = parseFloat(activeDrag.element.style.left);
                 activeDrag.textItem.y = parseFloat(activeDrag.element.style.top);
             }
             activeDrag = { element: null, textItem: null, offsetX: 0, offsetY: 0 };
-            document.removeEventListener('mousemove', dragMove);
-            document.removeEventListener('mouseup', stopDrag);
+            document.removeEventListener(moveEvent, dragMove);
+            document.removeEventListener(endEvent, stopDrag);
         }
 
         function drawGrid(gridLayer, width, height) {
             const spacing = 20;
             let svgHtml = `<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" style="position:absolute;top:0;left:0;">`;
             for (let x = 0; x < width; x += spacing) {
-                svgHtml += `<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="#d1d5db" stroke-width="0.5"/>`;
+                svgHtml += `<line x1="${x}" y1="0" x2="${x}" y2="${height}" stroke="#e5e7eb" stroke-width="0.5"/>`;
             }
             for (let y = 0; y < height; y += spacing) {
-                svgHtml += `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="#d1d5db" stroke-width="0.5"/>`;
+                svgHtml += `<line x1="0" y1="${y}" x2="${width}" y2="${y}" stroke="#e5e7eb" stroke-width="0.5"/>`;
             }
             svgHtml += '</svg>';
             gridLayer.innerHTML = svgHtml;
@@ -396,7 +525,7 @@
         function handleLoadProgress(event) {
             if (!originalPdfBytes) {
                 showNotification("Please load a PDF before loading progress.");
-                event.target.value = null; // Reset file input
+                event.target.value = null;
                 return;
             }
             const file = event.target.files[0];
@@ -406,9 +535,7 @@
             reader.onload = function(e) {
                 try {
                     const loadedData = JSON.parse(e.target.result);
-                    if (!Array.isArray(loadedData)) {
-                        throw new Error("Invalid JSON format.");
-                    }
+                    if (!Array.isArray(loadedData)) throw new Error("Invalid JSON format.");
                     clearAllEdits();
                     addedTexts = loadedData;
                     addedTexts.forEach(renderTextOnPage);
@@ -420,7 +547,7 @@
                 }
             };
             reader.readAsText(file);
-            event.target.value = null; // Reset file input
+            event.target.value = null;
         }
         
         function clearAllEdits() {
@@ -445,7 +572,7 @@
                 const pdfDoc = await PDFDocument.load(originalPdfBytes);
                 const pages = pdfDoc.getPages();
                 const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
-                const scale = 1.5; // The scale used for rendering in renderPdf()
+                const scale = 1.5;
 
                 for (const textItem of addedTexts) {
                     const page = pages[textItem.pageNumber - 1];
@@ -460,6 +587,8 @@
                         size: textItem.fontSize,
                         font: font,
                         color: rgb(0, 0, 0),
+                        lineHeight: textItem.fontSize * 1.2,
+                        maxWidth: (page.getWidth() - unscaledX)
                     });
                 }
                 const pdfBytes = await pdfDoc.save();
