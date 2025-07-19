@@ -128,12 +128,11 @@
         </div>
     </div>
 
-    <script src="ffmpeg-lib/ffmpeg.js"></script>
+    <script src="./ffmpeg-lib/ffmpeg.js"></script>
     <script>
         const { FFmpeg } = FFmpegWASM;
         let ffmpeg;
 
-        // Get DOM elements
         const uploader = document.getElementById('uploader');
         const extractButton = document.getElementById('extractButton');
         const statusEl = document.getElementById('status');
@@ -144,28 +143,23 @@
 
         let selectedFile = null;
 
-        // --- Core Functions ---
-
-        /**
-         * Loads the FFmpeg instance. It's a large file, so this may take a moment.
-         */
         const loadFFmpeg = async () => {
-            statusEl.textContent = 'Loading FFmpeg library... (this might take a minute)';
+            statusEl.textContent = 'Loading FFmpeg library...';
             ffmpeg = new FFmpeg();
-            ffmpeg.on('log', ({ message }) => {
-                // You can uncomment the line below to see detailed ffmpeg logs in the console
-                // console.log(message);
-            });
+            ffmpeg.on('log', ({ message }) => {});
+            
+            // --- 
+            // MODIFICATION #2: 
+            // The coreURL now points to your local ffmpeg-core.js file.
+            // The library will automatically find the .wasm and .worker.js files
+            // in the same directory.
+            // ---
             await ffmpeg.load({
-                coreURL: "https://unpkg.com/@ffmpeg/core@0.12.6/dist/umd/ffmpeg-core.js"
+                coreURL: "./ffmpeg-lib/ffmpeg-core.js"
             });
             statusEl.textContent = 'FFmpeg is ready. Please select a file.';
         };
         
-        /**
-         * Converts the loaded video file to an MP3.
-         * @param {File} videoFile The video file selected by the user.
-         */
         const extractAudio = async (videoFile) => {
             if (!ffmpeg || !ffmpeg.loaded) {
                 await loadFFmpeg();
@@ -175,7 +169,6 @@
                 return;
             }
 
-            // Reset UI for new conversion
             extractButton.disabled = true;
             downloadLink.style.display = 'none';
             progressBar.style.display = 'block';
@@ -183,49 +176,35 @@
             progressText.textContent = '';
             statusEl.textContent = 'Preparing your file...';
 
-            // Write the file to FFmpeg's virtual file system
             const inputFileName = 'input.video';
             const outputFileName = 'output.mp3';
             await ffmpeg.writeFile(inputFileName, new Uint8Array(await videoFile.arrayBuffer()));
             
             statusEl.textContent = 'Starting conversion...';
             
-            // Set up progress monitoring
             ffmpeg.on('progress', ({ progress }) => {
                 const percentage = Math.round(progress * 100);
                 progressBar.value = percentage;
                 progressText.textContent = `${percentage}% complete`;
             });
             
-            // Run the FFmpeg command
-            // -i input.video: specifies the input file
-            // -vn: removes the video track
-            // -ab 192k: sets the audio bitrate to 192 kbps
-            // output.mp3: the name of the output file
             await ffmpeg.exec(['-i', inputFileName, '-vn', '-b:a', '192k', outputFileName]);
             
             statusEl.textContent = 'Conversion complete!';
             progressText.textContent = '';
             progressBar.style.display = 'none';
 
-            // Read the result from the virtual file system
             const data = await ffmpeg.readFile(outputFileName);
 
-            // Create a download link for the MP3
             const audioBlob = new Blob([data.buffer], { type: 'audio/mpeg' });
             const url = URL.createObjectURL(audioBlob);
             downloadLink.href = url;
             downloadLink.download = `${videoFile.name.split('.').slice(0, -1).join('.')}.mp3`;
             downloadLink.style.display = 'inline-block';
 
-            // Clean up
             extractButton.disabled = false;
         };
 
-
-        // --- Event Listeners ---
-
-        // Handle file selection
         uploader.addEventListener('change', (event) => {
             selectedFile = event.target.files?.[0];
             if (selectedFile) {
@@ -239,21 +218,18 @@
             }
         });
 
-        // Handle button click
         extractButton.addEventListener('click', () => {
             extractAudio(selectedFile).catch(error => {
                 console.error('An error occurred during extraction:', error);
-                statusEl.textContent = 'An error occurred. Please check the console or try a different file.';
+                statusEl.textContent = 'An error occurred. Please try a different file.';
                 extractButton.disabled = false;
             });
         });
 
-        // --- Initial Load ---
         loadFFmpeg().catch(err => {
             console.error("Failed to load FFmpeg:", err);
-            statusEl.textContent = 'Error: Could not load the required FFmpeg library. Please refresh the page.';
+            statusEl.textContent = 'Error: Could not load the FFmpeg library. Please check file paths.';
         });
-
     </script>
 
 </body>
