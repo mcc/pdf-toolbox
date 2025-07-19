@@ -128,7 +128,7 @@
         </div>
     </div>
 
-    <script src="./ffmpeg-lib/ffmpeg.js"></script>
+    <script src="ffmpeg-lib/ffmpeg.js"></script>
     <script>
         const { FFmpeg } = FFmpegWASM;
         let ffmpeg;
@@ -155,7 +155,7 @@
             // in the same directory.
             // ---
             await ffmpeg.load({
-                coreURL: "./ffmpeg-lib/ffmpeg-core.js"
+                coreURL: "ffmpeg-lib/ffmpeg-core.js"
             });
             statusEl.textContent = 'FFmpeg is ready. Please select a file.';
         };
