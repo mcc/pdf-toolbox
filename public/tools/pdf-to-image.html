@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF to Image Converter</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 20px; }
+        #pdf-canvas { border: 1px solid black; margin-top: 20px; }
+        #controls { margin-bottom: 20px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+    <h1>PDF to Image Converter</h1>
+    <div id="controls">
+        <input type="file" id="pdf-file" accept="application/pdf">
+    </div>
+    <canvas id="pdf-canvas"></canvas>
+    <div id="navigation-controls" style="display: none;">
+        <button id="prev-page">Previous</button>
+        <span id="page-num"></span> / <span id="page-count"></span>
+        <button id="next-page">Next</button>
+    </div>
+    <div id="download-controls" style="display: none;">
+        <button id="download-image">Download as PNG</button>
+    </div>
+
+    <script src="js/pdf.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'js/pdf.worker.js';
+
+        const fileInput = document.getElementById('pdf-file');
+        const canvas = document.getElementById('pdf-canvas');
+        const context = canvas.getContext('2d');
+        const downloadBtn = document.getElementById('download-image');
+        const navigationControls = document.getElementById('navigation-controls');
+        const downloadControls = document.getElementById('download-controls');
+        const prevPageBtn = document.getElementById('prev-page');
+        const nextPageBtn = document.getElementById('next-page');
+        const pageNumSpan = document.getElementById('page-num');
+        const pageCountSpan = document.getElementById('page-count');
+
+        let pdfDoc = null;
+        let pageNum = 1;
+        let pageRendering = false;
+        let pageNumPending = null;
+
+        function renderPage(num) {
+            pageRendering = true;
+            pdfDoc.getPage(num).then(page => {
+                const viewport = page.getViewport({ scale: 1.5 });
+                canvas.height = viewport.height;
+                canvas.width = viewport.width;
+
+                const renderContext = {
+                    canvasContext: context,
+                    viewport: viewport
+                };
+                const renderTask = page.render(renderContext);
+                renderTask.promise.then(() => {
+                    pageRendering = false;
+                    if (pageNumPending !== null) {
+                        renderPage(pageNumPending);
+                        pageNumPending = null;
+                    }
+                    navigationControls.style.display = 'block';
+                    downloadControls.style.display = 'block';
+                });
+            });
+            pageNumSpan.textContent = num;
+        }
+
+        function queueRenderPage(num) {
+            if (pageRendering) {
+                pageNumPending = num;
+            } else {
+                renderPage(num);
+            }
+        }
+
+        fileInput.addEventListener('change', event => {
+            const file = event.target.files[0];
+            if (file.type !== 'application/pdf') {
+                alert('Please select a PDF file.');
+                return;
+            }
+
+            const fileReader = new FileReader();
+            fileReader.onload = function() {
+                const typedarray = new Uint8Array(this.result);
+                pdfjsLib.getDocument(typedarray).promise.then(pdf => {
+                    pdfDoc = pdf;
+                    pageCountSpan.textContent = pdfDoc.numPages;
+                    pageNum = 1;
+                    renderPage(pageNum);
+                });
+            };
+            fileReader.readAsArrayBuffer(file);
+        });
+
+        prevPageBtn.addEventListener('click', () => {
+            if (pageNum <= 1) return;
+            pageNum--;
+            queueRenderPage(pageNum);
+        });
+
+        nextPageBtn.addEventListener('click', () => {
+            if (pageNum >= pdfDoc.numPages) return;
+            pageNum++;
+            queueRenderPage(pageNum);
+        });
+
+        downloadBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'pdf-page.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+        });
+    </script>
+</body>
+</html>
