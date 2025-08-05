@@ -10,9 +10,20 @@
             text-align: center;
             padding: 20px;
         }
+        #canvas-container {
+            position: relative;
+            display: inline-block;
+        }
         #canvas {
             border: 1px solid black;
-            margin-top: 20px;
+        }
+        #coords {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            background-color: rgba(255, 255, 255, 0.7);
+            padding: 5px;
+            border-radius: 3px;
         }
         #controls {
             margin-bottom: 20px;
@@ -31,7 +42,10 @@
         <input type="text" id="annotation-input" placeholder="[x, y, w, h]">
         <button id="draw-button">Draw Annotation</button>
     </div>
-    <canvas id="canvas"></canvas>
+    <div id="canvas-container">
+        <canvas id="canvas"></canvas>
+        <div id="coords">x: 0, y: 0</div>
+    </div>
 
     <script>
         const imageLoader = document.getElementById('image-loader');
@@ -39,8 +53,36 @@
         const drawButton = document.getElementById('draw-button');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const coordsDiv = document.getElementById('coords');
 
         let currentImage = null;
+        let rulerSize = 25;
+        let gridSize = 50;
+        let isDrawing = false;
+        let startX, startY, endX, endY;
+
+        function drawGridAndRulers() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (currentImage) {
+                ctx.drawImage(currentImage, 0, 0);
+            }
+
+            // Draw grid
+            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
+            ctx.lineWidth = 1;
+            for (let x = 0; x < canvas.width; x += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
+            }
+            for (let y = 0; y < canvas.height; y += gridSize) {
+                ctx.beginPath();
+                ctx.moveTo(0, y);
+                ctx.lineTo(canvas.width, y);
+                ctx.stroke();
+            }
+        }
 
         imageLoader.addEventListener('change', (e) => {
             const reader = new FileReader();
@@ -49,8 +91,8 @@
                 img.onload = () => {
                     canvas.width = img.width;
                     canvas.height = img.height;
-                    ctx.drawImage(img, 0, 0);
                     currentImage = img;
+                    drawGridAndRulers();
                 };
                 img.src = event.target.result;
             };
@@ -63,8 +105,7 @@
                 return;
             }
 
-            // Redraw the original image to clear previous annotations
-            ctx.drawImage(currentImage, 0, 0);
+            drawGridAndRulers();
 
             const annotationText = annotationInput.value;
             try {
@@ -79,6 +120,49 @@
                 }
             } catch (error) {
                 alert('Invalid annotation format. Please use [x, y, w, h].');
+            }
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = Math.round(e.clientX - rect.left);
+            const y = Math.round(e.clientY - rect.top);
+            coordsDiv.textContent = `x: ${x}, y: ${y}`;
+
+            if (isDrawing) {
+                drawGridAndRulers();
+                endX = x;
+                endY = y;
+                ctx.strokeStyle = 'blue';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(startX, startY, endX - startX, endY - startY);
+            }
+        });
+
+        canvas.addEventListener('mousedown', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            startX = Math.round(e.clientX - rect.left);
+            startY = Math.round(e.clientY - rect.top);
+            isDrawing = true;
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (isDrawing) {
+                isDrawing = false;
+                const rect = canvas.getBoundingClientRect();
+                endX = Math.round(e.clientX - rect.left);
+                endY = Math.round(e.clientY - rect.top);
+
+                const x = Math.min(startX, endX);
+                const y = Math.min(startY, endY);
+                const w = Math.abs(endX - startX);
+                const h = Math.abs(endY - startY);
+
+                annotationInput.value = `[${x}, ${y}, ${w}, ${h}]`;
+                drawGridAndRulers();
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x, y, w, h);
             }
         });
     </script>
