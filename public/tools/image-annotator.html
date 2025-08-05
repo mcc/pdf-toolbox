@@ -13,17 +13,34 @@
         #canvas-container {
             position: relative;
             display: inline-block;
+            margin-top: 25px;
+            margin-left: 25px;
         }
         #canvas {
             border: 1px solid black;
+            cursor: crosshair;
+        }
+        #ruler-x, #ruler-y {
+            position: absolute;
+            background-color: #f0f0f0;
+        }
+        #ruler-x {
+            top: -25px;
+            left: 0;
+            height: 25px;
+        }
+        #ruler-y {
+            top: 0;
+            left: -25px;
+            width: 25px;
         }
         #coords {
             position: absolute;
-            bottom: 5px;
-            right: 5px;
-            background-color: rgba(255, 255, 255, 0.7);
+            background-color: rgba(0, 0, 0, 0.7);
+            color: white;
             padding: 5px;
             border-radius: 3px;
+            pointer-events: none; /* Make sure the coords div doesn't interfere with mouse events */
         }
         #controls {
             margin-bottom: 20px;
@@ -33,55 +50,115 @@
             font-size: 16px;
             margin: 5px;
         }
+        #annotations-list {
+            text-align: left;
+            margin-top: 20px;
+            display: inline-block;
+        }
     </style>
 </head>
 <body>
     <h1>Image Annotator</h1>
     <div id="controls">
         <input type="file" id="image-loader" accept="image/*">
-        <input type="text" id="annotation-input" placeholder="[x, y, w, h]">
-        <button id="draw-button">Draw Annotation</button>
     </div>
     <div id="canvas-container">
+        <canvas id="ruler-x"></canvas>
+        <canvas id="ruler-y"></canvas>
         <canvas id="canvas"></canvas>
-        <div id="coords">x: 0, y: 0</div>
+        <div id="coords" style="display: none;">x: 0, y: 0</div>
+    </div>
+    <div id="annotations-list">
+        <h2>Annotations</h2>
+        <ul id="annotations-ul"></ul>
     </div>
 
     <script>
         const imageLoader = document.getElementById('image-loader');
-        const annotationInput = document.getElementById('annotation-input');
-        const drawButton = document.getElementById('draw-button');
         const canvas = document.getElementById('canvas');
         const ctx = canvas.getContext('2d');
+        const rulerXCanvas = document.getElementById('ruler-x');
+        const rulerXCtx = rulerXCanvas.getContext('2d');
+        const rulerYCanvas = document.getElementById('ruler-y');
+        const rulerYCtx = rulerYCanvas.getContext('2d');
         const coordsDiv = document.getElementById('coords');
+        const annotationsUl = document.getElementById('annotations-ul');
 
         let currentImage = null;
-        let rulerSize = 25;
-        let gridSize = 50;
         let isDrawing = false;
-        let startX, startY, endX, endY;
+        let startX, startY;
+        let annotations = [];
 
-        function drawGridAndRulers() {
+        function drawRulers() {
+            rulerXCanvas.width = canvas.width;
+            rulerXCanvas.height = 25;
+            rulerYCanvas.width = 25;
+            rulerYCanvas.height = canvas.height;
+
+            rulerXCtx.clearRect(0, 0, rulerXCanvas.width, rulerXCanvas.height);
+            rulerYCtx.clearRect(0, 0, rulerYCanvas.width, rulerYCanvas.height);
+
+            rulerXCtx.fillStyle = 'black';
+            rulerYCtx.fillStyle = 'black';
+            rulerXCtx.font = '10px Arial';
+            rulerYCtx.font = '10px Arial';
+
+            for (let x = 0; x < canvas.width; x += 10) {
+                rulerXCtx.beginPath();
+                rulerXCtx.moveTo(x, x % 50 === 0 ? 15 : 20);
+                rulerXCtx.lineTo(x, 25);
+                rulerXCtx.stroke();
+                if (x % 50 === 0) {
+                    rulerXCtx.fillText(x, x + 2, 12);
+                }
+            }
+
+            for (let y = 0; y < canvas.height; y += 10) {
+                rulerYCtx.beginPath();
+                rulerYCtx.moveTo(y % 50 === 0 ? 15 : 20, y);
+                rulerYCtx.lineTo(25, y);
+                rulerYCtx.stroke();
+                if (y % 50 === 0) {
+                    rulerYCtx.save();
+                    rulerYCtx.translate(12, y + 2);
+                    rulerYCtx.rotate(-Math.PI / 2);
+                    rulerYCtx.fillText(y, 0, 0);
+                    rulerYCtx.restore();
+                }
+            }
+        }
+
+        function redrawCanvas() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (currentImage) {
                 ctx.drawImage(currentImage, 0, 0);
             }
+            drawAnnotations();
+        }
 
-            // Draw grid
-            ctx.strokeStyle = 'rgba(0, 0, 0, 0.2)';
-            ctx.lineWidth = 1;
-            for (let x = 0; x < canvas.width; x += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(x, 0);
-                ctx.lineTo(x, canvas.height);
-                ctx.stroke();
-            }
-            for (let y = 0; y < canvas.height; y += gridSize) {
-                ctx.beginPath();
-                ctx.moveTo(0, y);
-                ctx.lineTo(canvas.width, y);
-                ctx.stroke();
-            }
+        function drawAnnotations() {
+            annotations.forEach(rect => {
+                ctx.strokeStyle = 'red';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+            });
+        }
+
+        function updateAnnotationsList() {
+            annotationsUl.innerHTML = '';
+            annotations.forEach((rect, index) => {
+                const li = document.createElement('li');
+                li.textContent = `[${rect.x}, ${rect.y}, ${rect.w}, ${rect.h}]`;
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.onclick = () => {
+                    annotations.splice(index, 1);
+                    updateAnnotationsList();
+                    redrawCanvas();
+                };
+                li.appendChild(deleteBtn);
+                annotationsUl.appendChild(li);
+            });
         }
 
         imageLoader.addEventListener('change', (e) => {
@@ -92,51 +169,39 @@
                     canvas.width = img.width;
                     canvas.height = img.height;
                     currentImage = img;
-                    drawGridAndRulers();
+                    drawRulers();
+                    redrawCanvas();
                 };
                 img.src = event.target.result;
             };
             reader.readAsDataURL(e.target.files[0]);
         });
 
-        drawButton.addEventListener('click', () => {
-            if (!currentImage) {
-                alert('Please upload an image first.');
-                return;
-            }
-
-            drawGridAndRulers();
-
-            const annotationText = annotationInput.value;
-            try {
-                const rect = JSON.parse(annotationText);
-                if (Array.isArray(rect) && rect.length === 4 && rect.every(n => typeof n === 'number')) {
-                    const [x, y, w, h] = rect;
-                    ctx.strokeStyle = 'red';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(x, y, w, h);
-                } else {
-                    throw new Error('Invalid format.');
-                }
-            } catch (error) {
-                alert('Invalid annotation format. Please use [x, y, w, h].');
-            }
-        });
-
         canvas.addEventListener('mousemove', (e) => {
             const rect = canvas.getBoundingClientRect();
             const x = Math.round(e.clientX - rect.left);
             const y = Math.round(e.clientY - rect.top);
+
+            coordsDiv.style.left = `${e.clientX + 15}px`;
+            coordsDiv.style.top = `${e.clientY + 15}px`;
             coordsDiv.textContent = `x: ${x}, y: ${y}`;
 
             if (isDrawing) {
-                drawGridAndRulers();
-                endX = x;
-                endY = y;
+                redrawCanvas();
+                const endX = x;
+                const endY = y;
                 ctx.strokeStyle = 'blue';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(startX, startY, endX - startX, endY - startY);
             }
+        });
+
+        canvas.addEventListener('mouseenter', () => {
+            coordsDiv.style.display = 'block';
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            coordsDiv.style.display = 'none';
         });
 
         canvas.addEventListener('mousedown', (e) => {
@@ -150,19 +215,22 @@
             if (isDrawing) {
                 isDrawing = false;
                 const rect = canvas.getBoundingClientRect();
-                endX = Math.round(e.clientX - rect.left);
-                endY = Math.round(e.clientY - rect.top);
+                const endX = Math.round(e.clientX - rect.left);
+                const endY = Math.round(e.clientY - rect.top);
 
-                const x = Math.min(startX, endX);
-                const y = Math.min(startY, endY);
-                const w = Math.abs(endX - startX);
-                const h = Math.abs(endY - startY);
+                const newRect = {
+                    x: Math.min(startX, endX),
+                    y: Math.min(startY, endY),
+                    w: Math.abs(endX - startX),
+                    h: Math.abs(endY - startY),
+                };
 
-                annotationInput.value = `[${x}, ${y}, ${w}, ${h}]`;
-                drawGridAndRulers();
-                ctx.strokeStyle = 'red';
-                ctx.lineWidth = 2;
-                ctx.strokeRect(x, y, w, h);
+                if (newRect.w > 0 && newRect.h > 0) {
+                    annotations.push(newRect);
+                }
+
+                updateAnnotationsList();
+                redrawCanvas();
             }
         });
     </script>
