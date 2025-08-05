@@ -144,7 +144,7 @@
             for (let y = 0; y < canvas.height; y += 10) {
                 rulerYCtx.beginPath();
                 rulerYCtx.moveTo(y % 50 === 0 ? 15 : 20, y);
-                rulerYCtx.lineTo(25, y);
+                rylerYCtx.lineTo(25, y);
                 rulerYCtx.stroke();
                 if (y % 50 === 0) {
                     rulerYCtx.save();
@@ -228,26 +228,36 @@
         });
 
         addAnnotationButton.addEventListener('click', () => {
-            const annotationText = annotationInput.value;
-            try {
-                // A bit of a hack to parse the array-like string
-                const correctedText = annotationText.replace(/,([^,]*)$/, ',"$1"');
-                const rect = JSON.parse(correctedText);
-                if (Array.isArray(rect) && (rect.length === 5 || rect.length === 4)) {
-                    const [x, y, w, h, name] = rect;
-                    if (typeof x === 'number' && typeof y === 'number' && typeof w === 'number' && typeof h === 'number') {
-                        annotations.push({ x, y, w, h, name: name || `Annotation ${annotations.length + 1}` });
-                        updateAnnotationsList();
-                        redrawCanvas();
-                        annotationInput.value = '';
-                    } else {
-                        throw new Error('Invalid coordinate format.');
+            const annotationText = annotationInput.value.trim();
+            if (annotationText.startsWith('[') && annotationText.endsWith(']')) {
+                const content = annotationText.slice(1, -1);
+                const lastCommaIndex = content.lastIndexOf(',');
+                if (lastCommaIndex !== -1) {
+                    const coordsStr = content.slice(0, lastCommaIndex);
+                    let name = content.slice(lastCommaIndex + 1).trim();
+                    if (name.startsWith('"') && name.endsWith('"')) {
+                        name = name.slice(1, -1);
+                    }
+
+                    try {
+                        const coords = JSON.parse(`[${coordsStr}]`);
+                        if (Array.isArray(coords) && coords.length === 4 && coords.every(n => typeof n === 'number')) {
+                            const [x, y, w, h] = coords;
+                            annotations.push({ x, y, w, h, name: name || `Annotation ${annotations.length + 1}` });
+                            updateAnnotationsList();
+                            redrawCanvas();
+                            annotationInput.value = '';
+                        } else {
+                            throw new Error('Invalid coordinate format.');
+                        }
+                    } catch (error) {
+                        alert('Invalid annotation format. Please use [x, y, w, h, "name"].');
                     }
                 } else {
-                    throw new Error('Invalid format.');
+                    alert('Invalid annotation format. Name is missing.');
                 }
-            } catch (error) {
-                alert('Invalid annotation format. Please use [x, y, w, h, "name"].');
+            } else {
+                alert('Invalid annotation format. Must start with [ and end with ].');
             }
         });
 
