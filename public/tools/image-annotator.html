@@ -7,8 +7,17 @@
     <style>
         body {
             font-family: sans-serif;
-            text-align: center;
             padding: 20px;
+        }
+        #container {
+            display: flex;
+        }
+        #left-column {
+            flex: 3;
+            margin-right: 20px;
+        }
+        #right-column {
+            flex: 1;
         }
         #canvas-container {
             position: relative;
@@ -40,40 +49,51 @@
             color: white;
             padding: 5px;
             border-radius: 3px;
-            pointer-events: none; /* Make sure the coords div doesn't interfere with mouse events */
+            pointer-events: none;
         }
-        #controls {
+        #controls, #annotations-list {
+            text-align: left;
             margin-bottom: 20px;
         }
         input, button {
             padding: 10px;
             font-size: 16px;
             margin: 5px;
+            width: 100%;
+            box-sizing: border-box;
         }
-        #annotations-list {
-            text-align: left;
-            margin-top: 20px;
-            display: inline-block;
+        #annotations-ul {
+            list-style-type: none;
+            padding: 0;
         }
     </style>
 </head>
 <body>
     <h1>Image Annotator</h1>
-    <div id="controls">
-        <input type="file" id="image-loader" accept="image/*">
-        <input type="number" id="width-input" placeholder="Width">
-        <input type="number" id="height-input" placeholder="Height">
-        <button id="resize-button">Resize</button>
-    </div>
-    <div id="canvas-container">
-        <canvas id="ruler-x"></canvas>
-        <canvas id="ruler-y"></canvas>
-        <canvas id="canvas"></canvas>
-        <div id="coords" style="display: none;">x: 0, y: 0</div>
-    </div>
-    <div id="annotations-list">
-        <h2>Annotations</h2>
-        <ul id="annotations-ul"></ul>
+    <div id="container">
+        <div id="left-column">
+            <div id="canvas-container">
+                <canvas id="ruler-x"></canvas>
+                <canvas id="ruler-y"></canvas>
+                <canvas id="canvas"></canvas>
+                <div id="coords" style="display: none;">x: 0, y: 0</div>
+            </div>
+        </div>
+        <div id="right-column">
+            <div id="controls">
+                <h2>Controls</h2>
+                <input type="file" id="image-loader" accept="image/*">
+                <input type="number" id="width-input" placeholder="Width">
+                <input type="number" id="height-input" placeholder="Height">
+                <button id="resize-button">Resize</button>
+                <input type="text" id="annotation-input" placeholder="[x, y, w, h, name]">
+                <button id="add-annotation-button">Add Annotation</button>
+            </div>
+            <div id="annotations-list">
+                <h2>Annotations</h2>
+                <ul id="annotations-ul"></ul>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -89,6 +109,8 @@
         const widthInput = document.getElementById('width-input');
         const heightInput = document.getElementById('height-input');
         const resizeButton = document.getElementById('resize-button');
+        const annotationInput = document.getElementById('annotation-input');
+        const addAnnotationButton = document.getElementById('add-annotation-button');
 
         let currentImage = null;
         let isDrawing = false;
@@ -147,6 +169,11 @@
                 ctx.strokeStyle = 'red';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(rect.x, rect.y, rect.w, rect.h);
+                if (rect.name) {
+                    ctx.fillStyle = 'red';
+                    ctx.font = '16px Arial';
+                    ctx.fillText(rect.name, rect.x, rect.y - 5);
+                }
             });
         }
 
@@ -154,9 +181,10 @@
             annotationsUl.innerHTML = '';
             annotations.forEach((rect, index) => {
                 const li = document.createElement('li');
-                li.textContent = `[${rect.x}, ${rect.y}, ${rect.w}, ${rect.h}]`;
+                li.textContent = `${rect.name}: [${rect.x}, ${rect.y}, ${rect.w}, ${rect.h}]`;
                 const deleteBtn = document.createElement('button');
                 deleteBtn.textContent = 'Delete';
+                deleteBtn.style.width = 'auto'; // Override the global button width
                 deleteBtn.onclick = () => {
                     annotations.splice(index, 1);
                     updateAnnotationsList();
@@ -196,6 +224,30 @@
                 redrawCanvas();
             } else {
                 alert('Please enter valid dimensions.');
+            }
+        });
+
+        addAnnotationButton.addEventListener('click', () => {
+            const annotationText = annotationInput.value;
+            try {
+                // A bit of a hack to parse the array-like string
+                const correctedText = annotationText.replace(/,([^,]*)$/, ',"$1"');
+                const rect = JSON.parse(correctedText);
+                if (Array.isArray(rect) && (rect.length === 5 || rect.length === 4)) {
+                    const [x, y, w, h, name] = rect;
+                    if (typeof x === 'number' && typeof y === 'number' && typeof w === 'number' && typeof h === 'number') {
+                        annotations.push({ x, y, w, h, name: name || `Annotation ${annotations.length + 1}` });
+                        updateAnnotationsList();
+                        redrawCanvas();
+                        annotationInput.value = '';
+                    } else {
+                        throw new Error('Invalid coordinate format.');
+                    }
+                } else {
+                    throw new Error('Invalid format.');
+                }
+            } catch (error) {
+                alert('Invalid annotation format. Please use [x, y, w, h, "name"].');
             }
         });
 
@@ -245,6 +297,7 @@
                     y: Math.min(startY, endY),
                     w: Math.abs(endX - startX),
                     h: Math.abs(endY - startY),
+                    name: `Annotation ${annotations.length + 1}`
                 };
 
                 if (newRect.w > 0 && newRect.h > 0) {
