@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Rotator</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            margin: 2em;
+            background-color: #f4f4f9;
+            color: #333;
+        }
+        .container {
+            background-color: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+            text-align: center;
+            width: 100%;
+            max-width: 600px;
+        }
+        h2 {
+            margin-top: 0;
+            color: #1a1a1a;
+        }
+        canvas {
+            border: 2px dashed #d1d5db;
+            border-radius: 8px;
+            margin-top: 1.5em;
+            max-width: 100%; /* Ensure canvas is responsive */
+            height: auto;
+            background-color: #fafafa;
+        }
+        .controls {
+            margin-top: 1.5em;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            justify-content: center;
+            align-items: center;
+        }
+        input[type="file"], input[type="number"], button {
+            padding: 0.75rem 1rem;
+            border-radius: 8px;
+            border: 1px solid #d1d5db;
+            font-size: 1rem;
+            transition: all 0.2s ease-in-out;
+        }
+        input[type="number"] {
+            width: 80px;
+            text-align: center;
+        }
+        button {
+            background-color: #4f46e5;
+            color: white;
+            border: none;
+            cursor: pointer;
+            font-weight: 500;
+        }
+        button:hover {
+            background-color: #4338ca;
+        }
+        button:disabled {
+            background-color: #a5b4fc;
+            cursor: not-allowed;
+        }
+        label {
+            font-weight: 500;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h2>Image Rotator ???</h2>
+
+        <div class="controls">
+            <label for="imageLoader">Select an image:</label>
+            <input type="file" id="imageLoader" name="imageLoader" accept="image/*"/>
+        </div>
+        <div class="controls">
+            <label for="rotation">Rotation (¢X):</label>
+            <input type="number" id="rotation" value="0" />
+            <button id="downloadBtn" disabled>Download Image</button>
+        </div>
+
+        <canvas id="imageCanvas"></canvas>
+    </div>
+
+    <script>
+        const imageLoader = document.getElementById('imageLoader');
+        const rotationInput = document.getElementById('rotation');
+        const canvas = document.getElementById('imageCanvas');
+        const ctx = canvas.getContext('2d');
+        const downloadBtn = document.getElementById('downloadBtn');
+        
+        const img = new Image();
+        let originalFileName = '';
+
+        // Handle file selection
+        imageLoader.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            originalFileName = file.name;
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                img.onload = () => {
+                    // Set canvas size to the original image size for display
+                    canvas.width = img.width;
+                    canvas.height = img.height;
+                    drawImage();
+                    downloadBtn.disabled = false; // Enable download button
+                };
+                img.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Redraw image when rotation value changes
+        rotationInput.addEventListener('input', drawImage);
+        
+        // Handle download button click
+        downloadBtn.addEventListener('click', downloadImage);
+
+        /**
+         * Draws the image on the visible canvas with the current rotation.
+         */
+        function drawImage() {
+            if (!img.src) return;
+
+            const rotation = parseFloat(rotationInput.value) || 0;
+            const radians = rotation * (Math.PI / 180);
+
+            // Clear the canvas before drawing
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Save the current context state
+            ctx.save();
+            
+            // Move the rotation point to the center of the image
+            ctx.translate(canvas.width / 2, canvas.height / 2);
+            
+            // Rotate the context
+            ctx.rotate(radians);
+            
+            // Draw the image, offsetting it so its center aligns with the rotation point
+            ctx.drawImage(img, -img.width / 2, -img.height / 2);
+            
+            // Restore the context to its original state
+            ctx.restore();
+        }
+
+        /**
+         * Creates a full-resolution rotated image and triggers a download.
+         */
+        function downloadImage() {
+            if (!img.src) return;
+
+            // Create an off-screen canvas to draw the full-quality image
+            const offscreenCanvas = document.createElement('canvas');
+            const offscreenCtx = offscreenCanvas.getContext('2d');
+
+            const rotation = parseFloat(rotationInput.value) || 0;
+            const radians = rotation * (Math.PI / 180);
+            
+            // Calculate the new bounding box size of the rotated image
+            const sin = Math.abs(Math.sin(radians));
+            const cos = Math.abs(Math.cos(radians));
+            const newWidth = img.width * cos + img.height * sin;
+            const newHeight = img.width * sin + img.height * cos;
+
+            // Set the off-screen canvas to the new dimensions
+            offscreenCanvas.width = newWidth;
+            offscreenCanvas.height = newHeight;
+
+            // Save context
+            offscreenCtx.save();
+            
+            // Translate to the center of the new canvas
+            offscreenCtx.translate(newWidth / 2, newHeight / 2);
+            
+            // Rotate
+            offscreenCtx.rotate(radians);
+            
+            // Draw the image centered
+            offscreenCtx.drawImage(img, -img.width / 2, -img.height / 2);
+            
+            // Restore context
+            offscreenCtx.restore();
+
+            // Create a link to trigger the download
+            const link = document.createElement('a');
+            // Use the original file type or default to PNG
+            const fileType = originalFileName.split('.').pop().toLowerCase();
+            const mimeType = ['jpg', 'jpeg'].includes(fileType) ? 'image/jpeg' : 'image/png';
+            
+            link.href = offscreenCanvas.toDataURL(mimeType, 1.0); // 1.0 for highest quality JPEG
+            link.download = `rotated-${originalFileName}`;
+            
+            // Trigger the download
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+        }
+    </script>
+
+</body>
+</html>
