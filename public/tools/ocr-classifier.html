@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tesseract.js OCR Classifier</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src='https://unpkg.com/tesseract.js@5/dist/tesseract.min.js'></script>
+    <style>
+        /* Custom scrollbar for a cleaner look */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Canvas container and styling */
+        #canvas-container {
+            cursor: grab;
+        }
+        #canvas-container:active {
+            cursor: grabbing;
+        }
+        canvas {
+            max-width: 100%;
+            height: auto;
+            border-radius: 0.5rem;
+        }
+        .thumbnail-container {
+            position: relative;
+            cursor: pointer;
+            border: 2px solid transparent;
+            transition: border-color 0.2s;
+        }
+        .thumbnail-container.selected {
+            border-color: #3b82f6; /* blue-500 */
+        }
+        .classification-tag {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            padding: 2px 6px;
+            border-radius: 9999px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        }
+        /* Accordion icon rotation */
+        .rotate-180 {
+            transform: rotate(180deg);
+        }
+        /* Interactive text element styling */
+        .text-element {
+            padding: 4px 8px;
+            margin-bottom: 4px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            border: 1px solid #e5e7eb;
+            font-size: 0.875rem;
+        }
+        .text-element:hover {
+            background-color: #f3f4f6;
+        }
+        .text-element.highlighted {
+            background-color: #dbeafe; /* blue-100 */
+            border-color: #3b82f6; /* blue-500 */
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 font-sans antialiased text-gray-800">
+
+    <div id="app" class="flex h-screen overflow-hidden">
+
+        <!-- Left Column: Main Canvas -->
+        <main class="w-1/2 p-4 flex flex-col bg-white shadow-lg">
+            <div id="canvas-container" class="flex-grow flex items-center justify-center bg-gray-200 rounded-lg overflow-hidden relative">
+                 <canvas id="ocrCanvas"></canvas>
+                 <div id="canvas-placeholder" class="text-gray-500">Select an image to begin</div>
+            </div>
+            <div id="main-classification-footer" class="mt-2 text-center font-bold text-lg p-2 rounded-lg text-white" style="visibility: hidden;">
+                Unclassified
+            </div>
+            <!-- OCR Text Accordion -->
+            <div id="text-accordion" class="mt-4 border rounded-lg overflow-hidden" style="display: none;">
+                <button id="accordion-toggle" class="w-full p-3 text-left bg-gray-100 hover:bg-gray-200 font-semibold flex justify-between items-center transition">
+                    <span>View Extracted Words</span>
+                    <svg id="accordion-icon" class="w-5 h-5 transform transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path></svg>
+                </button>
+                <div id="accordion-content" class="p-4 bg-white border-t max-h-60 overflow-y-auto" style="display: none;">
+                    <!-- Interactive text elements will be injected here -->
+                </div>
+            </div>
+        </main>
+
+        <!-- Middle Column: Image List -->
+        <aside class="w-1/4 p-4 border-l border-r border-gray-200 bg-gray-50 overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4 text-gray-700">Image Queue</h2>
+            <div id="image-list" class="grid grid-cols-2 gap-4">
+                <!-- Thumbnails will be injected here -->
+            </div>
+             <div id="image-list-placeholder" class="text-center text-gray-500 mt-8">
+                <p>Upload images using the panel on the right.</p>
+            </div>
+        </aside>
+
+        <!-- Right Column: Control Panel -->
+        <aside class="w-1/4 p-4 bg-white shadow-inner overflow-y-auto">
+            <h2 class="text-xl font-bold mb-4 text-gray-700">Controls</h2>
+            
+            <!-- Upload & Download -->
+            <div class="space-y-4 p-4 bg-gray-100 rounded-lg">
+                <div>
+                    <label for="image-upload" class="block mb-2 text-sm font-medium text-gray-900">Upload Images</label>
+                    <input type="file" id="image-upload" multiple accept="image/*" class="block w-full text-sm text-gray-900 border border-gray-300 rounded-lg cursor-pointer bg-gray-50 focus:outline-none">
+                </div>
+                <div>
+                    <label for="language-select" class="block mb-2 text-sm font-medium text-gray-900">OCR Language</label>
+                    <select id="language-select" class="bg-gray-50 border border-gray-300 text-gray-900 text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                        <option value="eng+chi_tra" selected>English + Traditional Chinese</option>
+                        <option value="eng">English</option>
+                        <option value="chi_tra">Traditional Chinese</option>
+                        <option value="jpn">Japanese</option>
+                        <option value="kor">Korean</option>
+                        <option value="fra">French</option>
+                        <option value="deu">German</option>
+                        <option value="spa">Spanish</option>
+                    </select>
+                </div>
+                <button id="download-csv" class="w-full bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                    Download CSV
+                </button>
+            </div>
+
+            <!-- Classification Rules -->
+            <div class="mt-6">
+                <h3 class="text-lg font-bold mb-2 text-gray-700">Classification Rules</h3>
+                <p class="text-sm text-gray-500 mb-4">Rules are prioritized by order. Keywords are comma-separated.</p>
+                <div id="classification-rules" class="space-y-3">
+                    <!-- Rules will be injected here -->
+                </div>
+                <button id="add-rule" class="mt-4 w-full bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition duration-300">
+                    Add New Rule
+                </button>
+            </div>
+        </aside>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- STATE MANAGEMENT ---
+            let state = {
+                images: [], // { id, file, url, ocrData, classification, color, status, zoom, offsetX, offsetY, highlightedWordId }
+                classifications: [
+                    { id: Date.now() + 1, name: 'Invoice', keywords: 'invoice,bill,receipt', color: '#ef4444' },
+                    { id: Date.now() + 2, name: 'Contract', keywords: 'agreement,contract,terms', color: '#3b82f6' },
+                ],
+                selectedImageId: null,
+                tesseractWorker: null,
+                currentLanguage: 'eng+chi_tra',
+                isWorkerReady: false,
+                isPanning: false,
+                panStart: { x: 0, y: 0 },
+            };
+
+            // --- DOM ELEMENTS ---
+            const imageUpload = document.getElementById('image-upload');
+            const imageList = document.getElementById('image-list');
+            const imageListPlaceholder = document.getElementById('image-list-placeholder');
+            const canvasContainer = document.getElementById('canvas-container');
+            const canvas = document.getElementById('ocrCanvas');
+            const ctx = canvas.getContext('2d');
+            const canvasPlaceholder = document.getElementById('canvas-placeholder');
+            const mainClassificationFooter = document.getElementById('main-classification-footer');
+            const languageSelect = document.getElementById('language-select');
+            const downloadCsvBtn = document.getElementById('download-csv');
+            const classificationRulesContainer = document.getElementById('classification-rules');
+            const addRuleBtn = document.getElementById('add-rule');
+            const textAccordion = document.getElementById('text-accordion');
+            const accordionToggle = document.getElementById('accordion-toggle');
+            const accordionContent = document.getElementById('accordion-content');
+            const accordionIcon = document.getElementById('accordion-icon');
+            
+            // --- INITIALIZATION ---
+            async function initializeWorker(lang) {
+                if (state.tesseractWorker) {
+                    await state.tesseractWorker.terminate();
+                }
+                state.isWorkerReady = false;
+                updateAllThumbnailsStatus('re-queuing');
+                
+                state.tesseractWorker = await Tesseract.createWorker(lang, 1, {
+                    logger: m => {
+                        if (m.jobId && m.status === 'recognizing text') {
+                           const image = state.images.find(img => img.ocrJobId === m.jobId);
+                           if (image) {
+                                image.status = `ocr: ${Math.round(m.progress * 100)}%`;
+                                renderImageList();
+                           }
+                        }
+                    },
+                });
+                state.isWorkerReady = true;
+                state.currentLanguage = lang;
+                console.log(`Tesseract worker ready for language: ${lang}`);
+                processAllImages();
+            }
+
+            // --- UI RENDERING ---
+            function renderClassificationRules() {
+                // ... (no changes)
+                classificationRulesContainer.innerHTML = '';
+                if (state.classifications.length === 0) {
+                    classificationRulesContainer.innerHTML = `<p class="text-center text-sm text-gray-400">No rules defined.</p>`;
+                }
+                state.classifications.forEach((rule, index) => {
+                    const ruleEl = document.createElement('div');
+                    ruleEl.className = 'p-3 bg-gray-50 border rounded-lg';
+                    ruleEl.innerHTML = `
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="font-semibold text-gray-800">Rule ${index + 1}</span>
+                            <button data-id="${rule.id}" class="remove-rule-btn text-red-500 hover:text-red-700">&times; Remove</button>
+                        </div>
+                        <div class="space-y-2">
+                            <input type="text" data-id="${rule.id}" data-field="name" value="${rule.name}" placeholder="Class Name" class="w-full p-2 border rounded">
+                            <input type="text" data-id="${rule.id}" data-field="keywords" value="${rule.keywords}" placeholder="Keywords (comma,separated)" class="w-full p-2 border rounded">
+                            <input type="color" data-id="${rule.id}" data-field="color" value="${rule.color}" class="w-full h-8 p-0 border-none rounded cursor-pointer">
+                        </div>
+                    `;
+                    classificationRulesContainer.appendChild(ruleEl);
+                });
+            }
+
+            function renderImageList() {
+                // ... (no changes)
+                imageList.innerHTML = '';
+                if (state.images.length > 0) {
+                    imageListPlaceholder.style.display = 'none';
+                } else {
+                    imageListPlaceholder.style.display = 'block';
+                    return;
+                }
+
+                state.images.forEach(img => {
+                    const thumbContainer = document.createElement('div');
+                    thumbContainer.className = `thumbnail-container rounded-lg overflow-hidden shadow ${state.selectedImageId === img.id ? 'selected' : ''}`;
+                    thumbContainer.dataset.id = img.id;
+
+                    const thumbImg = document.createElement('img');
+                    thumbImg.src = img.url;
+                    thumbImg.className = 'w-full h-32 object-cover';
+
+                    const statusOverlay = document.createElement('div');
+                    statusOverlay.className = 'absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center text-white text-xs font-bold p-2 text-center';
+                    statusOverlay.textContent = img.status;
+                    
+                    const classificationTag = document.createElement('div');
+                    classificationTag.className = 'classification-tag';
+
+                    if (img.classification) {
+                        classificationTag.textContent = img.classification;
+                        classificationTag.style.backgroundColor = img.color;
+                        statusOverlay.style.display = 'none';
+                    } else {
+                        classificationTag.style.display = 'none';
+                    }
+
+                    if (img.status !== 'done') {
+                        statusOverlay.style.display = 'flex';
+                    } else {
+                        statusOverlay.style.display = 'none';
+                    }
+
+                    thumbContainer.appendChild(thumbImg);
+                    thumbContainer.appendChild(statusOverlay);
+                    thumbContainer.appendChild(classificationTag);
+                    imageList.appendChild(thumbContainer);
+                });
+            }
+
+            function renderAccordionContent(image) {
+                accordionContent.innerHTML = '';
+                if (!image || !image.ocrData || !image.ocrData.data || !image.ocrData.data.words) {
+                    textAccordion.style.display = 'none';
+                    return;
+                }
+
+                textAccordion.style.display = 'block';
+                accordionContent.className = 'p-4 bg-white border-t max-h-60 overflow-y-auto flex flex-wrap gap-2';
+                
+                const words = image.ocrData.data.words;
+                if (!words || words.length === 0) {
+                    accordionContent.innerHTML = '<p class="text-gray-500">No words detected.</p>';
+                    return;
+                }
+
+                words.forEach((word, index) => {
+                    const wordId = `word_${index}`;
+                    const wordEl = document.createElement('span');
+                    wordEl.className = 'text-element';
+                    wordEl.dataset.wordId = wordId;
+                    wordEl.textContent = word.text;
+                    if (image.highlightedWordId === wordId) {
+                        wordEl.classList.add('highlighted');
+                    }
+                    accordionContent.appendChild(wordEl);
+                });
+            }
+
+            async function renderCanvas() {
+                const image = state.images.find(img => img.id === state.selectedImageId);
+                if (!image) {
+                    canvas.style.display = 'none';
+                    mainClassificationFooter.style.visibility = 'hidden';
+                    canvasPlaceholder.style.display = 'block';
+                    textAccordion.style.display = 'none';
+                    return;
+                }
+                
+                canvas.style.display = 'block';
+                canvasPlaceholder.style.display = 'none';
+
+                const imgEl = new Image();
+                imgEl.src = image.url;
+                await imgEl.decode();
+
+                canvas.width = canvasContainer.clientWidth;
+                canvas.height = canvasContainer.clientHeight;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                
+                ctx.save();
+                ctx.translate(image.offsetX, image.offsetY);
+                ctx.scale(image.zoom, image.zoom);
+                ctx.drawImage(imgEl, 0, 0);
+
+                // Draw all word bounding boxes and highlight the selected one.
+                if (image.ocrData && image.ocrData.data && image.ocrData.data.words) {
+                    image.ocrData.data.words.forEach((word, index) => {
+                        const wordId = `word_${index}`;
+                        const b = word.bbox;
+                        
+                        // Default style
+                        ctx.strokeStyle = image.color || '#f59e0b';
+                        ctx.lineWidth = 2 / image.zoom;
+
+                        // Highlight style if this word is selected
+                        if (image.highlightedWordId === wordId) {
+                            ctx.strokeStyle = '#dc2626'; // red-600
+                            ctx.lineWidth = 3 / image.zoom;
+                            ctx.fillStyle = 'rgba(220, 38, 38, 0.2)';
+                            ctx.fillRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+                        }
+                        
+                        ctx.strokeRect(b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0);
+                    });
+                }
+
+                ctx.restore();
+                
+                renderAccordionContent(image);
+                
+                if (image.classification) {
+                    mainClassificationFooter.textContent = image.classification;
+                    mainClassificationFooter.style.backgroundColor = image.color;
+                    mainClassificationFooter.style.visibility = 'visible';
+                } else {
+                    mainClassificationFooter.style.visibility = 'hidden';
+                }
+            }
+            
+            // --- LOGIC ---
+            function classifyImage(imageId) {
+                // ... (no changes)
+                const image = state.images.find(img => img.id === imageId);
+                if (!image || !image.ocrData) return;
+
+                const text = image.ocrData.data.text.toLowerCase();
+                let matchFound = false;
+
+                for (const rule of state.classifications) {
+                    const keywords = rule.keywords.toLowerCase().split(',').filter(k => k.trim() !== '');
+                    for (const keyword of keywords) {
+                        if (text.includes(keyword.trim())) {
+                            image.classification = rule.name;
+                            image.color = rule.color;
+                            matchFound = true;
+                            break;
+                        }
+                    }
+                    if (matchFound) break;
+                }
+
+                if (!matchFound) {
+                    image.classification = null;
+                    image.color = null;
+                }
+            }
+
+            async function runOcr(imageId) {
+                // ... (no changes)
+                if (!state.isWorkerReady) {
+                    console.log("Worker not ready, queuing OCR.");
+                    return;
+                }
+                
+                const image = state.images.find(img => img.id === imageId);
+                if (!image || image.status !== 'queued' && image.status !== 're-queuing') {
+                    return;
+                }
+
+                try {
+                    image.status = 'processing...';
+                    renderImageList();
+                    const { data, jobId } = await state.tesseractWorker.recognize(image.file);
+                    image.ocrJobId = jobId;
+                    image.ocrData = { data };
+                    image.status = 'classifying...';
+                    renderImageList();
+
+                    classifyImage(image.id);
+                    image.status = 'done';
+                } catch (error) {
+                    console.error('OCR Error:', error);
+                    image.status = 'error';
+                } finally {
+                    renderImageList();
+                    if (state.selectedImageId === image.id) {
+                        renderCanvas();
+                    }
+                }
+            }
+
+            function processAllImages() {
+                state.images.forEach(img => runOcr(img.id));
+            }
+
+            function reclassifyAllImages() {
+                state.images.forEach(img => {
+                    if(img.ocrData) {
+                       classifyImage(img.id);
+                    }
+                });
+                renderImageList();
+                renderCanvas();
+            }
+
+            function updateAllThumbnailsStatus(status) {
+                state.images.forEach(img => img.status = status);
+                renderImageList();
+            }
+
+            function downloadCSV() {
+                // ... (no changes)
+                 if (state.images.length === 0) {
+                    alert('No images to export.');
+                    return;
+                }
+                let csvContent = "data:text/csv;charset=utf-8,";
+                csvContent += "ImageName,Classification,ExtractedText\r\n";
+
+                state.images.forEach(image => {
+                    const name = image.file.name;
+                    const classification = image.classification || 'Unclassified';
+                    const text = image.ocrData ? `"${image.ocrData.data.text.replace(/"/g, '""')}"` : '""';
+                    const row = [name, classification, text].join(',');
+                    csvContent += row + "\r\n";
+                });
+
+                const encodedUri = encodeURI(csvContent);
+                const link = document.createElement("a");
+                link.setAttribute("href", encodedUri);
+                link.setAttribute("download", "ocr_classifications.csv");
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+
+
+            // --- EVENT LISTENERS ---
+            imageUpload.addEventListener('change', (e) => {
+                const files = Array.from(e.target.files);
+                const newImages = files.map(file => ({
+                    id: Date.now() + Math.random(),
+                    file: file,
+                    url: URL.createObjectURL(file),
+                    ocrData: null,
+                    classification: null,
+                    color: null,
+                    status: 'queued',
+                    zoom: 1,
+                    offsetX: 0,
+                    offsetY: 0,
+                    highlightedWordId: null, // Changed from highlightedBlockId
+                }));
+
+                state.images.push(...newImages);
+                renderImageList();
+                newImages.forEach(img => runOcr(img.id));
+                e.target.value = ''; // Reset input
+            });
+            
+            imageList.addEventListener('click', (e) => {
+                const thumb = e.target.closest('.thumbnail-container');
+                if (thumb) {
+                    const id = parseFloat(thumb.dataset.id);
+                    state.selectedImageId = id;
+                    renderImageList();
+                    renderCanvas();
+                }
+            });
+
+            languageSelect.addEventListener('change', (e) => {
+                const newLang = e.target.value;
+                if (newLang !== state.currentLanguage) {
+                    if (confirm('Changing the language will re-process all images. This may take some time. Continue?')) {
+                        initializeWorker(newLang);
+                    } else {
+                        e.target.value = state.currentLanguage;
+                    }
+                }
+            });
+            
+            downloadCsvBtn.addEventListener('click', downloadCSV);
+            addRuleBtn.addEventListener('click', () => { /* ... no changes ... */
+                state.classifications.push({
+                    id: Date.now(),
+                    name: `Class ${state.classifications.length + 1}`,
+                    keywords: '',
+                    color: '#' + Math.floor(Math.random()*16777215).toString(16).padStart(6, '0')
+                });
+                renderClassificationRules();
+            });
+            classificationRulesContainer.addEventListener('click', (e) => { /* ... no changes ... */
+                if (e.target.classList.contains('remove-rule-btn')) {
+                    const id = parseFloat(e.target.dataset.id);
+                    state.classifications = state.classifications.filter(rule => rule.id !== id);
+                    renderClassificationRules();
+                    reclassifyAllImages();
+                }
+            });
+            classificationRulesContainer.addEventListener('input', (e) => { /* ... no changes ... */
+                 const id = parseFloat(e.target.dataset.id);
+                const field = e.target.dataset.field;
+                const value = e.target.value;
+                
+                const rule = state.classifications.find(r => r.id === id);
+                if (rule) {
+                    rule[field] = value;
+                }
+                if (field === 'keywords' || field === 'name') {
+                    reclassifyAllImages();
+                } else if (field === 'color') {
+                    reclassifyAllImages();
+                }
+            });
+
+            accordionToggle.addEventListener('click', () => {
+                const isHidden = accordionContent.style.display === 'none';
+                accordionContent.style.display = isHidden ? 'block' : 'none';
+                accordionIcon.classList.toggle('rotate-180', isHidden);
+            });
+
+            accordionContent.addEventListener('click', (e) => {
+                const wordEl = e.target.closest('.text-element');
+                if (wordEl) {
+                    const image = state.images.find(img => img.id === state.selectedImageId);
+                    if (image) {
+                        const wordId = wordEl.dataset.wordId;
+                        // Toggle highlight
+                        image.highlightedWordId = image.highlightedWordId === wordId ? null : wordId;
+                        renderCanvas(); // Re-render canvas to show highlight and update accordion
+                    }
+                }
+            });
+
+            // Canvas Pan and Zoom Listeners
+            canvasContainer.addEventListener('mousedown', (e) => {
+                state.isPanning = true;
+                state.panStart.x = e.clientX;
+                state.panStart.y = e.clientY;
+            });
+            canvasContainer.addEventListener('mouseup', () => {
+                state.isPanning = false;
+            });
+            canvasContainer.addEventListener('mouseleave', () => {
+                state.isPanning = false;
+            });
+            canvasContainer.addEventListener('mousemove', (e) => {
+                if (!state.isPanning) return;
+                const image = state.images.find(img => img.id === state.selectedImageId);
+                if (!image) return;
+
+                const dx = e.clientX - state.panStart.x;
+                const dy = e.clientY - state.panStart.y;
+                image.offsetX += dx;
+                image.offsetY += dy;
+                state.panStart.x = e.clientX;
+                state.panStart.y = e.clientY;
+                requestAnimationFrame(renderCanvas);
+            });
+            canvasContainer.addEventListener('wheel', (e) => {
+                e.preventDefault();
+                const image = state.images.find(img => img.id === state.selectedImageId);
+                if (!image) return;
+
+                const zoomIntensity = 0.1;
+                const wheel = e.deltaY < 0 ? 1 : -1;
+                const zoom = Math.exp(wheel * zoomIntensity);
+
+                const rect = canvas.getBoundingClientRect();
+                const mouseX = e.clientX - rect.left;
+                const mouseY = e.clientY - rect.top;
+
+                const newZoom = Math.max(0.1, Math.min(10, image.zoom * zoom));
+                
+                image.offsetX = mouseX - (mouseX - image.offsetX) * (newZoom / image.zoom);
+                image.offsetY = mouseY - (mouseY - image.offsetY) * (newZoom / image.zoom);
+                image.zoom = newZoom;
+
+                requestAnimationFrame(renderCanvas);
+            });
+
+
+            // --- KICKSTART ---
+            renderClassificationRules();
+            renderImageList();
+            renderCanvas();
+            initializeWorker(state.currentLanguage);
+        });
+    </script>
+</body>
+</html>
