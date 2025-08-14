@@ -461,19 +461,19 @@
             }
 
             function downloadCSV() {
-                // ... (no changes)
-                 if (state.images.length === 0) {
+                if (state.images.length === 0) {
                     alert('No images to export.');
                     return;
                 }
                 let csvContent = "data:text/csv;charset=utf-8,";
-                csvContent += "ImageName,Classification,ExtractedText\r\n";
+                // Updated CSV header
+                csvContent += "ImageName,Classification\r\n";
 
                 state.images.forEach(image => {
                     const name = image.file.name;
                     const classification = image.classification || 'Unclassified';
-                    const text = image.ocrData ? `"${image.ocrData.data.text.replace(/"/g, '""')}"` : '""';
-                    const row = [name, classification, text].join(',');
+                    // Updated row to only include name and classification
+                    const row = `"${name.replace(/"/g, '""')}","${classification.replace(/"/g, '""')}"`;
                     csvContent += row + "\r\n";
                 });
 
