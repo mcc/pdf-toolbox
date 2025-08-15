@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Form Alignment & Checkbox Extraction</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        // This function is called by the opencv.js script's onload attribute.
+        // It needs to be defined in the global scope before the script tag that calls it.
+        // It sets a global flag that the main script will check.
+        function onOpenCvReady() {
+            window.opencvIsReady = true;
+        }
+    </script>
+    <script async src="https://docs.opencv.org/4.9.0/opencv.js" onload="onOpenCvReady();"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <style>
+        /* Basic styling for the application */
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #111827; /* bg-gray-900 */
+            color: #f3f4f6; /* text-gray-200 */
+        }
+        .panel-container {
+            border: 1px solid #374151; /* border-gray-700 */
+            border-radius: 0.5rem;
+            overflow: hidden;
+            background-color: #1f2937; /* bg-gray-800 */
+            display: flex;
+            flex-direction: column;
+        }
+        .panel-header {
+            font-size: 1.125rem; /* text-lg */
+            font-weight: 600; /* font-semibold */
+            padding: 1rem;
+            background-color: #1f2937; /* bg-gray-800 */
+            border-bottom: 1px solid #374151; /* border-gray-700 */
+        }
+        .panel-content {
+            padding: 1rem;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+        canvas {
+            max-width: 100%;
+            height: auto;
+            display: block;
+        }
+        #baseCanvas, #debugCanvas {
+             cursor: crosshair;
+        }
+        .control-panel label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+        }
+        /* Styling for file inputs and buttons */
+        .control-panel input[type="file"] {
+            display: block;
+            width: 100%;
+            padding: 0.5rem;
+            background-color: #374151; /* bg-gray-700 */
+            border: 1px solid #4b5563; /* border-gray-600 */
+            border-radius: 0.375rem;
+            cursor: pointer;
+        }
+        .btn {
+            padding: 0.5rem 1rem;
+            font-weight: 600;
+            border-radius: 0.375rem;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            text-align: center;
+            border: none;
+        }
+        .btn-primary { background-color: #3b82f6; color: white; }
+        .btn-primary:hover { background-color: #2563eb; }
+        .btn-secondary { background-color: #4b5563; color: white; }
+        .btn-secondary:hover { background-color: #6b7280; }
+        .btn-success { background-color: #10b981; color: white; }
+        .btn-success:hover { background-color: #059669; }
+        .btn-warning { background-color: #f59e0b; color: white; }
+        .btn-warning:hover { background-color: #d97706; }
+        /* Loader styles */
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.7); display: flex;
+            justify-content: center; align-items: center; z-index: 9999;
+            color: white; font-size: 1.25rem;
+        }
+        /* Checkbox list item styling */
+        .checkbox-item {
+            display: flex; align-items: center; padding: 0.5rem;
+            border-bottom: 1px solid #374151;
+        }
+        .checkbox-item:last-child { border-bottom: none; }
+        .checkbox-item canvas {
+            width: 40px; height: 40px; border: 1px solid #4b5563;
+            margin: 0 1rem; object-fit: contain;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8">
+
+    <!-- Loading overlay -->
+    <div id="loader">
+        <div class="text-center">
+            <svg class="animate-spin -ml-1 mr-3 h-8 w-8 text-white inline-block" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+            </svg>
+            <p id="loader-text">Loading OpenCV.js...</p>
+        </div>
+    </div>
+
+    <div class="max-w-screen-2xl mx-auto">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl md:text-4xl font-bold tracking-tight">Form Alignment & Checkbox Extraction</h1>
+            <p class="text-gray-400 mt-2">Define an ROI, align the image, and extract checkbox snippets.</p>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            <!-- Control Panel -->
+            <div class="panel-container control-panel lg:col-span-1">
+                <h2 class="panel-header">Controls</h2>
+                <div class="panel-content space-y-4">
+                    <div>
+                        <label for="baseImageInput">1. Upload Base Image</label>
+                        <input type="file" id="baseImageInput" accept="image/*">
+                    </div>
+                    <div>
+                        <label for="jsonInput">2. Upload Checkbox JSON</label>
+                        <input type="file" id="jsonInput" accept=".json">
+                    </div>
+                     <div>
+                        <label for="roiJsonInput" class="cursor-pointer">...or Import ROI & JSON</label>
+                        <input type="file" id="roiJsonInput" accept=".json" class="hidden">
+                    </div>
+                    <div>
+                        <label for="targetImageInput">3. Upload Target Image</label>
+                        <input type="file" id="targetImageInput" accept="image/*">
+                    </div>
+                    <button id="realignBtn" class="btn btn-warning w-full">4. Re-align Target</button>
+                    <button id="exportRoiJsonBtn" class="btn btn-success w-full">Export ROI & JSON</button>
+                    <div id="status" class="text-center text-gray-400 h-6 pt-2"></div>
+                </div>
+            </div>
+            
+            <!-- Base Image Panel -->
+            <div class="panel-container">
+                <h2 class="panel-header">Base Image & ROI</h2>
+                <canvas id="baseCanvas"></canvas>
+            </div>
+
+            <!-- Aligned Target Panel -->
+            <div class="panel-container">
+                <h2 class="panel-header">Aligned Target Image</h2>
+                <canvas id="targetCanvas"></canvas>
+            </div>
+
+            <!-- Checkbox Panel (with max height) -->
+            <div class="panel-container" style="max-height: 80vh;">
+                <h2 class="panel-header">Detected Checkboxes</h2>
+                <div class="p-4 border-b border-gray-700 space-y-2">
+                    <div class="grid grid-cols-2 gap-2">
+                         <button id="selectAllBtn" class="btn btn-secondary">Select All</button>
+                         <button id="deselectAllBtn" class="btn btn-secondary">Deselect All</button>
+                    </div>
+                    <button id="downloadBtn" class="btn btn-primary w-full">Download Selected as ZIP</button>
+                </div>
+                <div id="checkboxList" class="overflow-y-auto"></div>
+            </div>
+
+            <!-- Debug Panel -->
+            <div class="panel-container lg:col-span-4">
+                 <div class="flex justify-between items-center border-b border-gray-700">
+                    <h2 class="panel-header border-b-0">Debugging Steps</h2>
+                    <div class="p-2 text-center">
+                        <button id="manualAlignBtn" class="btn btn-primary">Use Manual Region & Re-align</button>
+                    </div>
+                </div>
+                <canvas id="debugCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const baseCanvas = document.getElementById('baseCanvas');
+        const targetCanvas = document.getElementById('targetCanvas');
+        const debugCanvas = document.getElementById('debugCanvas');
+        const checkboxListDiv = document.getElementById('checkboxList');
+        const baseImageInput = document.getElementById('baseImageInput');
+        const targetImageInput = document.getElementById('targetImageInput');
+        const jsonInput = document.getElementById('jsonInput');
+        const roiJsonInput = document.getElementById('roiJsonInput');
+        const selectAllBtn = document.getElementById('selectAllBtn');
+        const deselectAllBtn = document.getElementById('deselectAllBtn');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const realignBtn = document.getElementById('realignBtn');
+        const manualAlignBtn = document.getElementById('manualAlignBtn');
+        const exportRoiJsonBtn = document.getElementById('exportRoiJsonBtn');
+        const statusDiv = document.getElementById('status');
+        const loader = document.getElementById('loader');
+        const loaderText = document.getElementById('loader-text');
+
+        // Global state
+        let baseImgMat = null, baseImgObject = null, warpedTargetImgMat = null, targetImgFile = null, targetImgMat = null;
+        let checkboxData = null;
+        let cvReady = false;
+        let roiRect = null, manualMatchRect = null, searchRect = null;
+        let isDragging = false, isResizing = null;
+        let dragStart = { x: 0, y: 0 };
+        const handleSize = 8;
+
+        // --- Initialization ---
+        const cvReadyInterval = setInterval(() => {
+            if (window.opencvIsReady) {
+                clearInterval(cvReadyInterval);
+                cvReady = true;
+                loader.style.display = 'none';
+                updateStatus('OpenCV Ready. Please select a base image.', false);
+            }
+        }, 100);
+
+
+        // --- Event Listeners ---
+        baseImageInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            updateStatus('Loading base image...', false);
+            baseImgObject = await fileToImageObject(file);
+            if(baseImgMat) baseImgMat.delete();
+            baseImgMat = cv.imread(baseImgObject);
+            await processBaseAndJson();
+        });
+
+        jsonInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            updateStatus('Reading JSON...', false);
+            checkboxData = await readJsonFile(file);
+            await processBaseAndJson();
+        });
+
+        targetImageInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            targetImgFile = file;
+            await alignAndDisplayTargetImage(targetImgFile);
+        });
+        
+        realignBtn.addEventListener('click', async () => {
+            if (!targetImgFile) {
+                updateStatus('Please upload a target image first.', true);
+                return;
+            }
+            await alignAndDisplayTargetImage(targetImgFile);
+        });
+
+        manualAlignBtn.addEventListener('click', alignWithManualRect);
+
+        roiJsonInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            updateStatus('Importing ROI & JSON...', false);
+            try {
+                const data = await readJsonFile(file);
+                if (data.roiRect && data.checkboxData) {
+                    roiRect = data.roiRect;
+                    checkboxData = data.checkboxData;
+                    await processBaseAndJson();
+                } else {
+                    throw new Error('Invalid combined JSON file format.');
+                }
+            } catch (error) {
+                handleError(error, 'Failed to import ROI & JSON');
+            }
+        });
+
+        exportRoiJsonBtn.addEventListener('click', () => {
+             if (!roiRect || !checkboxData) {
+                updateStatus('ROI and Checkbox data must be loaded first.', true);
+                return;
+            }
+            const combinedData = { roiRect, checkboxData };
+            const dataStr = JSON.stringify(combinedData, null, 2);
+            const dataBlob = new Blob([dataStr], {type: "application/json"});
+            const url = URL.createObjectURL(dataBlob);
+            const link = document.createElement('a');
+            link.download = 'roi_and_checkboxes.json';
+            link.href = url;
+            link.click();
+            URL.revokeObjectURL(url);
+            updateStatus('ROI & JSON exported.', false);
+        });
+
+        selectAllBtn.addEventListener('click', () => toggleAllCheckboxes(true));
+        deselectAllBtn.addEventListener('click', () => toggleAllCheckboxes(false));
+        downloadBtn.addEventListener('click', downloadSelectedCheckboxesAsZip);
+
+        // --- Core Logic ---
+        async function processBaseAndJson() {
+            if (!baseImgMat || !checkboxData) return;
+            if (!roiRect) {
+                updateStatus('Calculating initial ROI...', false);
+                calculateAndDrawInitialROI();
+            } else {
+                redrawBaseCanvas();
+            }
+            baseCanvas.addEventListener('mousedown', onMouseDown);
+            baseCanvas.addEventListener('mousemove', onMouseMove);
+            baseCanvas.addEventListener('mouseup', onMouseUp);
+            baseCanvas.addEventListener('mouseout', onMouseUp);
+            updateStatus('ROI ready. Adjust or upload target.', false);
+        }
+
+        function calculateAndDrawInitialROI() {
+            let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+            checkboxData.forEach(item => {
+                if (item.type !== 'checkbox') return;
+                const [y1, x1, y2, x2] = item.box_2d;
+                minY = Math.min(minY, y1); minX = Math.min(minX, x1);
+                maxY = Math.max(maxY, y2); maxX = Math.max(maxX, x2);
+            });
+            const padding = 20;
+            minX = Math.max(0, minX - padding); minY = Math.max(0, minY - padding);
+            maxX = Math.min(baseImgMat.cols, maxX + padding); maxY = Math.min(baseImgMat.rows, maxY + padding);
+            roiRect = { x: minX, y: minY, width: maxX - minX, height: maxY - minY };
+            redrawBaseCanvas();
+        }
+
+        async function alignAndDisplayTargetImage(targetFile) {
+            if (!baseImgMat || !targetFile || !roiRect) {
+                updateStatus('Base image, JSON, and ROI required.', true);
+                return;
+            }
+            showLoader('Finding and aligning target region...');
+            try {
+                if(targetImgMat) targetImgMat.delete();
+                targetImgMat = await fileToMat(targetFile);
+
+                const homography = findHomographyByTemplateMatching(baseImgMat, targetImgMat, roiRect);
+                if (!homography) {
+                    throw new Error('Could not compute homography. Check debug canvas.');
+                }
+                
+                applyHomographyAndExtract(homography);
+                homography.delete();
+
+            } catch (error) {
+                handleError(error, 'Alignment failed');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        function applyHomographyAndExtract(homography) {
+            if (warpedTargetImgMat) warpedTargetImgMat.delete();
+            warpedTargetImgMat = new cv.Mat();
+            const dsize = new cv.Size(baseImgMat.cols, baseImgMat.rows);
+            cv.warpPerspective(targetImgMat, warpedTargetImgMat, homography, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+            
+            cv.imshow(targetCanvas, warpedTargetImgMat);
+            drawCheckboxBoundaries(targetCanvas.getContext('2d'));
+            populateCheckboxList();
+            updateStatus('Alignment complete!', false);
+        }
+
+        function populateCheckboxList() {
+            if (!warpedTargetImgMat || !checkboxData) return;
+            checkboxListDiv.innerHTML = ''; // Clear previous list
+
+            checkboxData.forEach((item, index) => {
+                if (item.type !== 'checkbox') return;
+                
+                const [y1, x1, y2, x2] = item.box_2d;
+                const rect = new cv.Rect(x1, y1, x2 - x1, y2 - y1);
+                
+                if (rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 || rect.x + rect.width > warpedTargetImgMat.cols || rect.y + rect.height > warpedTargetImgMat.rows) {
+                    console.warn(`Checkbox "${item.label}" is out of bounds after warping. Skipping.`);
+                    return;
+                }
+
+                const checkboxRoi = warpedTargetImgMat.roi(rect);
+                const listItem = document.createElement('div');
+                listItem.className = 'checkbox-item';
+                const checkbox = document.createElement('input');
+                checkbox.type = 'checkbox';
+                checkbox.className = 'form-checkbox h-5 w-5 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500';
+                checkbox.dataset.index = index;
+                const roiCanvas = document.createElement('canvas');
+                cv.imshow(roiCanvas, checkboxRoi);
+                const labelSpan = document.createElement('span');
+                labelSpan.className = 'flex-grow';
+                labelSpan.textContent = item.label;
+                listItem.appendChild(checkbox);
+                listItem.appendChild(roiCanvas);
+                listItem.appendChild(labelSpan);
+                checkboxListDiv.appendChild(listItem);
+                checkboxRoi.delete();
+            });
+        }
+        
+        function findHomographyByTemplateMatching(baseMat, fullTargetMat, roi) {
+            // Define a larger search area on the target image based on the base ROI
+            const paddingX = roi.width * 0.5;
+            const paddingY = roi.height * 0.5;
+            searchRect = {
+                x: Math.max(0, roi.x - paddingX),
+                y: Math.max(0, roi.y - paddingY),
+                width: roi.width + 2 * paddingX,
+                height: roi.height + 2 * paddingY
+            };
+            searchRect.width = Math.min(fullTargetMat.cols - searchRect.x, searchRect.width);
+            searchRect.height = Math.min(fullTargetMat.rows - searchRect.y, searchRect.height);
+
+            const baseRoiMat = baseMat.roi(new cv.Rect(roi.x, roi.y, roi.width, roi.height));
+            const searchTargetMat = fullTargetMat.roi(new cv.Rect(searchRect.x, searchRect.y, searchRect.width, searchRect.height));
+            
+            const result = new cv.Mat();
+            cv.matchTemplate(searchTargetMat, baseRoiMat, result, cv.TM_CCOEFF_NORMED);
+            const { maxLoc } = cv.minMaxLoc(result);
+            result.delete();
+            
+            // Reconcile coordinates: maxLoc is relative to the chopped search area.
+            // Convert it to be relative to the full target image.
+            const matchedRect = new cv.Rect(
+                maxLoc.x + searchRect.x, 
+                maxLoc.y + searchRect.y, 
+                baseRoiMat.cols, 
+                baseRoiMat.rows
+            );
+            manualMatchRect = { x: matchedRect.x, y: matchedRect.y, width: matchedRect.width, height: matchedRect.height };
+            
+            redrawDebugCanvas(); // Will draw full image + search rect + matched rect
+            debugCanvas.addEventListener('mousedown', onDebugMouseDown);
+            debugCanvas.addEventListener('mousemove', onDebugMouseMove);
+            debugCanvas.addEventListener('mouseup', onDebugMouseUp);
+            debugCanvas.addEventListener('mouseout', onDebugMouseUp);
+            
+            const homography = calculateHomography(baseMat, fullTargetMat, roi, matchedRect);
+            baseRoiMat.delete();
+            searchTargetMat.delete();
+            return homography;
+        }
+
+        function calculateHomography(baseMat, targetMat, baseRoiRect, targetMatchRect) {
+            const baseRoiMat = baseMat.roi(new cv.Rect(baseRoiRect.x, baseRoiRect.y, baseRoiRect.width, baseRoiRect.height));
+            const targetRoiMat = targetMat.roi(targetMatchRect);
+
+            const baseGray = new cv.Mat(), targetGray = new cv.Mat();
+            cv.cvtColor(baseRoiMat, baseGray, cv.COLOR_RGBA2GRAY);
+            cv.cvtColor(targetRoiMat, targetGray, cv.COLOR_RGBA2GRAY);
+
+            const orb = new cv.ORB();
+            const keypoints1 = new cv.KeyPointVector(), keypoints2 = new cv.KeyPointVector();
+            const descriptors1 = new cv.Mat(), descriptors2 = new cv.Mat();
+            orb.detectAndCompute(baseGray, new cv.Mat(), keypoints1, descriptors1);
+            orb.detectAndCompute(targetGray, new cv.Mat(), keypoints2, descriptors2);
+            
+            if (keypoints1.size() < 10 || keypoints2.size() < 10) {
+                 updateStatus('Error: Not enough feature points found.', true);
+                 [baseRoiMat, targetRoiMat, baseGray, targetGray, keypoints1, keypoints2, descriptors1, descriptors2].forEach(m => m.delete());
+                 return null;
+            }
+
+            const bf = new cv.BFMatcher(cv.NORM_HAMMING, true);
+            const matches = new cv.DMatchVector();
+            bf.match(descriptors1, descriptors2, matches);
+
+            let sortedMatches = Array.from({length: matches.size()}, (_, i) => matches.get(i)).sort((a, b) => a.distance - b.distance);
+            const goodMatchesCount = Math.min(matches.size(), 100);
+
+            if (goodMatchesCount < 10) {
+                 updateStatus('Error: Not enough good matches found (<10).', true);
+                 return null;
+            }
+
+            const srcPts = [], dstPts = [];
+            for (let i = 0; i < goodMatchesCount; i++) {
+                srcPts.push(keypoints1.get(sortedMatches[i].queryIdx).pt.x + baseRoiRect.x, keypoints1.get(sortedMatches[i].queryIdx).pt.y + baseRoiRect.y);
+                dstPts.push(keypoints2.get(sortedMatches[i].trainIdx).pt.x + targetMatchRect.x, keypoints2.get(sortedMatches[i].trainIdx).pt.y + targetMatchRect.y);
+            }
+
+            const srcMat = cv.matFromArray(srcPts.length / 2, 1, cv.CV_32FC2, srcPts);
+            const dstMat = cv.matFromArray(dstPts.length / 2, 1, cv.CV_32FC2, dstPts);
+            const homography = cv.findHomography(dstMat, srcMat, cv.RANSAC, 5.0);
+
+            [baseRoiMat, targetRoiMat, baseGray, targetGray, keypoints1, keypoints2, descriptors1, descriptors2, bf, matches, srcMat, dstMat].forEach(m => m.delete());
+            return homography;
+        }
+
+        async function alignWithManualRect() {
+            if (!baseImgMat || !targetImgMat || !roiRect || !manualMatchRect) {
+                updateStatus('Required data missing for manual alignment.', true);
+                return;
+            }
+            showLoader('Re-aligning with manual region...');
+            try {
+                const homography = calculateHomography(baseImgMat, targetImgMat, roiRect, new cv.Rect(manualMatchRect.x, manualMatchRect.y, manualMatchRect.width, manualMatchRect.height));
+                if (!homography) {
+                    throw new Error('Could not compute homography from manual region.');
+                }
+                applyHomographyAndExtract(homography);
+                homography.delete();
+            } catch(error) {
+                handleError(error, 'Manual alignment failed');
+            } finally {
+                hideLoader();
+            }
+        }
+
+        // --- UI Interaction Functions ---
+        function toggleAllCheckboxes(isChecked) {
+            const checkboxes = checkboxListDiv.querySelectorAll('input[type="checkbox"]');
+            checkboxes.forEach(cb => cb.checked = isChecked);
+        }
+
+        async function downloadSelectedCheckboxesAsZip() {
+            const selectedCheckboxes = checkboxListDiv.querySelectorAll('input[type="checkbox"]:checked');
+            if (selectedCheckboxes.length === 0) {
+                updateStatus('No checkboxes selected for download.', true);
+                return;
+            }
+            updateStatus(`Zipping ${selectedCheckboxes.length} images...`, false);
+            const zip = new JSZip();
+            
+            for (const cb of selectedCheckboxes) {
+                const canvas = cb.parentElement.querySelector('canvas');
+                const dataIndex = cb.dataset.index;
+                const label = checkboxData[dataIndex].label.replace(/[^a-z0-9]/gi, '_').toLowerCase();
+                const filename = `${label || 'checkbox'}_${dataIndex}.png`;
+                
+                const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                zip.file(filename, blob);
+            }
+
+            zip.generateAsync({type:"blob"}).then(function(content) {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = "checkbox_images.zip";
+                link.click();
+                URL.revokeObjectURL(link.href);
+                updateStatus('Download complete.', false);
+            });
+        }
+        
+        function drawCheckboxBoundaries(ctx) {
+             checkboxData.forEach(item => {
+                if (item.type !== 'checkbox') return;
+                const [y1, x1, y2, x2] = item.box_2d;
+                ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+            });
+        }
+
+        // --- Interactive ROI Functions (Base Canvas) ---
+        function redrawBaseCanvas() {
+            if (!baseImgObject || !roiRect) return;
+            const ctx = baseCanvas.getContext('2d');
+            baseCanvas.width = baseImgObject.width;
+            baseCanvas.height = baseImgObject.height;
+            ctx.drawImage(baseImgObject, 0, 0);
+            drawInteractiveRect(ctx, roiRect, 'rgba(59, 130, 246, 0.9)');
+        }
+
+        function onMouseDown(e) { handleMouseDown(e, baseCanvas, roiRect); }
+        function onMouseUp(e) { handleMouseUp(); }
+        function onMouseMove(e) { handleMouseMove(e, baseCanvas, roiRect, redrawBaseCanvas); }
+
+        // --- Interactive ROI Functions (Debug Canvas) ---
+        function redrawDebugCanvas() {
+            if (!targetImgMat) return;
+            cv.imshow(debugCanvas, targetImgMat);
+            const ctx = debugCanvas.getContext('2d');
+
+            // Draw the larger search area
+            if (searchRect) {
+                ctx.strokeStyle = 'rgba(22, 163, 74, 0.7)'; // Green
+                ctx.lineWidth = 2;
+                ctx.strokeRect(searchRect.x, searchRect.y, searchRect.width, searchRect.height);
+            }
+
+            // Draw the interactive matched area
+            if (manualMatchRect) {
+                drawInteractiveRect(ctx, manualMatchRect, 'rgba(250, 204, 21, 1)'); // Yellow
+            }
+        }
+
+        function onDebugMouseDown(e) { handleMouseDown(e, debugCanvas, manualMatchRect); }
+        function onDebugMouseUp(e) { handleMouseUp(); }
+        function onDebugMouseMove(e) { handleMouseMove(e, debugCanvas, manualMatchRect, redrawDebugCanvas); }
+
+        // --- Generic ROI Interaction Logic ---
+        function drawInteractiveRect(ctx, rect, color) {
+            ctx.strokeStyle = color; ctx.lineWidth = 2;
+            ctx.strokeRect(rect.x, rect.y, rect.width, rect.height);
+            ctx.fillStyle = color;
+            const halfHandle = handleSize / 2;
+            const handles = getHandlePositions(rect);
+            handles.forEach(h => ctx.fillRect(h.x - halfHandle, h.y - halfHandle, handleSize, handleSize));
+        }
+        
+        function getHandlePositions(rect) {
+            if (!rect) return [];
+            const { x, y, width, height } = rect;
+            return [
+                { x: x, y: y, name: 'topLeft' }, { x: x + width, y: y, name: 'topRight' },
+                { x: x, y: y + height, name: 'bottomLeft' }, { x: x + width, y: y + height, name: 'bottomRight' },
+                { x: x + width / 2, y: y, name: 'top' }, { x: x + width / 2, y: y + height, name: 'bottom' },
+                { x: x, y: y + height / 2, name: 'left' }, { x: x + width, y: y + height / 2, name: 'right' }
+            ];
+        }
+
+        function getResizeHandle(pos, rect) {
+            if (!rect) return null;
+            const h = handleSize * 2;
+            const handles = getHandlePositions(rect);
+            for (const handle of handles) {
+                if (pos.x > handle.x - h && pos.x < handle.x + h && pos.y > handle.y - h && pos.y < handle.y + h) {
+                    return handle.name;
+                }
+            }
+            return null;
+        }
+
+        function handleMouseDown(e, canvas, rect) {
+            const pos = getMousePos(canvas, e);
+            isResizing = getResizeHandle(pos, rect);
+            if (isResizing) { isDragging = false; } 
+            else if (rect && pos.x > rect.x && pos.x < rect.x + rect.width && pos.y > rect.y && pos.y < rect.y + rect.height) { isDragging = true; }
+            dragStart.x = pos.x; dragStart.y = pos.y;
+        }
+
+        function handleMouseUp() { isDragging = false; isResizing = null; }
+
+        function handleMouseMove(e, canvas, rect, redrawFn) {
+            if (!rect) return;
+            const pos = getMousePos(canvas, e); 
+            const handle = getResizeHandle(pos, rect);
+            
+            if (handle) {
+                if (handle.includes('top') || handle.includes('bottom')) canvas.style.cursor = 'ns-resize';
+                else if (handle.includes('left') || handle.includes('right')) canvas.style.cursor = 'ew-resize';
+                if (handle === 'topLeft' || handle === 'bottomRight') canvas.style.cursor = 'nwse-resize';
+                if (handle === 'topRight' || handle === 'bottomLeft') canvas.style.cursor = 'nesw-resize';
+            } else if (rect && pos.x > rect.x && pos.x < rect.x + rect.width && pos.y > rect.y && pos.y < rect.y + rect.height) { 
+                canvas.style.cursor = 'move'; 
+            } else { 
+                canvas.style.cursor = 'crosshair'; 
+            }
+
+            if (!isDragging && !isResizing) return;
+            const dx = pos.x - dragStart.x; const dy = pos.y - dragStart.y;
+            
+            if (isDragging) { rect.x += dx; rect.y += dy; } 
+            else if (isResizing) {
+                if (isResizing.includes('left')) { rect.x += dx; rect.width -= dx; }
+                if (isResizing.includes('top')) { rect.y += dy; rect.height -= dy; }
+                if (isResizing.includes('right')) { rect.width += dx; }
+                if (isResizing.includes('bottom')) { rect.height += dy; }
+            }
+            dragStart = pos;
+            redrawFn();
+        }
+
+        function getMousePos(canvas, evt) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return { x: (evt.clientX - rect.left) * scaleX, y: (evt.clientY - rect.top) * scaleY };
+        }
+
+        // --- Helper & UI Functions ---
+        function handleError(error, context) { console.error(`${context}:`, error); updateStatus(`Error: ${error.message || `An unknown error occurred.`}`, true); }
+        function fileToImageObject(file) { return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(file); }); }
+        function fileToMat(file) { return new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(cv.imread(img)); img.onerror = reject; img.src = URL.createObjectURL(file); }); }
+        function readJsonFile(file) { return new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = (e) => { try { resolve(JSON.parse(e.target.result)); } catch (error) { reject(new Error('Invalid JSON file.')); } }; reader.onerror = reject; reader.readAsText(file); }); }
+        function updateStatus(message, isError = false) { statusDiv.textContent = message; statusDiv.style.color = isError ? '#f87171' : '#9ca3af'; }
+        function showLoader(text) { loaderText.textContent = text; loader.style.display = 'flex'; }
+        function hideLoader() { loader.style.display = 'none'; }
+    </script>
+</body>
+</html>
