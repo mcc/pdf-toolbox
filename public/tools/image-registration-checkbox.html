@@ -155,7 +155,7 @@
 
             <!-- Aligned Target Panel -->
             <div class="panel-container">
-                <h2 class="panel-header">Aligned Target Image</h2>
+                <h2 class="panel-header">Aligned Target ROI</h2>
                 <canvas id="targetCanvas"></canvas>
             </div>
 
@@ -337,13 +337,13 @@
                 if(targetImgMat) targetImgMat.delete();
                 targetImgMat = await fileToMat(targetFile);
 
-                const homography = findHomographyByTemplateMatching(baseImgMat, targetImgMat, roiRect);
-                if (!homography) {
-                    throw new Error('Could not compute homography. Check debug canvas.');
+                const transformData = findTransformByTemplateMatching(baseImgMat, targetImgMat, roiRect);
+                if (!transformData) {
+                    throw new Error('Could not compute transform. Check debug canvas.');
                 }
                 
-                applyHomographyAndExtract(homography);
-                homography.delete();
+                applyTransformAndExtract(transformData.transform, transformData.matchedRect);
+                transformData.transform.delete();
 
             } catch (error) {
                 handleError(error, 'Alignment failed');
@@ -352,34 +352,47 @@
             }
         }
 
-        function applyHomographyAndExtract(homography) {
+        function applyTransformAndExtract(transform, matchedRect) {
+            const baseRoiMat = baseImgMat.roi(new cv.Rect(roiRect.x, roiRect.y, roiRect.width, roiRect.height));
+
             if (warpedTargetImgMat) warpedTargetImgMat.delete();
             warpedTargetImgMat = new cv.Mat();
-            const dsize = new cv.Size(baseImgMat.cols, baseImgMat.rows);
-            cv.warpPerspective(targetImgMat, warpedTargetImgMat, homography, dsize, cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
             
-            cv.imshow(targetCanvas, warpedTargetImgMat);
+            // Use warpAffine with the 2x3 transformation matrix
+            cv.warpAffine(targetImgMat, warpedTargetImgMat, transform, new cv.Size(baseImgMat.cols, baseImgMat.rows), cv.INTER_LINEAR, cv.BORDER_CONSTANT, new cv.Scalar());
+            
+            // Create a final chopped version to display
+            const finalWarpedRoi = warpedTargetImgMat.roi(new cv.Rect(roiRect.x, roiRect.y, roiRect.width, roiRect.height));
+
+            cv.imshow(targetCanvas, finalWarpedRoi);
             drawCheckboxBoundaries(targetCanvas.getContext('2d'));
-            populateCheckboxList();
+            populateCheckboxList(finalWarpedRoi);
             updateStatus('Alignment complete!', false);
+            
+            baseRoiMat.delete();
+            finalWarpedRoi.delete();
         }
 
-        function populateCheckboxList() {
-            if (!warpedTargetImgMat || !checkboxData) return;
+        function populateCheckboxList(alignedRoiMat) {
+            if (!alignedRoiMat || !checkboxData) return;
             checkboxListDiv.innerHTML = ''; // Clear previous list
 
             checkboxData.forEach((item, index) => {
                 if (item.type !== 'checkbox') return;
                 
-                const [y1, x1, y2, x2] = item.box_2d;
+                const x1 = item.box_2d[1] - roiRect.x;
+                const y1 = item.box_2d[0] - roiRect.y;
+                const x2 = item.box_2d[3] - roiRect.x;
+                const y2 = item.box_2d[2] - roiRect.y;
+                
                 const rect = new cv.Rect(x1, y1, x2 - x1, y2 - y1);
                 
-                if (rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 || rect.x + rect.width > warpedTargetImgMat.cols || rect.y + rect.height > warpedTargetImgMat.rows) {
+                if (rect.x < 0 || rect.y < 0 || rect.width <= 0 || rect.height <= 0 || rect.x + rect.width > alignedRoiMat.cols || rect.y + rect.height > alignedRoiMat.rows) {
                     console.warn(`Checkbox "${item.label}" is out of bounds after warping. Skipping.`);
                     return;
                 }
 
-                const checkboxRoi = warpedTargetImgMat.roi(rect);
+                const checkboxRoi = alignedRoiMat.roi(rect);
                 const listItem = document.createElement('div');
                 listItem.className = 'checkbox-item';
                 const checkbox = document.createElement('input');
@@ -399,8 +412,7 @@
             });
         }
         
-        function findHomographyByTemplateMatching(baseMat, fullTargetMat, roi) {
-            // Define a larger search area on the target image based on the base ROI
+        function findTransformByTemplateMatching(baseMat, fullTargetMat, roi) {
             const paddingX = roi.width * 0.5;
             const paddingY = roi.height * 0.5;
             searchRect = {
@@ -420,29 +432,22 @@
             const { maxLoc } = cv.minMaxLoc(result);
             result.delete();
             
-            // Reconcile coordinates: maxLoc is relative to the chopped search area.
-            // Convert it to be relative to the full target image.
-            const matchedRect = new cv.Rect(
-                maxLoc.x + searchRect.x, 
-                maxLoc.y + searchRect.y, 
-                baseRoiMat.cols, 
-                baseRoiMat.rows
-            );
+            const matchedRect = new cv.Rect(maxLoc.x + searchRect.x, maxLoc.y + searchRect.y, baseRoiMat.cols, baseRoiMat.rows);
             manualMatchRect = { x: matchedRect.x, y: matchedRect.y, width: matchedRect.width, height: matchedRect.height };
             
-            redrawDebugCanvas(); // Will draw full image + search rect + matched rect
+            redrawDebugCanvas();
             debugCanvas.addEventListener('mousedown', onDebugMouseDown);
             debugCanvas.addEventListener('mousemove', onDebugMouseMove);
             debugCanvas.addEventListener('mouseup', onDebugMouseUp);
             debugCanvas.addEventListener('mouseout', onDebugMouseUp);
             
-            const homography = calculateHomography(baseMat, fullTargetMat, roi, matchedRect);
+            const transform = calculateTransform(baseMat, fullTargetMat, roi, matchedRect);
             baseRoiMat.delete();
             searchTargetMat.delete();
-            return homography;
+            return { transform, matchedRect };
         }
 
-        function calculateHomography(baseMat, targetMat, baseRoiRect, targetMatchRect) {
+        function calculateTransform(baseMat, targetMat, baseRoiRect, targetMatchRect) {
             const baseRoiMat = baseMat.roi(new cv.Rect(baseRoiRect.x, baseRoiRect.y, baseRoiRect.width, baseRoiRect.height));
             const targetRoiMat = targetMat.roi(targetMatchRect);
 
@@ -476,16 +481,20 @@
 
             const srcPts = [], dstPts = [];
             for (let i = 0; i < goodMatchesCount; i++) {
-                srcPts.push(keypoints1.get(sortedMatches[i].queryIdx).pt.x + baseRoiRect.x, keypoints1.get(sortedMatches[i].queryIdx).pt.y + baseRoiRect.y);
+                // Points from target image (the 'from' points)
                 dstPts.push(keypoints2.get(sortedMatches[i].trainIdx).pt.x + targetMatchRect.x, keypoints2.get(sortedMatches[i].trainIdx).pt.y + targetMatchRect.y);
+                // Points from base image (the 'to' points)
+                srcPts.push(keypoints1.get(sortedMatches[i].queryIdx).pt.x + baseRoiRect.x, keypoints1.get(sortedMatches[i].queryIdx).pt.y + baseRoiRect.y);
             }
 
             const srcMat = cv.matFromArray(srcPts.length / 2, 1, cv.CV_32FC2, srcPts);
             const dstMat = cv.matFromArray(dstPts.length / 2, 1, cv.CV_32FC2, dstPts);
-            const homography = cv.findHomography(dstMat, srcMat, cv.RANSAC, 5.0);
+            
+            // Use estimateAffinePartial2D for a more robust, less distorted transformation
+            const affineTransform = cv.estimateAffine2D(dstMat, srcMat);
 
             [baseRoiMat, targetRoiMat, baseGray, targetGray, keypoints1, keypoints2, descriptors1, descriptors2, bf, matches, srcMat, dstMat].forEach(m => m.delete());
-            return homography;
+            return affineTransform;
         }
 
         async function alignWithManualRect() {
@@ -495,12 +504,13 @@
             }
             showLoader('Re-aligning with manual region...');
             try {
-                const homography = calculateHomography(baseImgMat, targetImgMat, roiRect, new cv.Rect(manualMatchRect.x, manualMatchRect.y, manualMatchRect.width, manualMatchRect.height));
-                if (!homography) {
-                    throw new Error('Could not compute homography from manual region.');
+                const matchedRect = new cv.Rect(manualMatchRect.x, manualMatchRect.y, manualMatchRect.width, manualMatchRect.height);
+                const transform = calculateTransform(baseImgMat, targetImgMat, roiRect, matchedRect);
+                if (!transform) {
+                    throw new Error('Could not compute transform from manual region.');
                 }
-                applyHomographyAndExtract(homography);
-                homography.delete();
+                applyTransformAndExtract(transform, matchedRect);
+                transform.delete();
             } catch(error) {
                 handleError(error, 'Manual alignment failed');
             } finally {
@@ -546,7 +556,11 @@
         function drawCheckboxBoundaries(ctx) {
              checkboxData.forEach(item => {
                 if (item.type !== 'checkbox') return;
-                const [y1, x1, y2, x2] = item.box_2d;
+                const x1 = item.box_2d[1] - roiRect.x;
+                const y1 = item.box_2d[0] - roiRect.y;
+                const x2 = item.box_2d[3] - roiRect.x;
+                const y2 = item.box_2d[2] - roiRect.y;
+
                 ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
@@ -573,14 +587,12 @@
             cv.imshow(debugCanvas, targetImgMat);
             const ctx = debugCanvas.getContext('2d');
 
-            // Draw the larger search area
             if (searchRect) {
                 ctx.strokeStyle = 'rgba(22, 163, 74, 0.7)'; // Green
                 ctx.lineWidth = 2;
                 ctx.strokeRect(searchRect.x, searchRect.y, searchRect.width, searchRect.height);
             }
 
-            // Draw the interactive matched area
             if (manualMatchRect) {
                 drawInteractiveRect(ctx, manualMatchRect, 'rgba(250, 204, 21, 1)'); // Yellow
             }
