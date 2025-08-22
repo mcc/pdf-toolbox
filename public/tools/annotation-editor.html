@@ -1,0 +1,1209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Annotation Editor</title>
+    <!-- Tailwind CSS for styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Custom font for a clean look */
+        body {
+            font-family: "Inter", sans-serif;
+            margin: 0;
+            overflow: hidden; /* Prevent body scroll */
+        }
+        /* Canvas styling */
+        canvas {
+            border: 1px solid #ccc;
+            background-color: #f0f0f0;
+            display: block;
+            margin: auto; /* Center the canvas */
+            touch-action: none; /* Prevent default touch actions like pan/zoom on canvas */
+        }
+        /* Custom scrollbar for better aesthetics */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #f1f1f1;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #888;
+            border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #555;
+        }
+        /* Toast Notification Styles */
+        #toastContainer {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            pointer-events: none; /* Allow clicks to pass through */
+        }
+        .toast {
+            background-color: #333;
+            color: white;
+            padding: 12px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out, transform 0.3s ease-in-out;
+            transform: translateY(-20px);
+            pointer-events: auto; /* Re-enable pointer events for the toast itself */
+            min-width: 200px;
+            text-align: center;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+        .toast.success {
+            background-color: #4CAF50; /* Green for success */
+        }
+        .toast.error {
+            background-color: #F44336; /* Red for error */
+        }
+        /* Canvas Controls Styling */
+        #canvasControls {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(255, 255, 255, 0.9);
+            border-radius: 12px;
+            padding: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            border: 1px solid #e2e8f0;
+        }
+        .control-btn {
+            background-color: #fff;
+            border: 1px solid #cbd5e1;
+            color: #4a5568;
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s ease-in-out;
+        }
+        .control-btn:hover {
+            background-color: #f1f5f9;
+            border-color: #94a3b8;
+        }
+        .control-btn:active {
+            transform: scale(0.95);
+        }
+        #zoomLevelDisplay {
+            font-weight: 500;
+            color: #4a5568;
+            background-color: #f8fafc;
+            padding: 4px 12px;
+            border-radius: 6px;
+            border: 1px solid #e2e8f0;
+            min-width: 60px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 h-screen flex flex-col">
+    <div class="flex flex-1 overflow-hidden">
+        <!-- Left Panel: Canvas for Image and Annotations -->
+        <div id="canvasContainer" class="w-2/3 p-4 flex items-center justify-center overflow-auto relative">
+            <canvas id="annotationCanvas" class="max-w-full max-h-full rounded-lg shadow-lg"></canvas>
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" class="absolute inset-0 bg-gray-200 bg-opacity-75 flex items-center justify-center rounded-lg hidden">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
+            </div>
+            <!-- Canvas Controls -->
+            <div id="canvasControls">
+                <button id="zoomOutBtn" class="control-btn" title="Zoom Out (Q)"><i class="fas fa-search-minus"></i></button>
+                <div id="zoomLevelDisplay">100%</div>
+                <button id="zoomInBtn" class="control-btn" title="Zoom In (E)"><i class="fas fa-search-plus"></i></button>
+                <button id="recenterBtn" class="control-btn" title="Recenter (F)"><i class="fas fa-compress-arrows-alt"></i></button>
+                <div class="flex gap-1">
+                    <button id="panLeftBtn" class="control-btn !w-8 !h-8" title="Pan Left (A)"><i class="fas fa-arrow-left"></i></button>
+                    <button id="panUpBtn" class="control-btn !w-8 !h-8" title="Pan Up (W)"><i class="fas fa-arrow-up"></i></button>
+                    <button id="panDownBtn" class="control-btn !w-8 !h-8" title="Pan Down (S)"><i class="fas fa-arrow-down"></i></button>
+                    <button id="panRightBtn" class="control-btn !w-8 !h-8" title="Pan Right (D)"><i class="fas fa-arrow-right"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right Panel: Controls and Annotations List -->
+        <div class="w-1/3 bg-white p-6 flex flex-col space-y-4 shadow-lg overflow-y-auto custom-scrollbar rounded-l-lg">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Annotation Editor</h2>
+            <div class="text-xs text-gray-500 bg-gray-50 p-2 rounded-md">
+                <b>Pro-tips:</b>
+                <ul class="list-disc list-inside">
+                    <li><b>Canvas:</b> Use <b>WASD</b> to pan, <b>Q/E</b> to zoom, <b>F</b> to reset.</li>
+                    <li><b>Annotations:</b> Use <b>Arrow Keys</b> to move selected items.</li>
+                    <li>Hold <b>Shift</b> to multi-select items.</li>
+                </ul>
+            </div>
+
+            <!-- File Uploads Section -->
+            <div class="space-y-3">
+                <div>
+                    <label for="imageUpload" class="block text-sm font-medium text-gray-700 mb-1">Upload Image File</label>
+                    <input type="file" id="imageUpload" accept="image/*" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-violet-50 file:text-violet-700
+                        hover:file:bg-violet-100 cursor-pointer rounded-md border border-gray-300 p-2">
+                </div>
+                <div>
+                    <label for="jsonUpload" class="block text-sm font-medium text-gray-700 mb-1">Upload Annotation JSON</label>
+                    <input type="file" id="jsonUpload" accept=".json" class="block w-full text-sm text-gray-500
+                        file:mr-4 file:py-2 file:px-4
+                        file:rounded-full file:border-0
+                        file:text-sm file:font-semibold
+                        file:bg-blue-50 file:text-blue-700
+                        hover:file:bg-blue-100 cursor-pointer rounded-md border border-gray-300 p-2">
+                </div>
+            </div>
+
+            <hr class="border-t border-gray-200">
+
+            <!-- JSON Dimension Settings -->
+            <div class="space-y-3">
+                <h3 class="text-xl font-semibold text-gray-800">JSON Coordinate System</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="jsonSourceWidth" class="block text-sm font-medium text-gray-700 mb-1">JSON Source Width</label>
+                        <input type="number" id="jsonSourceWidth" value="1000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                    </div>
+                    <div>
+                        <label for="jsonSourceHeight" class="block text-sm font-medium text-gray-700 mb-1">JSON Source Height</label>
+                        <input type="number" id="jsonSourceHeight" value="1000" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                    </div>
+                </div>
+                <button id="setGeminiDefaultBtn" class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 shadow-md">
+                    Set to 1000x1000 (Gemini Default)
+                </button>
+                <button id="setImageDimensionsBtn" class="w-full bg-teal-600 text-white py-2 px-4 rounded-md hover:bg-teal-700 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 shadow-md">
+                    Set to Original Image Dimensions
+                </button>
+            </div>
+
+            <hr class="border-t border-gray-200">
+
+            <!-- Annotation Actions -->
+            <div class="space-y-3">
+                <button id="addAnnotationBtn" class="w-full bg-green-600 text-white py-2 px-4 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 shadow-md">
+                    Add New Annotation
+                </button>
+                <div id="drawingModeMessage" class="text-sm text-gray-600 text-center hidden">
+                    Click and drag on the image to draw a new box. Right-click or press Esc to cancel.
+                </div>
+                <button id="convertAnnotationsBtn" class="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 shadow-md">
+                    Convert Annotations to Image Dimensions
+                </button>
+                <button id="downloadJsonBtn" class="w-full bg-gray-600 text-white py-2 px-4 rounded-md hover:bg-gray-700 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2 shadow-md">
+                    Download Annotations JSON
+                </button>
+            </div>
+
+            <hr class="border-t border-gray-200">
+
+             <!-- NEW: Batch Editing Section -->
+            <div id="batchEditSection" class="space-y-3">
+                <h3 class="text-xl font-semibold text-gray-800">Batch Edit Selected</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <div>
+                        <label for="batchWidth" class="block text-sm font-medium text-gray-700 mb-1">New Width</label>
+                        <input type="number" id="batchWidth" placeholder="e.g., 50" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                    </div>
+                    <div>
+                        <label for="batchHeight" class="block text-sm font-medium text-gray-700 mb-1">New Height</label>
+                        <input type="number" id="batchHeight" placeholder="e.g., 50" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                    </div>
+                </div>
+                <button id="batchResizeBtn" class="w-full bg-orange-600 text-white py-2 px-4 rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2 shadow-md">
+                    Resize Selected Annotations
+                </button>
+            </div>
+
+            <hr class="border-t border-gray-200">
+
+            <!-- Annotation Editing Form (Initially hidden) -->
+            <div id="annotationEditSection" class="space-y-3 hidden">
+                <h3 class="text-xl font-semibold text-gray-800">Edit Annotation</h3>
+                 <div id="multiSelectMessage" class="text-sm text-center text-gray-600 bg-yellow-100 p-2 rounded-md hidden">
+                    Multiple annotations selected. Editing is disabled.
+                </div>
+                <div id="singleEditForm">
+                    <div>
+                        <label for="editLabel" class="block text-sm font-medium text-gray-700 mb-1">Label</label>
+                        <input type="text" id="editLabel" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
+                    </div>
+                    <div>
+                        <label for="editType" class="block text-sm font-medium text-gray-700 mb-1">Type</label>
+                        <input type="text" id="editType" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border">
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label for="editY1" class="block text-sm font-medium text-gray-700 mb-1">Y1 (Top)</label>
+                            <input type="number" id="editY1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="editX1" class="block text-sm font-medium text-gray-700 mb-1">X1 (Left)</label>
+                            <input type="number" id="editX1" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="editY2" class="block text-sm font-medium text-gray-700 mb-1">Y2 (Bottom)</label>
+                            <input type="number" id="editY2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                        </div>
+                        <div>
+                            <label for="editX2" class="block text-sm font-medium text-gray-700 mb-1">X2 (Right)</label>
+                            <input type="number" id="editX2" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">
+                        </div>
+                    </div>
+                    <button id="updateAnnotationBtn" class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 shadow-md">
+                        Update Annotation
+                    </button>
+                </div>
+                 <button id="deleteAnnotationBtn" class="w-full bg-red-600 text-white py-2 px-4 rounded-md hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 shadow-md mt-3">
+                    Delete Selected Annotation(s)
+                </button>
+            </div>
+
+            <hr class="border-t border-gray-200">
+
+            <!-- Annotation List Section -->
+            <div>
+                <h3 class="text-xl font-semibold text-gray-800 mb-3">Annotations List</h3>
+                <ul id="annotationList" class="space-y-2 max-h-96 overflow-y-auto custom-scrollbar pr-2">
+                    <!-- Annotations will be listed here dynamically by JavaScript -->
+                    <li class="text-gray-500 italic">No annotations loaded.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toastContainer"></div>
+
+    <script>
+        // Get references to HTML elements
+        const canvas = document.getElementById('annotationCanvas');
+        const ctx = canvas.getContext('2d');
+        const imageUpload = document.getElementById('imageUpload');
+        const jsonUpload = document.getElementById('jsonUpload');
+        const annotationList = document.getElementById('annotationList');
+        const annotationEditSection = document.getElementById('annotationEditSection');
+        const multiSelectMessage = document.getElementById('multiSelectMessage');
+        const singleEditForm = document.getElementById('singleEditForm');
+        const editLabel = document.getElementById('editLabel');
+        const editType = document.getElementById('editType');
+        const editY1 = document.getElementById('editY1');
+        const editX1 = document.getElementById('editX1');
+        const editY2 = document.getElementById('editY2');
+        const editX2 = document.getElementById('editX2');
+        const updateAnnotationBtn = document.getElementById('updateAnnotationBtn');
+        const deleteAnnotationBtn = document.getElementById('deleteAnnotationBtn');
+        const loadingIndicator = document.getElementById('loadingIndicator');
+        const toastContainer = document.getElementById('toastContainer');
+        const addAnnotationBtn = document.getElementById('addAnnotationBtn');
+        const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+        const drawingModeMessage = document.getElementById('drawingModeMessage');
+        const jsonSourceWidthInput = document.getElementById('jsonSourceWidth');
+        const jsonSourceHeightInput = document.getElementById('jsonSourceHeight');
+        const setGeminiDefaultBtn = document.getElementById('setGeminiDefaultBtn');
+        const setImageDimensionsBtn = document.getElementById('setImageDimensionsBtn');
+        const convertAnnotationsBtn = document.getElementById('convertAnnotationsBtn');
+        const batchWidthInput = document.getElementById('batchWidth');
+        const batchHeightInput = document.getElementById('batchHeight');
+        const batchResizeBtn = document.getElementById('batchResizeBtn');
+        // Canvas control elements
+        const zoomInBtn = document.getElementById('zoomInBtn');
+        const zoomOutBtn = document.getElementById('zoomOutBtn');
+        const zoomLevelDisplay = document.getElementById('zoomLevelDisplay');
+        const recenterBtn = document.getElementById('recenterBtn');
+        const panUpBtn = document.getElementById('panUpBtn');
+        const panDownBtn = document.getElementById('panDownBtn');
+        const panLeftBtn = document.getElementById('panLeftBtn');
+        const panRightBtn = document.getElementById('panRightBtn');
+
+
+        // Global variables for application state
+        let image = new Image();
+        let annotations = [];
+        let currentImageWidth = 0;
+        let currentImageHeight = 0;
+        let canvasWidth = 0;
+        let canvasHeight = 0;
+        let zoomLevel = 1.0;
+        let offsetX = 0;
+        let offsetY = 0;
+        let isDraggingCanvas = false;
+        let isMovingAnnotation = false;
+        let isResizingAnnotation = false;
+        let resizeHandle = null;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let selectedAnnotationIndices = [];
+        let isDrawingNewAnnotation = false;
+        let startDrawX = 0;
+        let startDrawY = 0;
+        let newAnnotationPreview = null;
+        let isSelectingArea = false;
+        let selectionBox = null;
+
+        // Constants
+        const A4_ASPECT_RATIO = 210 / 297;
+        const ICON_SIZE = 12;
+        const PAN_AMOUNT = 50; // Pixels to pan with buttons
+
+        // JSON source dimensions
+        let jsonSourceWidth = 1000;
+        let jsonSourceHeight = 1000;
+
+        /**
+         * Shows the loading indicator.
+         */
+        function showLoading() {
+            loadingIndicator.classList.remove('hidden');
+        }
+
+        /**
+         * Hides the loading indicator.
+         */
+        function hideLoading() {
+            loadingIndicator.classList.add('hidden');
+        }
+
+        /**
+         * Displays a toast notification.
+         */
+        function showToast(message, type = 'info', duration = 3000) {
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.textContent = message;
+            toastContainer.appendChild(toast);
+            void toast.offsetWidth;
+            toast.classList.add('show');
+            setTimeout(() => {
+                toast.classList.remove('show');
+                toast.addEventListener('transitionend', () => toast.remove(), { once: true });
+            }, duration);
+        }
+
+        /**
+         * Converts JSON coordinates to canvas pixel coordinates.
+         */
+        function toCanvasCoords(jsonBox) {
+            const [y1, x1, y2, x2] = jsonBox;
+            const scaleX = canvasWidth / jsonSourceWidth;
+            const scaleY = canvasHeight / jsonSourceHeight;
+            return [y1 * scaleY, x1 * scaleX, y2 * scaleY, x2 * scaleX];
+        }
+
+        /**
+         * Converts canvas pixel coordinates to JSON coordinates.
+         */
+        function toJsonCoords(canvasBox) {
+            const [canvasY1, canvasX1, canvasY2, canvasX2] = canvasBox;
+            const scaleX = jsonSourceWidth / canvasWidth;
+            const scaleY = jsonSourceHeight / canvasHeight;
+            return [Math.round(canvasY1 * scaleY), Math.round(canvasX1 * scaleX), Math.round(canvasY2 * scaleY), Math.round(canvasX2 * scaleX)];
+        }
+
+        /**
+         * Updates the zoom level display text.
+         */
+        function updateZoomDisplay() {
+            zoomLevelDisplay.textContent = `${Math.round(zoomLevel * 100)}%`;
+        }
+
+        /**
+         * Draws the image and all annotations on the canvas.
+         */
+        function drawAnnotations() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.save();
+            ctx.translate(offsetX, offsetY);
+            ctx.scale(zoomLevel, zoomLevel);
+
+            if (image.src) {
+                ctx.drawImage(image, 0, 0, canvasWidth, canvasHeight);
+            }
+
+            annotations.forEach((annotation, index) => {
+                drawAnnotation(annotation, index, selectedAnnotationIndices.includes(index));
+            });
+
+            if (isDrawingNewAnnotation && newAnnotationPreview) {
+                const [y1, x1, y2, x2] = newAnnotationPreview;
+                ctx.strokeStyle = '#4CAF50';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
+            }
+            
+            if (isSelectingArea && selectionBox) {
+                ctx.fillStyle = 'rgba(0, 100, 255, 0.2)';
+                ctx.strokeStyle = 'rgba(0, 100, 255, 0.6)';
+                ctx.lineWidth = 1;
+                ctx.fillRect(selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h);
+                ctx.strokeRect(selectionBox.x, selectionBox.y, selectionBox.w, selectionBox.h);
+            }
+
+            ctx.restore();
+            updateZoomDisplay(); // Update zoom display every time we draw
+        }
+
+        /**
+         * Draws a single annotation box.
+         */
+        function drawAnnotation(annotation, index, isSelected) {
+            const [y1, x1, y2, x2] = toCanvasCoords(annotation.box_2d);
+            const width = x2 - x1;
+            const height = y2 - y1;
+
+            ctx.strokeStyle = isSelected ? '#EF4444' : '#3B82F6';
+            ctx.lineWidth = isSelected ? 3 : 2;
+            ctx.strokeRect(x1, y1, width, height);
+
+            ctx.fillStyle = isSelected ? '#EF4444' : '#3B82F6';
+            ctx.font = '14px Inter, sans-serif';
+            ctx.fillText(annotation.label, x1, y1 - 5);
+
+            if (isSelected && selectedAnnotationIndices.length === 1) {
+                ctx.fillStyle = '#EF4444';
+                ctx.strokeStyle = '#EF4444';
+                ctx.lineWidth = 1;
+
+                const centerX = x1 + width / 2;
+                const centerY = y1 + height / 2;
+                const halfIconSize = ICON_SIZE / 2;
+
+                ctx.beginPath();
+                ctx.moveTo(centerX - halfIconSize, centerY);
+                ctx.lineTo(centerX + halfIconSize, centerY);
+                ctx.moveTo(centerX, centerY - halfIconSize);
+                ctx.lineTo(centerX, centerY + halfIconSize);
+                ctx.stroke();
+                ctx.closePath();
+
+                const resizeX = x2 - halfIconSize;
+                const resizeY = y2 - halfIconSize;
+                ctx.fillRect(resizeX, resizeY, ICON_SIZE, ICON_SIZE);
+                ctx.strokeRect(resizeX, resizeY, ICON_SIZE, ICON_SIZE);
+            }
+        }
+
+        /**
+         * Checks if a point is over the move icon of the selected annotation.
+         */
+        function isOverMoveIcon(mouseX, mouseY) {
+            if (selectedAnnotationIndices.length !== 1) return false;
+            const annotation = annotations[selectedAnnotationIndices[0]];
+            const [y1, x1, y2, x2] = toCanvasCoords(annotation.box_2d);
+            const centerX = x1 + (x2 - x1) / 2;
+            const centerY = y1 + (y2 - y1) / 2;
+            const halfIconSize = ICON_SIZE / 2;
+            return mouseX >= (centerX - halfIconSize) && mouseX <= (centerX + halfIconSize) &&
+                   mouseY >= (centerY - halfIconSize) && mouseY <= (centerY + halfIconSize);
+        }
+
+        /**
+         * Checks if a point is over the resize icon of the selected annotation.
+         */
+        function isOverResizeIcon(mouseX, mouseY) {
+            if (selectedAnnotationIndices.length !== 1) return null;
+            const annotation = annotations[selectedAnnotationIndices[0]];
+            const [, , y2, x2] = toCanvasCoords(annotation.box_2d);
+            const halfIconSize = ICON_SIZE / 2;
+            const resizeX = x2 - halfIconSize;
+            const resizeY = y2 - halfIconSize;
+            if (mouseX >= resizeX && mouseX <= resizeX + ICON_SIZE &&
+                mouseY >= resizeY && mouseY <= resizeY + ICON_SIZE) {
+                return 'br';
+            }
+            return null;
+        }
+
+        /**
+         * Updates the list of annotations in the right panel.
+         */
+        function updateAnnotationList() {
+            annotationList.innerHTML = '';
+            if (annotations.length === 0) {
+                annotationList.innerHTML = '<li class="text-gray-500 italic">No annotations loaded.</li>';
+                return;
+            }
+            annotations.forEach((annotation, index) => {
+                const listItem = document.createElement('li');
+                const isSelected = selectedAnnotationIndices.includes(index);
+                listItem.className = `p-3 rounded-md shadow-sm cursor-pointer transition-colors duration-200 ${
+                    isSelected ? 'bg-indigo-100 border-l-4 border-indigo-500' : 'bg-gray-50 hover:bg-gray-100'
+                }`;
+                listItem.dataset.index = index;
+                listItem.innerHTML = `
+                    <p class="font-semibold text-gray-800">${annotation.label}</p>
+                    <p class="text-sm text-gray-600">Type: ${annotation.type}</p>
+                    <p class="text-xs text-gray-500">Box: [${annotation.box_2d.map(c => Math.round(c)).join(', ')}]</p>
+                `;
+                annotationList.appendChild(listItem);
+            });
+        }
+
+        /**
+         * Populates the editing form based on the current selection.
+         */
+        function populateEditForm() {
+            if (selectedAnnotationIndices.length === 1) {
+                const annotation = annotations[selectedAnnotationIndices[0]];
+                editLabel.value = annotation.label;
+                editType.value = annotation.type;
+                editY1.value = annotation.box_2d[0];
+                editX1.value = annotation.box_2d[1];
+                editY2.value = annotation.box_2d[2];
+                editX2.value = annotation.box_2d[3];
+                
+                annotationEditSection.classList.remove('hidden');
+                singleEditForm.classList.remove('hidden');
+                multiSelectMessage.classList.add('hidden');
+                deleteAnnotationBtn.textContent = 'Delete Selected Annotation';
+
+            } else if (selectedAnnotationIndices.length > 1) {
+                annotationEditSection.classList.remove('hidden');
+                singleEditForm.classList.add('hidden');
+                multiSelectMessage.classList.remove('hidden');
+                multiSelectMessage.textContent = `${selectedAnnotationIndices.length} annotations selected. Editing is disabled.`;
+                deleteAnnotationBtn.textContent = `Delete ${selectedAnnotationIndices.length} Selected Annotations`;
+            } else {
+                annotationEditSection.classList.add('hidden');
+            }
+        }
+
+        /**
+         * Loads the selected image file onto the canvas.
+         */
+        function loadImageOnCanvas(file) {
+            showLoading();
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                image.onload = function() {
+                    currentImageWidth = image.width;
+                    currentImageHeight = image.height;
+                    const imageAspectRatio = currentImageWidth / currentImageHeight;
+                    if (imageAspectRatio > A4_ASPECT_RATIO) {
+                        canvasWidth = 800;
+                        canvasHeight = canvasWidth / imageAspectRatio;
+                    } else {
+                        canvasHeight = 1130;
+                        canvasWidth = canvasHeight * imageAspectRatio;
+                    }
+                    canvas.width = canvasWidth;
+                    canvas.height = canvasHeight;
+                    recenterCanvas(); // Use recenter to set initial state
+                    hideLoading();
+                };
+                image.onerror = () => {
+                    showToast("Failed to load image.", 'error');
+                    hideLoading();
+                };
+                image.src = event.target.result;
+            };
+            reader.onerror = () => {
+                showToast("Failed to read image file.", 'error');
+                hideLoading();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        /**
+         * Resets zoom and pan to default.
+         */
+        function recenterCanvas() {
+            zoomLevel = 1.0;
+            offsetX = 0;
+            offsetY = 0;
+            selectedAnnotationIndices = [];
+            populateEditForm();
+            exitDrawingMode();
+            drawAnnotations();
+        }
+
+        /**
+         * Enters drawing mode for adding new annotations.
+         */
+        function enterDrawingMode() {
+            isDrawingNewAnnotation = true;
+            selectedAnnotationIndices = [];
+            populateEditForm();
+            drawingModeMessage.classList.remove('hidden');
+            canvas.style.cursor = 'crosshair';
+            drawAnnotations();
+        }
+
+        /**
+         * Exits drawing mode.
+         */
+        function exitDrawingMode() {
+            isDrawingNewAnnotation = false;
+            newAnnotationPreview = null;
+            drawingModeMessage.classList.add('hidden');
+            canvas.style.cursor = 'default';
+            drawAnnotations();
+        }
+
+        // --- Event Listeners ---
+
+        imageUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) loadImageOnCanvas(file);
+        });
+
+        jsonUpload.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                showLoading();
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    try {
+                        const parsedJson = JSON.parse(e.target.result);
+                        if (Array.isArray(parsedJson) && parsedJson.every(a => a.box_2d && Array.isArray(a.box_2d) && a.box_2d.length === 4)) {
+                            annotations = parsedJson;
+                            recenterCanvas();
+                            updateAnnotationList();
+                            showToast("Annotations loaded successfully!", 'success');
+                        } else {
+                            throw new Error("Invalid JSON format.");
+                        }
+                    } catch (error) {
+                        showToast("Error parsing JSON file: " + error.message, 'error');
+                        annotations = [];
+                        drawAnnotations();
+                        updateAnnotationList();
+                    } finally {
+                        hideLoading();
+                    }
+                };
+                reader.readAsText(file);
+            }
+        });
+
+        setGeminiDefaultBtn.addEventListener('click', () => {
+            jsonSourceWidthInput.value = 1000;
+            jsonSourceHeightInput.value = 1000;
+            jsonSourceWidth = 1000;
+            jsonSourceHeight = 1000;
+            drawAnnotations();
+            showToast("JSON source dimensions set to 1000x1000.", 'info');
+        });
+
+        setImageDimensionsBtn.addEventListener('click', () => {
+            if (image.src && currentImageWidth > 0) {
+                jsonSourceWidthInput.value = currentImageWidth;
+                jsonSourceHeightInput.value = currentImageHeight;
+                jsonSourceWidth = currentImageWidth;
+                jsonSourceHeight = currentImageHeight;
+                drawAnnotations();
+                showToast("JSON source dimensions set to original image dimensions.", 'info');
+            } else {
+                showToast("Please upload an image first.", 'error');
+            }
+        });
+
+        convertAnnotationsBtn.addEventListener('click', () => {
+            if (!image.src || currentImageWidth === 0) {
+                showToast("Please upload an image first.", 'error');
+                return;
+            }
+            if (annotations.length === 0) {
+                showToast("No annotations to convert.", 'info');
+                return;
+            }
+            const oldJsonSourceWidth = jsonSourceWidth;
+            const oldJsonSourceHeight = jsonSourceHeight;
+            jsonSourceWidth = currentImageWidth;
+            jsonSourceHeight = currentImageHeight;
+            jsonSourceWidthInput.value = currentImageWidth;
+            jsonSourceHeightInput.value = currentImageHeight;
+            annotations.forEach(annotation => {
+                const [y1, x1, y2, x2] = annotation.box_2d;
+                const normX1 = x1 / oldJsonSourceWidth;
+                const normY1 = y1 / oldJsonSourceHeight;
+                const normX2 = x2 / oldJsonSourceWidth;
+                const normY2 = y2 / oldJsonSourceHeight;
+                annotation.box_2d = [Math.round(normY1 * currentImageHeight), Math.round(normX1 * currentImageWidth), Math.round(normY2 * currentImageHeight), Math.round(normX2 * currentImageWidth)];
+            });
+            drawAnnotations();
+            updateAnnotationList();
+            populateEditForm();
+            showToast("Annotations converted to image dimensions!", 'success');
+        });
+
+        jsonSourceWidthInput.addEventListener('change', () => {
+            const value = parseInt(jsonSourceWidthInput.value);
+            if (!isNaN(value) && value > 0) {
+                jsonSourceWidth = value;
+                drawAnnotations();
+            } else {
+                jsonSourceWidthInput.value = jsonSourceWidth;
+                showToast("Invalid JSON Source Width.", 'error');
+            }
+        });
+
+        jsonSourceHeightInput.addEventListener('change', () => {
+            const value = parseInt(jsonSourceHeightInput.value);
+            if (!isNaN(value) && value > 0) {
+                jsonSourceHeight = value;
+                drawAnnotations();
+            } else {
+                jsonSourceHeightInput.value = jsonSourceHeight;
+                showToast("Invalid JSON Source Height.", 'error');
+            }
+        });
+
+        addAnnotationBtn.addEventListener('click', () => {
+            if (image.src) {
+                enterDrawingMode();
+                showToast("Drawing mode activated.", 'info');
+            } else {
+                showToast("Please upload an image first.", 'error');
+            }
+        });
+
+        downloadJsonBtn.addEventListener('click', () => {
+            if (annotations.length === 0) {
+                showToast("No annotations to download.", 'error');
+                return;
+            }
+            const jsonString = JSON.stringify(annotations, null, 2);
+            const blob = new Blob([jsonString], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'annotations.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast("Annotations JSON downloaded!", 'success');
+        });
+        
+        batchResizeBtn.addEventListener('click', () => {
+            const newWidth = parseInt(batchWidthInput.value);
+            const newHeight = parseInt(batchHeightInput.value);
+            if (isNaN(newWidth) || isNaN(newHeight) || newWidth <= 0 || newHeight <= 0) {
+                showToast("Please enter valid positive numbers for width and height.", 'error');
+                return;
+            }
+            if (selectedAnnotationIndices.length === 0) {
+                showToast("No annotations selected to resize.", 'error');
+                return;
+            }
+            selectedAnnotationIndices.forEach(index => {
+                const annotation = annotations[index];
+                const [y1, x1, y2, x2] = annotation.box_2d;
+                const centerX = x1 + (x2 - x1) / 2;
+                const centerY = y1 + (y2 - y1) / 2;
+                annotation.box_2d = [
+                    Math.round(centerY - newHeight / 2),
+                    Math.round(centerX - newWidth / 2),
+                    Math.round(centerY + newHeight / 2),
+                    Math.round(centerX + newWidth / 2)
+                ];
+            });
+            drawAnnotations();
+            updateAnnotationList();
+            populateEditForm();
+            showToast(`${selectedAnnotationIndices.length} annotation(s) resized.`, 'success');
+        });
+
+        canvas.addEventListener('mousedown', (event) => {
+            if (event.button === 2) event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const scaleX_css = canvas.width / rect.width;
+            const scaleY_css = canvas.height / rect.height;
+            const worldMouseX = ((event.clientX - rect.left) * scaleX_css - offsetX) / zoomLevel;
+            const worldMouseY = ((event.clientY - rect.top) * scaleY_css - offsetY) / zoomLevel;
+            lastMouseX = worldMouseX;
+            lastMouseY = worldMouseY;
+
+            if (isDrawingNewAnnotation) {
+                startDrawX = worldMouseX;
+                startDrawY = worldMouseY;
+                newAnnotationPreview = [startDrawY, startDrawX, startDrawY, startDrawX];
+                return;
+            }
+
+            if (selectedAnnotationIndices.length === 1) {
+                if (isOverMoveIcon(worldMouseX, worldMouseY)) {
+                    isMovingAnnotation = true;
+                    return;
+                }
+                const handle = isOverResizeIcon(worldMouseX, worldMouseY);
+                if (handle) {
+                    isResizingAnnotation = true;
+                    resizeHandle = handle;
+                    return;
+                }
+            }
+            
+            let clickedIndex = -1;
+            for (let i = annotations.length - 1; i >= 0; i--) {
+                const [y1, x1, y2, x2] = toCanvasCoords(annotations[i].box_2d);
+                if (worldMouseX >= x1 && worldMouseX <= x2 && worldMouseY >= y1 && worldMouseY <= y2) {
+                    clickedIndex = i;
+                    break;
+                }
+            }
+
+            if (clickedIndex !== -1) {
+                if (event.shiftKey) {
+                    const existingSelectionIndex = selectedAnnotationIndices.indexOf(clickedIndex);
+                    if (existingSelectionIndex > -1) {
+                        selectedAnnotationIndices.splice(existingSelectionIndex, 1);
+                    } else {
+                        selectedAnnotationIndices.push(clickedIndex);
+                    }
+                } else {
+                    if (!selectedAnnotationIndices.includes(clickedIndex)) {
+                        selectedAnnotationIndices = [clickedIndex];
+                    }
+                }
+            } else {
+                if (!event.shiftKey) {
+                    selectedAnnotationIndices = [];
+                }
+                isSelectingArea = true;
+                selectionBox = { x: worldMouseX, y: worldMouseY, w: 0, h: 0 };
+            }
+
+            populateEditForm();
+            updateAnnotationList();
+            drawAnnotations();
+        });
+
+        canvas.addEventListener('mousemove', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX_css = canvas.width / rect.width;
+            const scaleY_css = canvas.height / rect.height;
+            const currentWorldMouseX = ((event.clientX - rect.left) * scaleX_css - offsetX) / zoomLevel;
+            const currentWorldMouseY = ((event.clientY - rect.top) * scaleY_css - offsetY) / zoomLevel;
+            const deltaWorldX = currentWorldMouseX - lastMouseX;
+            const deltaWorldY = currentWorldMouseY - lastMouseY;
+
+            if (isSelectingArea) {
+                selectionBox.w = currentWorldMouseX - selectionBox.x;
+                selectionBox.h = currentWorldMouseY - selectionBox.y;
+                drawAnnotations();
+            } else if (isDrawingNewAnnotation && newAnnotationPreview) {
+                newAnnotationPreview[2] = currentWorldMouseY;
+                newAnnotationPreview[3] = currentWorldMouseX;
+                drawAnnotations();
+            } else if (isMovingAnnotation && selectedAnnotationIndices.length === 1) {
+                const annotation = annotations[selectedAnnotationIndices[0]];
+                const deltaJsonX = deltaWorldX * (jsonSourceWidth / canvasWidth);
+                const deltaJsonY = deltaWorldY * (jsonSourceHeight / canvasHeight);
+                annotation.box_2d = [annotation.box_2d[0] + deltaJsonY, annotation.box_2d[1] + deltaJsonX, annotation.box_2d[2] + deltaJsonY, annotation.box_2d[3] + deltaJsonX];
+                populateEditForm();
+                drawAnnotations();
+            } else if (isResizingAnnotation && selectedAnnotationIndices.length === 1) {
+                const annotation = annotations[selectedAnnotationIndices[0]];
+                const deltaJsonX = deltaWorldX * (jsonSourceWidth / canvasWidth);
+                const deltaJsonY = deltaWorldY * (jsonSourceHeight / canvasHeight);
+                annotation.box_2d[2] += deltaJsonY;
+                annotation.box_2d[3] += deltaJsonX;
+                if (annotation.box_2d[2] < annotation.box_2d[0]) annotation.box_2d[2] = annotation.box_2d[0] + 1;
+                if (annotation.box_2d[3] < annotation.box_2d[1]) annotation.box_2d[3] = annotation.box_2d[1] + 1;
+                populateEditForm();
+                drawAnnotations();
+            } else if (isDraggingCanvas) {
+                 offsetX += deltaWorldX * zoomLevel;
+                 offsetY += deltaWorldY * zoomLevel;
+                 drawAnnotations();
+            }
+            
+            lastMouseX = currentWorldMouseX;
+            lastMouseY = currentWorldMouseY;
+        });
+
+        canvas.addEventListener('mouseup', (event) => {
+            if (isSelectingArea) {
+                const selX1 = Math.min(selectionBox.x, selectionBox.x + selectionBox.w);
+                const selY1 = Math.min(selectionBox.y, selectionBox.y + selectionBox.h);
+                const selX2 = Math.max(selectionBox.x, selectionBox.x + selectionBox.w);
+                const selY2 = Math.max(selectionBox.y, selectionBox.y + selectionBox.h);
+                if (!event.shiftKey) {
+                    selectedAnnotationIndices = [];
+                }
+                annotations.forEach((ann, index) => {
+                    const [annY1, annX1, annY2, annX2] = toCanvasCoords(ann.box_2d);
+                    if (annX1 < selX2 && annX2 > selX1 && annY1 < selY2 && annY2 > selY1) {
+                        if (!selectedAnnotationIndices.includes(index)) {
+                            selectedAnnotationIndices.push(index);
+                        }
+                    }
+                });
+                isSelectingArea = false;
+                selectionBox = null;
+                populateEditForm();
+                updateAnnotationList();
+                drawAnnotations();
+            } else if (isDrawingNewAnnotation && newAnnotationPreview) {
+                const [y1, x1, y2, x2] = newAnnotationPreview;
+                const finalX1 = Math.min(x1, x2);
+                const finalY1 = Math.min(y1, y2);
+                const finalX2 = Math.max(x1, x2);
+                const finalY2 = Math.max(y1, y2);
+                if (Math.abs(finalX2 - finalX1) > 5 && Math.abs(finalY2 - finalY1) > 5) {
+                    annotations.push({
+                        box_2d: toJsonCoords([finalY1, finalX1, finalY2, finalX2]),
+                        label: "New Annotation",
+                        type: "free_text"
+                    });
+                    showToast("New annotation added!", 'success');
+                } else {
+                    showToast("Drawing too small.", 'error');
+                }
+                exitDrawingMode();
+                updateAnnotationList();
+            }
+            isDraggingCanvas = false;
+            isMovingAnnotation = false;
+            isResizingAnnotation = false;
+            resizeHandle = null;
+            updateAnnotationList();
+        });
+
+        canvas.addEventListener('mouseleave', () => {
+            if (isDrawingNewAnnotation) {
+                exitDrawingMode();
+                showToast("Drawing cancelled.", 'info');
+            }
+            isDraggingCanvas = false;
+            isMovingAnnotation = false;
+            isResizingAnnotation = false;
+            isSelectingArea = false;
+            selectionBox = null;
+            resizeHandle = null;
+            updateAnnotationList();
+            drawAnnotations();
+        });
+
+        canvas.addEventListener('contextmenu', (event) => {
+            if (isDrawingNewAnnotation) {
+                event.preventDefault();
+                exitDrawingMode();
+                showToast("Drawing cancelled.", 'info');
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            // Ignore all keyboard shortcuts if user is typing in an input.
+            if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+                return;
+            }
+
+            // Annotation movement with arrow keys takes precedence
+            if (selectedAnnotationIndices.length > 0 && ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) {
+                event.preventDefault();
+                let dx = 0, dy = 0;
+                if (event.key === 'ArrowUp') dy = -1;
+                if (event.key === 'ArrowDown') dy = 1;
+                if (event.key === 'ArrowLeft') dx = -1;
+                if (event.key === 'ArrowRight') dx = 1;
+                selectedAnnotationIndices.forEach(index => {
+                    const ann = annotations[index];
+                    ann.box_2d = [ann.box_2d[0] + dy, ann.box_2d[1] + dx, ann.box_2d[2] + dy, ann.box_2d[3] + dx];
+                });
+                drawAnnotations();
+                updateAnnotationList();
+                populateEditForm();
+                return; // Done
+            }
+
+            // Canvas control shortcuts
+            const key = event.key.toLowerCase();
+            let needsRedraw = false;
+            
+            switch (key) {
+                case 'w':
+                    offsetY += PAN_AMOUNT;
+                    needsRedraw = true;
+                    break;
+                case 's':
+                    offsetY -= PAN_AMOUNT;
+                    needsRedraw = true;
+                    break;
+                case 'a':
+                    offsetX += PAN_AMOUNT;
+                    needsRedraw = true;
+                    break;
+                case 'd':
+                    offsetX -= PAN_AMOUNT;
+                    needsRedraw = true;
+                    break;
+                case 'q':
+                    zoomLevel /= 1.2;
+                    zoomLevel = Math.max(0.1, zoomLevel);
+                    needsRedraw = true;
+                    break;
+                case 'e':
+                    zoomLevel *= 1.2;
+                    zoomLevel = Math.min(zoomLevel, 10.0);
+                    needsRedraw = true;
+                    break;
+                case 'f':
+                    recenterCanvas(); // recenterCanvas already calls drawAnnotations
+                    showToast("Canvas recentered (F)", "info");
+                    break;
+                case 'escape':
+                    if (isDrawingNewAnnotation) {
+                        exitDrawingMode();
+                        showToast("Drawing cancelled.", 'info');
+                    }
+                    break;
+            }
+
+            if (needsRedraw) {
+                event.preventDefault();
+                drawAnnotations();
+            }
+        });
+
+        canvas.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const scaleX_css = canvas.width / rect.width;
+            const scaleY_css = canvas.height / rect.height;
+            const mouseX_on_drawing_surface = (event.clientX - rect.left) * scaleX_css;
+            const mouseY_on_drawing_surface = (event.clientY - rect.top) * scaleY_css;
+            const worldX = (mouseX_on_drawing_surface - offsetX) / zoomLevel;
+            const worldY = (mouseY_on_drawing_surface - offsetY) / zoomLevel;
+            const scaleAmount = event.deltaY < 0 ? 1.1 : 1 / 1.1;
+            zoomLevel *= scaleAmount;
+            zoomLevel = Math.max(0.1, Math.min(zoomLevel, 10.0));
+            offsetX = mouseX_on_drawing_surface - worldX * zoomLevel;
+            offsetY = mouseY_on_drawing_surface - worldY * zoomLevel;
+            drawAnnotations();
+        });
+
+        updateAnnotationBtn.addEventListener('click', () => {
+            if (selectedAnnotationIndices.length === 1) {
+                const index = selectedAnnotationIndices[0];
+                const updatedLabel = editLabel.value.trim();
+                const updatedType = editType.value.trim();
+                const updatedY1 = parseInt(editY1.value);
+                const updatedX1 = parseInt(editX1.value);
+                const updatedY2 = parseInt(editY2.value);
+                const updatedX2 = parseInt(editX2.value);
+                if (!updatedLabel || !updatedType || [updatedY1, updatedX1, updatedY2, updatedX2].some(isNaN)) {
+                    showToast("Please fill all fields with valid values.", 'error');
+                    return;
+                }
+                if (updatedY1 >= updatedY2 || updatedX1 >= updatedX2) {
+                    showToast("Y1 must be < Y2 and X1 must be < X2.", 'error');
+                    return;
+                }
+                annotations[index] = { label: updatedLabel, type: updatedType, box_2d: [updatedY1, updatedX1, updatedY2, updatedX2] };
+                drawAnnotations();
+                updateAnnotationList();
+                showToast("Annotation updated!", 'success');
+            }
+        });
+
+        deleteAnnotationBtn.addEventListener('click', () => {
+            if (selectedAnnotationIndices.length > 0) {
+                selectedAnnotationIndices.sort((a, b) => b - a);
+                selectedAnnotationIndices.forEach(index => {
+                    annotations.splice(index, 1);
+                });
+                const count = selectedAnnotationIndices.length;
+                selectedAnnotationIndices = [];
+                populateEditForm();
+                drawAnnotations();
+                updateAnnotationList();
+                showToast(`${count} annotation(s) deleted.`, 'success');
+            }
+        });
+
+        annotationList.addEventListener('click', (event) => {
+            const listItem = event.target.closest('li[data-index]');
+            if (listItem) {
+                const index = parseInt(listItem.dataset.index);
+                if (event.shiftKey) {
+                    const existingIndex = selectedAnnotationIndices.indexOf(index);
+                    if (existingIndex > -1) {
+                        selectedAnnotationIndices.splice(existingIndex, 1);
+                    } else {
+                        selectedAnnotationIndices.push(index);
+                    }
+                } else {
+                    selectedAnnotationIndices = [index];
+                }
+                populateEditForm();
+                drawAnnotations();
+                updateAnnotationList();
+                exitDrawingMode();
+            }
+        });
+        
+        // --- Canvas Control Event Listeners ---
+        zoomInBtn.addEventListener('click', () => {
+            zoomLevel *= 1.2;
+            zoomLevel = Math.min(zoomLevel, 10.0); // Clamp max zoom
+            drawAnnotations();
+        });
+
+        zoomOutBtn.addEventListener('click', () => {
+            zoomLevel /= 1.2;
+            zoomLevel = Math.max(0.1, zoomLevel); // Clamp min zoom
+            drawAnnotations();
+        });
+
+        recenterBtn.addEventListener('click', () => {
+            recenterCanvas();
+            showToast("Canvas recentered", "info");
+        });
+
+        panUpBtn.addEventListener('click', () => {
+            offsetY += PAN_AMOUNT;
+            drawAnnotations();
+        });
+
+        panDownBtn.addEventListener('click', () => {
+            offsetY -= PAN_AMOUNT;
+            drawAnnotations();
+        });
+
+        panLeftBtn.addEventListener('click', () => {
+            offsetX += PAN_AMOUNT;
+            drawAnnotations();
+        });
+
+        panRightBtn.addEventListener('click', () => {
+            offsetX -= PAN_AMOUNT;
+            drawAnnotations();
+        });
+
+        window.onload = function() {
+            jsonSourceWidthInput.value = jsonSourceWidth;
+            jsonSourceHeightInput.value = jsonSourceHeight;
+            canvas.width = 800;
+            canvas.height = 1130;
+            drawAnnotations();
+            updateAnnotationList();
+        };
+    </script>
+</body>
+</html>
