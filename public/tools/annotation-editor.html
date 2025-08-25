@@ -810,12 +810,16 @@
                 const parsedAnnotations = JSON.parse(jsonString);
                 
                 annotations = parsedAnnotations;
-                // AI often returns coordinates based on original image size.
-                // We set the coordinate system to match the image dimensions for best results.
-                setImageDimensionsBtn.click();
+                
+                // AUTOMATED CONVERSION:
+                // 1. Set coordinate system to 1000x1000, as requested in the prompt.
+                setGeminiDefaultBtn.click();
+                // 2. Now, convert those 1000x1000 coordinates to the actual image dimensions.
+                convertAnnotationsBtn.click();
+                
                 recenterCanvas();
                 updateAnnotationList();
-                showToast("AI annotations generated successfully!", 'success');
+                showToast("AI annotations generated and converted!", 'success');
 
             } catch (error) {
                 showToast(`AI Generation Failed: ${error.message}`, 'error', 5000);
