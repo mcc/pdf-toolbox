@@ -232,7 +232,8 @@ html2canvas(document.body).then(canvas => {
  * @name Storybook Extractor
  * @description This script extracts illustrations and text from a storybook element
  * on the current page, opens a new window, and displays the content in a
- * responsive two-column layout (illustration on the left, text on the right).
+ * responsive two-column layout. It also includes a function to download the
+ * new page as a single HTML file with inline images.
  */
 function extractAndDisplayStorybook() {
   // 1. Find the main container for the storybook content.
@@ -314,7 +315,28 @@ function extractAndDisplayStorybook() {
         h1 {
           text-align: center;
           color: #2c3e50;
+          margin-bottom: 1rem;
+        }
+        .download-container {
+          text-align: center;
           margin-bottom: 2rem;
+        }
+        #downloadBtn {
+          background-color: #3498db;
+          color: white;
+          border: none;
+          padding: 12px 24px;
+          border-radius: 8px;
+          font-size: 16px;
+          cursor: pointer;
+          transition: background-color 0.3s ease;
+        }
+        #downloadBtn:hover {
+          background-color: #2980b9;
+        }
+        #downloadBtn:disabled {
+          background-color: #a4b0be;
+          cursor: not-allowed;
         }
         .cover {
           text-align: center;
@@ -370,6 +392,10 @@ function extractAndDisplayStorybook() {
     <body>
       <div class="container">
         <h1>Extracted Story</h1>
+        <div class="download-container">
+          <button id="downloadBtn">Download as HTML</button>
+        </div>
+
         \${coverImageSrc ? \`
           <div class="cover">
             <img src="\${coverImageSrc}" alt="Story Cover">
@@ -389,6 +415,73 @@ function extractAndDisplayStorybook() {
           </div>
         \`).join('')}
       </div>
+
+      <script id="downloader-script">
+        const downloadBtn = document.getElementById('downloadBtn');
+        downloadBtn.addEventListener('click', async () => {
+          downloadBtn.textContent = 'Preparing Download...';
+          downloadBtn.disabled = true;
+
+          // Helper function to fetch an image and convert it to a Base64 Data URL
+          const imageToDataURL = async (imgElement) => {
+            // Use a cors proxy if images are on a different domain
+            const imageUrl = 'https://cors-anywhere.herokuapp.com/' + imgElement.src;
+            try {
+              const response = await fetch(imageUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+              if (!response.ok) {
+                console.error('Failed to fetch image:', imgElement.src);
+                return imgElement.src; // Return original src on failure
+              }
+              const blob = await response.blob();
+              return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(blob);
+              });
+            } catch (error) {
+              console.error('Error converting image to Base64:', imgElement.src, error);
+              return imgElement.src; // Fallback to original src
+            }
+          };
+
+          // 1. Clone the entire document to modify it without affecting the live page
+          const docClone = document.documentElement.cloneNode(true);
+
+          // 2. Find all images in the cloned document
+          const images = Array.from(docClone.querySelectorAll('img'));
+
+          // 3. Create a promise for each image conversion
+          const conversionPromises = images.map(async (img) => {
+            const dataUrl = await imageToDataURL(img);
+            img.src = dataUrl;
+          });
+
+          // 4. Wait for all images to be converted
+          await Promise.all(conversionPromises);
+
+          // 5. Clean up the cloned document for saving by removing the button and this script
+          docClone.querySelector('#downloadBtn').parentElement.remove();
+          docClone.querySelector('#downloader-script').remove();
+
+          // 6. Serialize the modified clone to an HTML string
+          const finalHtml = '<!DOCTYPE html>\\n' + docClone.outerHTML;
+
+          // 7. Create a blob and trigger the download
+          const blob = new Blob([finalHtml], { type: 'text/html' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'storybook.html';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+
+          downloadBtn.textContent = 'Download as HTML';
+          downloadBtn.disabled = false;
+        });
+      <\/script>
     </body>
     </html>
   \`;
