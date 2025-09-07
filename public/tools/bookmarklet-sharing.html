@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bookmarklet Sharing Tool</title>
+    <!-- Tailwind CSS CDN -->
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <!-- QR Code Library -->
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.1/build/qrcode.min.js"></script>
+    <style>
+        .code-editor {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            tab-size: 2;
+        }
+        .bookmarklet-link {
+            background: linear-gradient(45deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 8px 16px;
+            border-radius: 6px;
+            text-decoration: none;
+            display: inline-block;
+            font-weight: 500;
+            transition: transform 0.2s;
+        }
+        .bookmarklet-link:hover {
+            transform: translateY(-2px);
+            color: white;
+        }
+        .example-card {
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .example-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+        }
+        .test-area {
+            border: 2px dashed #e5e7eb;
+            border-radius: 8px;
+            min-height: 200px;
+            background: #f9fafb;
+        }
+        .test-area.active {
+            border-color: #3b82f6;
+            background: #eff6ff;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <h1 class="text-4xl font-bold text-gray-900 mb-4">Bookmarklet Sharing Tool</h1>
+            <p class="text-lg text-gray-600 max-w-2xl mx-auto">
+                Create, test, and share JavaScript bookmarklets easily. Build powerful browser tools that run on any website.
+            </p>
+        </div>
+
+        <!-- Main Content -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Left Panel - Creator -->
+            <div class="space-y-6">
+                <!-- Code Editor -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Create Bookmarklet</h2>
+                    
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Bookmarklet Name</label>
+                        <input type="text" id="bookmarkletName" placeholder="My Awesome Bookmarklet" 
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">JavaScript Code</label>
+                        <textarea id="jsCode" rows="12" placeholder="// Enter your JavaScript code here
+// Example: alert('Hello from bookmarklet!');"
+                               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 code-editor"></textarea>
+                    </div>
+
+                    <div class="flex space-x-3">
+                        <button id="createBookmarklet" 
+                                class="bg-blue-600 text-white px-6 py-2 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                            Create Bookmarklet
+                        </button>
+                        <button id="clearCode" 
+                                class="bg-gray-500 text-white px-6 py-2 rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500">
+                            Clear
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Generated Bookmarklet -->
+                <div id="generatedBookmarklet" class="bg-white rounded-lg shadow-lg p-6 hidden">
+                    <h3 class="text-xl font-semibold text-gray-800 mb-4">Generated Bookmarklet</h3>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Drag this link to your bookmarks bar:</label>
+                        <a id="bookmarkletLink" href="#" class="bookmarklet-link">Loading...</a>
+                    </div>
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Raw Code:</label>
+                        <textarea id="rawCode" rows="4" readonly 
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 code-editor text-sm"></textarea>
+                    </div>
+                    <div class="flex space-x-3">
+                        <button id="copyCode" 
+                                class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                            Copy Code
+                        </button>
+                        <button id="testBookmarklet" 
+                                class="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500">
+                            Test Here
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Panel - Testing & Sharing -->
+            <div class="space-y-6">
+                <!-- Test Area -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Test Area</h2>
+                    <div id="testArea" class="test-area p-4">
+                        <p class="text-gray-500 text-center">Click "Test Here" to run your bookmarklet in this area</p>
+                        <div id="testContent" class="hidden">
+                            <!-- Test content will be inserted here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Sharing Options -->
+                <div id="sharingOptions" class="bg-white rounded-lg shadow-lg p-6 hidden">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Share Your Bookmarklet</h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Share URL:</label>
+                            <div class="flex">
+                                <input type="text" id="shareUrl" readonly 
+                                       class="flex-1 px-3 py-2 border border-gray-300 rounded-l-md bg-gray-50">
+                                <button id="copyUrl" 
+                                        class="bg-blue-600 text-white px-4 py-2 rounded-r-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                                    Copy
+                                </button>
+                            </div>
+                        </div>
+
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">QR Code:</label>
+                            <div class="flex items-center space-x-4">
+                                <canvas id="qrCode" width="150" height="150" class="border border-gray-300 rounded"></canvas>
+                                <div>
+                                    <p class="text-sm text-gray-600 mb-2">Scan to open bookmarklet</p>
+                                    <button id="downloadQR" 
+                                            class="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-green-500">
+                                        Download QR
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Examples -->
+                <div class="bg-white rounded-lg shadow-lg p-6">
+                    <h2 class="text-2xl font-semibold text-gray-800 mb-4">Example Bookmarklets</h2>
+                    <div class="grid grid-cols-1 gap-4">
+                        <div class="example-card bg-gray-50 p-4 rounded-lg cursor-pointer" data-example="alert">
+                            <h3 class="font-semibold text-gray-800">Simple Alert</h3>
+                            <p class="text-sm text-gray-600">Shows a simple alert message</p>
+                        </div>
+                        <div class="example-card bg-gray-50 p-4 rounded-lg cursor-pointer" data-example="highlight">
+                            <h3 class="font-semibold text-gray-800">Highlight Links</h3>
+                            <p class="text-sm text-gray-600">Highlights all links on the page</p>
+                        </div>
+                        <div class="example-card bg-gray-50 p-4 rounded-lg cursor-pointer" data-example="wordcount">
+                            <h3 class="font-semibold text-gray-800">Word Counter</h3>
+                            <p class="text-sm text-gray-600">Counts words and characters on the page</p>
+                        </div>
+                        <div class="example-card bg-gray-50 p-4 rounded-lg cursor-pointer" data-example="darkmode">
+                            <h3 class="font-semibold text-gray-800">Dark Mode Toggle</h3>
+                            <p class="text-sm text-gray-600">Toggles dark mode for the current page</p>
+                        </div>
+                        <div class="example-card bg-gray-50 p-4 rounded-lg cursor-pointer" data-example="screenshot">
+                            <h3 class="font-semibold text-gray-800">Screenshot</h3>
+                            <p class="text-sm text-gray-600">Takes a screenshot of the current page</p>
+                        </div>
+                        <div class="example-card bg-gray-50 p-4 rounded-lg cursor-pointer" data-example="storybook">
+                            <h3 class="font-semibold text-gray-800">Storybook Extractor</h3>
+                            <p class="text-sm text-gray-600">Extracts illustrations and text from storybook elements</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Example bookmarklet codes
+        const examples = {
+            alert: `// Simple alert
+alert('Hello from bookmarklet!');`,
+            
+            highlight: `// Highlight all links
+const links = document.querySelectorAll('a');
+links.forEach(link => {
+    link.style.backgroundColor = 'yellow';
+    link.style.border = '2px solid red';
+});`,
+            
+            wordcount: `// Count words and characters
+const text = document.body.innerText;
+const words = text.split(/\\s+/).filter(word => word.length > 0);
+const chars = text.length;
+alert(\`Words: \${words.length}\\nCharacters: \${chars}\`);`,
+            
+            darkmode: `// Toggle dark mode
+const isDark = document.body.style.filter === 'invert(1)';
+document.body.style.filter = isDark ? 'none' : 'invert(1)';
+document.body.style.background = isDark ? 'white' : 'black';`,
+            
+            screenshot: `// Take screenshot (requires modern browser)
+html2canvas(document.body).then(canvas => {
+    const link = document.createElement('a');
+    link.download = 'screenshot.png';
+    link.href = canvas.toDataURL();
+    link.click();
+});`,
+            
+            storybook: `/**
+ * @name Storybook Extractor
+ * @description This script extracts illustrations and text from a storybook element
+ * on the current page, opens a new window, and displays the content in a
+ * responsive two-column layout (illustration on the left, text on the right).
+ */
+function extractAndDisplayStorybook() {
+  // 1. Find the main container for the storybook content.
+  const storybookContainer = document.querySelector('storybook-immersive-panel');
+
+  if (!storybookContainer) {
+    console.error('Storybook container (\`storybook-immersive-panel\`) not found on the page.');
+    alert('Could not find the storybook content on this page. Please make sure you are on the correct page.');
+    return;
+  }
+
+  console.log('Storybook container found. Starting extraction...');
+
+  // 2. Extract the cover image source.
+  const coverImage = storybookContainer.querySelector('storybook-cover-page-content img');
+  const coverImageSrc = coverImage ? coverImage.src : null;
+  if (coverImageSrc) {
+    console.log('Found cover image:', coverImageSrc);
+  }
+
+  // 3. Find all page elements and extract their data.
+  const storyPages = [];
+  for (let i = 0; i <= 10; i++) {
+    const page = storybookContainer.querySelector(\`storybook-page[data-test-id=storybook-right-page-\${i}]\`);
+    
+    if (!page) {
+      // Stop if we can't find a page in sequence
+      continue;
+    }
+
+    const illustration = page.querySelector('img');
+    const storyTextElement = page.querySelector('.story-text');
+
+    // Ensure the page has both an image with a valid src and a non-empty text block.
+    if (illustration && illustration.src && storyTextElement && storyTextElement.textContent.trim()) {
+      storyPages.push({
+        illustrationSrc: illustration.src,
+        text: storyTextElement.textContent.trim().replace(/\\n+/g, '<br><br>') // Preserve paragraphs
+      });
+      console.log(\`Extracted content from page \${i}.\`);
+    }
+  }
+
+  if (storyPages.length === 0) {
+    console.warn('No valid story pages with both images and text could be extracted.');
+    alert('Could not extract any valid story pages. The structure might be different than expected.');
+    return;
+  }
+
+  console.log(\`Extraction complete. Found \${storyPages.length} pages. Opening new window...\`);
+
+  // 4. Open a new window.
+  const newWindow = window.open('', '_blank');
+  if (!newWindow) {
+    alert('Popup blocked! Please allow popups for this site to display the extracted storybook.');
+    return;
+  }
+
+  // 5. Build the HTML content for the new window.
+  const htmlContent = \`
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Extracted Storybook</title>
+      <style>
+        body {
+          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+          margin: 0;
+          padding: 2rem;
+          background-color: #f4f7f9;
+          color: #333;
+        }
+        .container {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+        h1 {
+          text-align: center;
+          color: #2c3e50;
+          margin-bottom: 2rem;
+        }
+        .cover {
+          text-align: center;
+          margin-bottom: 3rem;
+          padding-bottom: 3rem;
+          border-bottom: 1px solid #ddd;
+        }
+        .cover img {
+          max-width: 60%;
+          height: auto;
+          border-radius: 12px;
+          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        .page {
+          display: flex;
+          flex-direction: row;
+          gap: 2rem;
+          align-items: center;
+          margin-bottom: 3rem;
+          padding: 2rem;
+          background-color: #ffffff;
+          border-radius: 12px;
+          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
+          overflow: hidden;
+        }
+        .illustration-column,
+        .text-column {
+          flex: 1;
+          min-width: 0; /* Prevents flex items from overflowing */
+        }
+        .illustration-column img {
+          width: 100%;
+          height: auto;
+          display: block;
+          border-radius: 8px;
+        }
+        .text-column {
+          font-size: 1.1rem;
+          line-height: 1.7;
+          text-align: justify;
+        }
+        /* Responsive layout for smaller screens */
+        @media (max-width: 800px) {
+          body {
+            padding: 1rem;
+          }
+          .page {
+            flex-direction: column;
+          }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <h1>Extracted Story</h1>
+        \${coverImageSrc ? \`
+          <div class="cover">
+            <img src="\${coverImageSrc}" alt="Story Cover">
+          </div>
+        \` : ''}
+
+        \${storyPages.map((page, index) => \`
+          <div class="page" id="page-\${index + 1}">
+            <!-- Left Column: Illustration -->
+            <div class="illustration-column">
+              <img src="\${page.illustrationSrc}" alt="Illustration for page \${index + 1}">
+            </div>
+            <!-- Right Column: Story Text -->
+            <div class="text-column">
+              <p>\${page.text}</p>
+            </div>
+          </div>
+        \`).join('')}
+      </div>
+    </body>
+    </html>
+  \`;
+
+  // 6. Create a Blob and a URL from the HTML content to avoid TrustedHTML errors.
+  const blob = new Blob([htmlContent], { type: 'text/html' });
+  const url = URL.createObjectURL(blob);
+
+  // 7. Navigate the new window to the generated content URL.
+  newWindow.location.href = url;
+
+  console.log('Successfully wrote content to the new window.');
+}
+
+// Automatically run the function when the script is executed.
+extractAndDisplayStorybook();`
+        };
+
+        // DOM elements
+        const bookmarkletName = document.getElementById('bookmarkletName');
+        const jsCode = document.getElementById('jsCode');
+        const createBtn = document.getElementById('createBookmarklet');
+        const clearBtn = document.getElementById('clearCode');
+        const generatedDiv = document.getElementById('generatedBookmarklet');
+        const bookmarkletLink = document.getElementById('bookmarkletLink');
+        const rawCode = document.getElementById('rawCode');
+        const copyCodeBtn = document.getElementById('copyCode');
+        const testBtn = document.getElementById('testBookmarklet');
+        const testArea = document.getElementById('testArea');
+        const testContent = document.getElementById('testContent');
+        const sharingOptions = document.getElementById('sharingOptions');
+        const shareUrl = document.getElementById('shareUrl');
+        const copyUrlBtn = document.getElementById('copyUrl');
+        const qrCode = document.getElementById('qrCode');
+        const downloadQRBtn = document.getElementById('downloadQR');
+
+        // Create bookmarklet
+        createBtn.addEventListener('click', () => {
+            const name = bookmarkletName.value.trim() || 'My Bookmarklet';
+            const code = jsCode.value.trim();
+            
+            if (!code) {
+                alert('Please enter some JavaScript code');
+                return;
+            }
+
+            // Create bookmarklet code
+            const bookmarkletCode = `javascript:(function(){${encodeURIComponent(code)}})();`;
+            
+            // Update UI
+            bookmarkletLink.textContent = name;
+            bookmarkletLink.href = bookmarkletCode;
+            rawCode.value = bookmarkletCode;
+            
+            generatedDiv.classList.remove('hidden');
+            
+            // Generate share URL
+            const params = new URLSearchParams({
+                name: name,
+                code: code
+            });
+            const url = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+            shareUrl.value = url;
+            
+            // Generate QR code
+            QRCode.toCanvas(qrCode, url, { width: 150 }, (error) => {
+                if (error) console.error('QR code generation failed:', error);
+            });
+            
+            sharingOptions.classList.remove('hidden');
+        });
+
+        // Clear code
+        clearBtn.addEventListener('click', () => {
+            bookmarkletName.value = '';
+            jsCode.value = '';
+            generatedDiv.classList.add('hidden');
+            sharingOptions.classList.add('hidden');
+            testArea.classList.remove('active');
+            testContent.classList.add('hidden');
+            testContent.innerHTML = '';
+        });
+
+        // Copy code
+        copyCodeBtn.addEventListener('click', () => {
+            rawCode.select();
+            document.execCommand('copy');
+            alert('Code copied to clipboard!');
+        });
+
+        // Copy URL
+        copyUrlBtn.addEventListener('click', () => {
+            shareUrl.select();
+            document.execCommand('copy');
+            alert('URL copied to clipboard!');
+        });
+
+        // Test bookmarklet
+        testBtn.addEventListener('click', () => {
+            const code = jsCode.value.trim();
+            if (!code) {
+                alert('Please enter some JavaScript code first');
+                return;
+            }
+
+            testArea.classList.add('active');
+            testContent.classList.remove('hidden');
+            testContent.innerHTML = '<p class="text-gray-500">Running bookmarklet...</p>';
+
+            try {
+                // Create a safe execution context
+                const func = new Function(code);
+                const result = func();
+                
+                if (result !== undefined) {
+                    testContent.innerHTML = `<p class="text-green-600">✓ Bookmarklet executed successfully!</p><pre class="mt-2 p-2 bg-gray-100 rounded">${JSON.stringify(result, null, 2)}</pre>`;
+                } else {
+                    testContent.innerHTML = '<p class="text-green-600">✓ Bookmarklet executed successfully!</p>';
+                }
+            } catch (error) {
+                testContent.innerHTML = `<p class="text-red-600">✗ Error: ${error.message}</p>`;
+            }
+        });
+
+        // Download QR code
+        downloadQRBtn.addEventListener('click', () => {
+            const link = document.createElement('a');
+            link.download = 'bookmarklet-qr.png';
+            link.href = qrCode.toDataURL();
+            link.click();
+        });
+
+        // Example click handlers
+        document.querySelectorAll('.example-card').forEach(card => {
+            card.addEventListener('click', () => {
+                const example = card.dataset.example;
+                if (examples[example]) {
+                    jsCode.value = examples[example];
+                    bookmarkletName.value = card.querySelector('h3').textContent;
+                }
+            });
+        });
+
+        // Load from URL parameters
+        window.addEventListener('load', () => {
+            const params = new URLSearchParams(window.location.search);
+            const name = params.get('name');
+            const code = params.get('code');
+            
+            if (name && code) {
+                bookmarkletName.value = decodeURIComponent(name);
+                jsCode.value = decodeURIComponent(code);
+                createBtn.click();
+            }
+        });
+    </script>
+</body>
+</html>
