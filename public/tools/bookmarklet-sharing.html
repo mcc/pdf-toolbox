@@ -229,66 +229,102 @@ html2canvas(document.body).then(canvas => {
 });`,
             
             storybook: `/**
- * @name Storybook Extractor
- * @description This script extracts illustrations and text from a storybook element
- * on the current page, opens a new window, and displays the content in a
- * responsive two-column layout. It also includes a function to download the
- * new page as a single HTML file with inline images.
+ * @name Enhanced Storybook Extractor (Print Optimized)
+ * @description This script extracts storybook content and formats the output
+ * with specific print styles for landscape and portrait modes. The save
+ * functionality has been removed.
  */
-function extractAndDisplayStorybook() {
-  // 1. Find the main container for the storybook content.
-  const storybookContainer = document.querySelector('storybook-immersive-panel');
+async function extractAndDisplayStorybook() {
+  console.log('Starting the Storybook Extractor (Print Optimized)...');
 
+  // Helper function to attempt a CORS-enabled conversion to Data URL.
+  // Falls back to the original src if the server's CORS policy is too strict.
+  const getImageDataURL = (src) => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous'; // Attempt to request permission
+
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth;
+        canvas.height = img.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/png'));
+      };
+
+      img.onerror = () => {
+        console.warn(\`CORS policy denied access for image: \${src}. Falling back to live URL.\`);
+        resolve(src); // Fallback to the original URL on error
+      };
+
+      img.src = src;
+    });
+  };
+
+  // 1. Find the main container.
+  const storybookContainer = document.querySelector('storybook-immersive-panel');
   if (!storybookContainer) {
-    console.error('Storybook container (\`storybook-immersive-panel\`) not found on the page.');
-    alert('Could not find the storybook content on this page. Please make sure you are on the correct page.');
+    alert('Could not find the storybook container (\`storybook-immersive-panel\`).');
     return;
   }
+  console.log('Storybook container found. Beginning extraction...');
 
-  console.log('Storybook container found. Starting extraction...');
+  // 2. Gather all image and text elements and create promises for them.
+  const extractionPromises = [];
 
-  // 2. Extract the cover image source.
-  const coverImage = storybookContainer.querySelector('storybook-cover-page-content img');
-  const coverImageSrc = coverImage ? coverImage.src : null;
-  if (coverImageSrc) {
-    console.log('Found cover image:', coverImageSrc);
+  // Cover Image
+  const coverImageElement = storybookContainer.querySelector('storybook-cover-page-content img');
+  if (coverImageElement && coverImageElement.src) {
+    extractionPromises.push(
+      getImageDataURL(coverImageElement.src).then(dataURL => ({ type: 'cover', dataURL }))
+    );
   }
 
-  // 3. Find all page elements and extract their data.
-  const storyPages = [];
-  for (let i = 0; i <= 10; i++) {
+  // Story Pages
+  for (let i = 0; i <= 20; i++) {
     const page = storybookContainer.querySelector(\`storybook-page[data-test-id=storybook-right-page-\${i}]\`);
-    
-    if (!page) {
-      // Stop if we can't find a page in sequence
-      continue;
-    }
+    if (!page) continue;
 
-    const illustration = page.querySelector('img');
+    const illustrationElement = page.querySelector('img');
     const storyTextElement = page.querySelector('.story-text');
 
-    // Ensure the page has both an image with a valid src and a non-empty text block.
-    if (illustration && illustration.src && storyTextElement && storyTextElement.textContent.trim()) {
-      storyPages.push({
-        illustrationSrc: illustration.src,
-        text: storyTextElement.textContent.trim().replace(/\\n+/g, '<br><br>') // Preserve paragraphs
-      });
-      console.log(\`Extracted content from page \${i}.\`);
+    if (illustrationElement && illustrationElement.src && storyTextElement && storyTextElement.textContent.trim()) {
+      extractionPromises.push(
+        getImageDataURL(illustrationElement.src).then(dataURL => ({
+          type: 'page',
+          illustrationSrc: dataURL,
+          text: storyTextElement.textContent.trim().replace(/\\n+/g, '<br><br>')
+        }))
+      );
     }
   }
 
-  if (storyPages.length === 0) {
-    console.warn('No valid story pages with both images and text could be extracted.');
+  if (extractionPromises.length === 0) {
     alert('Could not extract any valid story pages. The structure might be different than expected.');
     return;
   }
+
+  console.log(\`Found \${extractionPromises.length} assets. Processing...\`);
+  const results = await Promise.all(extractionPromises);
+
+  // 3. Process the results.
+  let coverImageSrc = null;
+  const storyPages = [];
+  results.forEach(result => {
+    if (result.type === 'cover') {
+      coverImageSrc = result.dataURL;
+    } else if (result.type === 'page') {
+      storyPages.push(result);
+    }
+  });
 
   console.log(\`Extraction complete. Found \${storyPages.length} pages. Opening new window...\`);
 
   // 4. Open a new window.
   const newWindow = window.open('', '_blank');
   if (!newWindow) {
-    alert('Popup blocked! Please allow popups for this site to display the extracted storybook.');
+    alert('Popup blocked! Please allow popups for this site.');
     return;
   }
 
@@ -299,204 +335,100 @@ function extractAndDisplayStorybook() {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Extracted Storybook</title>
+      <title>My Editable Storybook</title>
       <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-          margin: 0;
-          padding: 2rem;
-          background-color: #f4f7f9;
-          color: #333;
+        /* General screen styles */
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 2rem; background-color: #f4f7f9; color: #333; }
+        .container { max-width: 1200px; margin: 0 auto; }
+        .header { text-align: center; margin-bottom: 2rem; border-bottom: 1px solid #ddd; padding-bottom: 1rem; }
+        h1 { color: #2c3e50; margin: 0; }
+        .cover { text-align: center; margin-bottom: 3rem; padding-bottom: 3rem; border-bottom: 1px solid #ddd; }
+        .cover img { max-width: 60%; height: auto; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.1); }
+        .page { display: flex; gap: 2rem; align-items: flex-start; margin-bottom: 3rem; padding: 2rem; background-color: #fff; border-radius: 12px; box-shadow: 0 5px 15px rgba(0,0,0,0.08); }
+        .illustration-column, .text-column { flex: 1; min-width: 0; }
+        .illustration-column img { width: 100%; height: auto; display: block; border-radius: 8px; }
+        .text-column { font-size: 1.1rem; line-height: 1.7; }
+        .editable-text { outline: none; border: 1px dashed transparent; padding: 10px; transition: border-color 0.3s; }
+        .editable-text:focus { border-color: #3498db; background-color: #f8f9fa; }
+        @media (max-width: 800px) { .page { flex-direction: column; } }
+        
+        /* Print-specific styles */
+        @media print {
+            .cover {
+                height: 90vh; /* Use most of the viewport height */
+                width: 100%;
+                object-fit: contain;
+                display: block;
+                margin: 0 auto; /* Center the image */  
+                padding: 0;
+                border: none;
+                box-shadow: none;
+                background-color: transparent;
+                border-radius: 0;
+                overflow: hidden;
+                page-break-inside: avoid;
+
+                img {
+                    height: 90vh;
+                    width: 100%;
+                    object-fit: contain;
+                    display: block;
+                    margin: 0 auto; /* Center the image */  
+                }
+            }
+
+            .page {
+                display: flex;
+                flex-direction: row;
+                align-items: stretch; /* Make columns equal height */
+                height: 90vh; /* Use most of the viewport height */
+            }
+            .illustration-column {
+                flex-basis: 50%; /* Give image and text equal width */
+            }
+            .illustration-column img {
+                height: 100%; /* Make image fill the column height */
+                object-fit: contain; /* Ensure aspect ratio is maintained */
+            }
+            .text-column {
+                flex-basis: 50%;
+            }
         }
-        .container {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
-        h1 {
-          text-align: center;
-          color: #2c3e50;
-          margin-bottom: 1rem;
-        }
-        .download-container {
-          text-align: center;
-          margin-bottom: 2rem;
-        }
-        #downloadBtn {
-          background-color: #3498db;
-          color: white;
-          border: none;
-          padding: 12px 24px;
-          border-radius: 8px;
-          font-size: 16px;
-          cursor: pointer;
-          transition: background-color 0.3s ease;
-        }
-        #downloadBtn:hover {
-          background-color: #2980b9;
-        }
-        #downloadBtn:disabled {
-          background-color: #a4b0be;
-          cursor: not-allowed;
-        }
-        .cover {
-          text-align: center;
-          margin-bottom: 3rem;
-          padding-bottom: 3rem;
-          border-bottom: 1px solid #ddd;
-        }
-        .cover img {
-          max-width: 60%;
-          height: auto;
-          border-radius: 12px;
-          box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
-        }
-        .page {
-          display: flex;
-          flex-direction: row;
-          gap: 2rem;
-          align-items: center;
-          margin-bottom: 3rem;
-          padding: 2rem;
-          background-color: #ffffff;
-          border-radius: 12px;
-          box-shadow: 0 5px 15px rgba(0, 0, 0, 0.08);
-          overflow: hidden;
-        }
-        .illustration-column,
-        .text-column {
-          flex: 1;
-          min-width: 0; /* Prevents flex items from overflowing */
-        }
-        .illustration-column img {
-          width: 100%;
-          height: auto;
-          display: block;
-          border-radius: 8px;
-        }
-        .text-column {
-          font-size: 1.1rem;
-          line-height: 1.7;
-          text-align: justify;
-        }
-        /* Responsive layout for smaller screens */
-        @media (max-width: 800px) {
-          body {
-            padding: 1rem;
-          }
-          .page {
-            flex-direction: column;
-          }
-        }
+        
       </style>
     </head>
     <body>
       <div class="container">
-        <h1>Extracted Story</h1>
-        <div class="download-container">
-          <button id="downloadBtn">Download as HTML</button>
+        <div class="header">
+          <h1>My Editable Story</h1>
         </div>
-
-        \${coverImageSrc ? \`
-          <div class="cover">
-            <img src="\${coverImageSrc}" alt="Story Cover">
-          </div>
-        \` : ''}
+        
+        \${coverImageSrc ? \`<div class="cover"><img src="\${coverImageSrc}" alt="Story Cover"></div>\` : ''}
 
         \${storyPages.map((page, index) => \`
           <div class="page" id="page-\${index + 1}">
-            <!-- Left Column: Illustration -->
             <div class="illustration-column">
               <img src="\${page.illustrationSrc}" alt="Illustration for page \${index + 1}">
             </div>
-            <!-- Right Column: Story Text -->
             <div class="text-column">
-              <p>\${page.text}</p>
+              <div class="editable-text" contenteditable="true">\${page.text}</div>
             </div>
           </div>
         \`).join('')}
       </div>
-
-      <script id="downloader-script">
-        const downloadBtn = document.getElementById('downloadBtn');
-        downloadBtn.addEventListener('click', async () => {
-          downloadBtn.textContent = 'Preparing Download...';
-          downloadBtn.disabled = true;
-
-          // Helper function to fetch an image and convert it to a Base64 Data URL
-          const imageToDataURL = async (imgElement) => {
-            // Use a cors proxy if images are on a different domain
-            const imageUrl = 'https://cors-anywhere.herokuapp.com/' + imgElement.src;
-            try {
-              const response = await fetch(imageUrl, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
-              if (!response.ok) {
-                console.error('Failed to fetch image:', imgElement.src);
-                return imgElement.src; // Return original src on failure
-              }
-              const blob = await response.blob();
-              return new Promise((resolve, reject) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(blob);
-              });
-            } catch (error) {
-              console.error('Error converting image to Base64:', imgElement.src, error);
-              return imgElement.src; // Fallback to original src
-            }
-          };
-
-          // 1. Clone the entire document to modify it without affecting the live page
-          const docClone = document.documentElement.cloneNode(true);
-
-          // 2. Find all images in the cloned document
-          const images = Array.from(docClone.querySelectorAll('img'));
-
-          // 3. Create a promise for each image conversion
-          const conversionPromises = images.map(async (img) => {
-            const dataUrl = await imageToDataURL(img);
-            img.src = dataUrl;
-          });
-
-          // 4. Wait for all images to be converted
-          await Promise.all(conversionPromises);
-
-          // 5. Clean up the cloned document for saving by removing the button and this script
-          docClone.querySelector('#downloadBtn').parentElement.remove();
-          docClone.querySelector('#downloader-script').remove();
-
-          // 6. Serialize the modified clone to an HTML string
-          const finalHtml = '<!DOCTYPE html>\\n' + docClone.outerHTML;
-
-          // 7. Create a blob and trigger the download
-          const blob = new Blob([finalHtml], { type: 'text/html' });
-          const url = URL.createObjectURL(blob);
-          const a = document.createElement('a');
-          a.href = url;
-          a.download = 'storybook.html';
-          document.body.appendChild(a);
-          a.click();
-          document.body.removeChild(a);
-          URL.revokeObjectURL(url);
-
-          downloadBtn.textContent = 'Download as HTML';
-          downloadBtn.disabled = false;
-        });
-      <\/script>
     </body>
     </html>
   \`;
 
-  // 6. Create a Blob and a URL from the HTML content to avoid TrustedHTML errors.
+  // 6. Create a Blob and URL to safely load the content.
   const blob = new Blob([htmlContent], { type: 'text/html' });
   const url = URL.createObjectURL(blob);
-
-  // 7. Navigate the new window to the generated content URL.
   newWindow.location.href = url;
 
-  console.log('Successfully wrote content to the new window.');
+  console.log('Successfully generated the print-optimized storybook page.');
 }
 
-// Automatically run the function when the script is executed.
+// Automatically run the function.
 extractAndDisplayStorybook();`
         };
 
