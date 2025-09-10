@@ -274,6 +274,8 @@ async function extractAndDisplayStorybook() {
   const extractionPromises = [];
 
   // Cover Image
+  const storyTitle = storybookContainer.querySelector('.cover-title');
+  const storyTitleText = storyTitle ? storyTitle.textContent : 'My Storybook';
   const coverImageElement = storybookContainer.querySelector('storybook-cover-page-content img');
   if (coverImageElement && coverImageElement.src) {
     extractionPromises.push(
@@ -335,7 +337,7 @@ async function extractAndDisplayStorybook() {
     <head>
       <meta charset="UTF-8">
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>My Editable Storybook</title>
+      <title>${storyTitleText}</title>
       <style>
         /* General screen styles */
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 0; padding: 2rem; background-color: #f4f7f9; color: #333; }
@@ -355,7 +357,7 @@ async function extractAndDisplayStorybook() {
         /* Print-specific styles */
         @media print {
             .cover {
-                height: 90vh; /* Use most of the viewport height */
+                height: 80vh; /* Use most of the viewport height */
                 width: 100%;
                 object-fit: contain;
                 display: block;
@@ -400,7 +402,7 @@ async function extractAndDisplayStorybook() {
     <body>
       <div class="container">
         <div class="header">
-          <h1>My Editable Story</h1>
+          <h1>${storyTitleText}</h1>
         </div>
         
         \${coverImageSrc ? \`<div class="cover"><img src="\${coverImageSrc}" alt="Story Cover"></div>\` : ''}
