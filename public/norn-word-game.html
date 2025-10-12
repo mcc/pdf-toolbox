@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>名詞動詞接接看</title>
+    <style>
+        body {
+            font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f8ff; /* AliceBlue */
+            overflow: hidden;
+            -webkit-touch-callout: none; /* iOS Safari */
+            -webkit-user-select: none; /* Safari, Chrome, Opera, Edge */
+            -khtml-user-select: none; /* Konqueror HTML */
+            -moz-user-select: none; /* Old versions of Firefox */
+            -ms-user-select: none; /* Internet Explorer/Edge */
+            user-select: none; /* Non-prefixed version */
+        }
+
+        #game-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: white;
+            padding: 20px;
+            border-radius: 20px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            width: 100%;
+            max-width: 500px;
+        }
+
+        #game-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        #score-display {
+            background-color: #28a745;
+            color: white;
+            padding: 8px 16px;
+            border-radius: 10px;
+        }
+        
+        #lives-display {
+            color: #dc3545;
+        }
+
+        canvas {
+            background: #e3f2fd; /* Light blue sky */
+            border-radius: 15px;
+            cursor: pointer;
+            width: 100%;
+            aspect-ratio: 1 / 1.2;
+        }
+
+        #controls {
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .action-btn {
+            padding: 20px 0;
+            width: 45%;
+            font-size: 2.5rem;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            border-radius: 15px;
+            color: white;
+            transition: transform 0.1s ease, box-shadow 0.2s ease;
+            box-shadow: 0 6px 0 #00000040; /* 3D effect */
+        }
+        
+        .action-btn:active {
+            transform: translateY(4px);
+            box-shadow: 0 2px 0 #00000040;
+        }
+
+        #noun-btn { background-color: #ff8c00; border-bottom: 6px solid #cc7000; }
+        #verb-btn { background-color: #1e90ff; border-bottom: 6px solid #1771c9; }
+        
+        #instructions {
+            margin-top: 15px;
+            text-align: center;
+            color: #666;
+            font-size: 0.9rem;
+        }
+        #instructions p {
+            margin: 0;
+        }
+        
+        #modal {
+            display: none;
+            position: fixed;
+            z-index: 10;
+            left: 0; top: 0;
+            width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5);
+            justify-content: center;
+            align-items: center;
+        }
+        #modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 20px;
+            text-align: center;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+        }
+        #modal-content h2 { font-size: 2rem; margin-top: 0; }
+        #modal-content p { font-size: 1.5rem; }
+        #restart-btn {
+            background-color: #28a745;
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+
+    </style>
+</head>
+<body>
+
+<div id="game-wrapper">
+    <div id="game-header">
+        <div id="lives-display">生命: ❤️❤️❤️</div>
+        <div id="score-display">分數: 0</div>
+    </div>
+    <canvas id="gameCanvas"></canvas>
+    <div id="controls">
+        <button id="noun-btn" class="action-btn">名詞</button>
+        <button id="verb-btn" class="action-btn">動詞</button>
+    </div>
+    <div id="instructions">
+        <p>按鈕點擊或使用鍵盤：← 名詞 | → 動詞</p>
+    </div>
+</div>
+
+<div id="modal">
+    <div id="modal-content">
+        <h2 id="modal-title">遊戲結束!</h2>
+        <p id="final-score"></p>
+        <button id="restart-btn">重新開始</button>
+    </div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    const nounBtn = document.getElementById('noun-btn');
+    const verbBtn = document.getElementById('verb-btn');
+    const scoreDisplay = document.getElementById('score-display');
+    const livesDisplay = document.getElementById('lives-display');
+    const modal = document.getElementById('modal');
+    const finalScoreEl = document.getElementById('final-score');
+    const restartBtn = document.getElementById('restart-btn');
+
+    const gameData = [
+      // Nouns
+      { "word": "貓", "type": "名詞" }, { "word": "狗", "type": "名詞" }, { "word": "魚", "type": "名詞" },
+      { "word": "蘋果", "type": "名詞" }, { "word": "香蕉", "type": "名詞" }, { "word": "車", "type": "名詞" },
+      { "word": "飛機", "type": "名詞" }, { "word": "船", "type": "名詞" }, { "word": "書", "type": "名詞" },
+      { "word": "筆", "type": "名詞" }, { "word": "桌子", "type": "名詞" }, { "word": "椅子", "type": "名詞" },
+      { "word": "房子", "type": "名詞" }, { "word": "門", "type": "名詞" }, { "word": "窗", "type": "名詞" },
+      { "word": "太陽", "type": "名詞" }, { "word": "月亮", "type": "名詞" }, { "word": "星星", "type": "名詞" },
+      { "word": "媽媽", "type": "名詞" }, { "word": "老師", "type": "名詞" }, { "word": "學生", "type": "名詞" },
+      { "word": "水", "type": "名詞" }, { "word": "飯", "type": "名詞" }, { "word": "麵包", "type": "名詞" },
+      // Verbs
+      { "word": "跑", "type": "動詞" }, { "word": "跳", "type": "動詞" }, { "word": "飛", "type": "動詞" },
+      { "word": "游", "type": "動詞" }, { "word": "哭", "type": "動詞" }, { "word": "笑", "type": "動詞" },
+      { "word": "畫", "type": "動詞" }, { "word": "寫", "type": "動詞" }, { "word": "讀", "type": "動詞" },
+      { "word": "聽", "type": "動詞" }, { "word": "說", "type": "動詞" }, { "word": "睡", "type": "動詞" },
+      { "word": "開", "type": "動詞" }, { "word": "關", "type": "動詞" }, { "word": "坐", "type": "動詞" },
+      { "word": "站", "type": "動詞" }, { "word": "唱", "type": "動詞" }, { "word": "跳舞", "type": "動詞" },
+      { "word": "看", "type": "動詞" }, { "word": "吃", "type": "動詞" }, { "word": "喝", "type": "動詞" },
+      { "word": "玩", "type": "動詞" }, { "word": "洗", "type": "動詞" }, { "word": "問", "type": "動詞" }
+    ];
+
+    let currentWord = {};
+    let score = 0;
+    let lives = 3;
+    let speed = 1;
+    let gameLoop;
+    let isPaused = false;
+    
+    // --- Canvas Sizing ---
+    function resizeCanvas() {
+        const wrapper = document.getElementById('game-wrapper');
+        // Subtract padding from the wrapper width
+        const canvasWidth = wrapper.clientWidth - 40; 
+        canvas.width = canvasWidth;
+        // Maintain aspect ratio
+        canvas.height = canvasWidth * 1.2;
+    }
+
+    // --- Game Logic ---
+    function setupNewWord() {
+        const wordData = gameData[Math.floor(Math.random() * gameData.length)];
+        currentWord = {
+            text: wordData.word,
+            type: wordData.type,
+            x: canvas.width / 2,
+            y: 0,
+            size: Math.max(60, canvas.width / 8)
+        };
+        // Increase speed gradually
+        speed = 1 + (score * 0.05);
+    }
+    
+    function resetGame() {
+        score = 0;
+        lives = 3;
+        speed = 1;
+        isPaused = false;
+        updateUI();
+        setupNewWord();
+        modal.style.display = 'none';
+        gameLoop = requestAnimationFrame(animate);
+    }
+
+    function updateUI() {
+        scoreDisplay.textContent = `分數: ${score}`;
+        livesDisplay.textContent = '生命: ' + '❤️'.repeat(lives);
+    }
+    
+    function handleCorrectAnswer() {
+        score++;
+        updateUI();
+        drawFeedback(true); // Draw checkmark
+        setTimeout(() => {
+            setupNewWord();
+            isPaused = false;
+        }, 500);
+    }
+
+    function handleIncorrectAnswer() {
+        lives--;
+        updateUI();
+        drawFeedback(false); // Draw cross
+        if (lives <= 0) {
+            gameOver();
+        } else {
+           setTimeout(() => {
+                setupNewWord();
+                isPaused = false;
+            }, 500);
+        }
+    }
+
+    function checkAnswer(selectedType) {
+        if (isPaused) return;
+        isPaused = true;
+        
+        if (selectedType === currentWord.type) {
+            handleCorrectAnswer();
+        } else {
+            handleIncorrectAnswer();
+        }
+    }
+
+    function gameOver() {
+        cancelAnimationFrame(gameLoop);
+        finalScoreEl.textContent = `你的分數是: ${score}`;
+        modal.style.display = 'flex';
+    }
+
+    // --- Drawing Functions ---
+    function drawWord() {
+        ctx.fillStyle = '#005a9c';
+        ctx.font = `bold ${currentWord.size}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(currentWord.text, currentWord.x, currentWord.y);
+    }
+    
+    function drawFeedback(isCorrect) {
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const size = canvas.width / 3;
+        
+        ctx.font = `${size}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        
+        if (isCorrect) {
+            ctx.fillStyle = 'rgba(40, 167, 69, 0.7)'; // Green
+            ctx.fillText('✅', centerX, centerY);
+        } else {
+            ctx.fillStyle = 'rgba(220, 53, 69, 0.7)'; // Red
+            ctx.fillText('❌', centerX, centerY);
+        }
+    }
+
+    // --- Animation Loop ---
+    function animate() {
+        if (!isPaused) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            currentWord.y += speed;
+            drawWord();
+
+            if (currentWord.y > canvas.height + currentWord.size) {
+                 isPaused = true;
+                 handleIncorrectAnswer(); // Missed the word
+            }
+        }
+        
+        if (lives > 0) {
+            gameLoop = requestAnimationFrame(animate);
+        }
+    }
+
+    // --- Event Listeners ---
+    nounBtn.addEventListener('click', () => checkAnswer('名詞'));
+    verbBtn.addEventListener('click', () => checkAnswer('動詞'));
+    restartBtn.addEventListener('click', resetGame);
+    
+    // Keyboard shortcuts
+    document.addEventListener('keydown', (e) => {
+        if (e.key === 'ArrowLeft') {
+            checkAnswer('名詞');
+        } else if (e.key === 'ArrowRight') {
+            checkAnswer('動詞');
+        }
+    });
+    
+    window.addEventListener('resize', () => {
+        resizeCanvas();
+        // Recalculate word size on resize
+        currentWord.size = Math.max(60, canvas.width / 8);
+    });
+
+    // --- Initial Setup ---
+    window.onload = () => {
+        resizeCanvas();
+        resetGame();
+    };
+</script>
+
+</body>
+</html>
