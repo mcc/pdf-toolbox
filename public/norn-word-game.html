@@ -400,6 +400,9 @@
         // Rebuild the word pool without duplicates
         remainingIndices = shuffleArray([...Array(gameData.length).keys()]);
         awaitingContinue = false;
+        // Clear any lingering overlays from previous session
+        rewardEffect = null;
+        feedbackOverlay = null;
         updateUI();
         setupNewWord();
         modal.style.display = 'none';
