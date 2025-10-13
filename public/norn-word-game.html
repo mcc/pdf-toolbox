@@ -231,6 +231,7 @@
     const livesDisplay = document.getElementById('lives-display');
     const modal = document.getElementById('modal');
     const finalScoreEl = document.getElementById('final-score');
+    const modalTitleEl = document.getElementById('modal-title');
     const restartBtn = document.getElementById('restart-btn');
 
     const gameData = [
@@ -243,6 +244,25 @@
       { "word": "太陽", "type": "名詞" }, { "word": "月亮", "type": "名詞" }, { "word": "星星", "type": "名詞" },
       { "word": "媽媽", "type": "名詞" }, { "word": "老師", "type": "名詞" }, { "word": "學生", "type": "名詞" },
       { "word": "水", "type": "名詞" }, { "word": "飯", "type": "名詞" }, { "word": "麵包", "type": "名詞" },
+      { "word": "奶奶", "type": "名詞" }, { "word": "朋友", "type": "名詞" }, { "word": "魚兒", "type": "名詞" },
+      { "word": "食物", "type": "名詞" }, { "word": "樹木", "type": "名詞" }, { "word": "爺爺", "type": "名詞" },
+      { "word": "孩子", "type": "名詞" }, { "word": "蝴蝶", "type": "名詞" }, { "word": "新年", "type": "名詞" },
+      { "word": "剪刀", "type": "名詞" }, { "word": "外公", "type": "名詞" }, { "word": "客人", "type": "名詞" },
+      { "word": "青蛙", "type": "名詞" }, { "word": "生日", "type": "名詞" }, { "word": "早餐", "type": "名詞" },
+      { "word": "外婆", "type": "名詞" }, { "word": "醫生", "type": "名詞" }, { "word": "螞蟻", "type": "名詞" },
+      { "word": "電視", "type": "名詞" }, { "word": "池塘", "type": "名詞" }, { "word": "爸爸", "type": "名詞" },
+      { "word": "嘴巴", "type": "名詞" }, { "word": "小貓", "type": "名詞" }, { "word": "沙發", "type": "名詞" },
+      { "word": "音樂", "type": "名詞" }, { "word": "媽媽", "type": "名詞" }, { "word": "眼睛", "type": "名詞" },
+      { "word": "尾巴", "type": "名詞" }, { "word": "玩具", "type": "名詞" }, { "word": "桌椅", "type": "名詞" },
+      { "word": "老師", "type": "名詞" }, { "word": "頭髮", "type": "名詞" }, { "word": "圖畫", "type": "名詞" },
+      { "word": "電話", "type": "名詞" }, { "word": "學校", "type": "名詞" }, { "word": "哥哥", "type": "名詞" },
+      { "word": "太陽", "type": "名詞" }, { "word": "圖書", "type": "名詞" }, { "word": "帽子", "type": "名詞" },
+      { "word": "課室", "type": "名詞" }, { "word": "妹妹", "type": "名詞" }, { "word": "陽光", "type": "名詞" },
+      { "word": "書包", "type": "名詞" }, { "word": "鞋子", "type": "名詞" }, { "word": "操場", "type": "名詞" },
+      { "word": "弟弟", "type": "名詞" }, { "word": "月亮", "type": "名詞" }, { "word": "衣服", "type": "名詞" },
+      { "word": "房子", "type": "名詞" }, { "word": "公園", "type": "名詞" }, { "word": "同學", "type": "名詞" },
+      { "word": "星星", "type": "名詞" }, { "word": "雨點", "type": "名詞" }, { "word": "地板", "type": "名詞" },
+      { "word": "遊樂場", "type": "名詞" },
       // Verbs
       { "word": "跑", "type": "動詞" }, { "word": "跳", "type": "動詞" }, { "word": "飛", "type": "動詞" },
       { "word": "游", "type": "動詞" }, { "word": "哭", "type": "動詞" }, { "word": "笑", "type": "動詞" },
@@ -251,15 +271,68 @@
       { "word": "開", "type": "動詞" }, { "word": "關", "type": "動詞" }, { "word": "坐", "type": "動詞" },
       { "word": "站", "type": "動詞" }, { "word": "唱", "type": "動詞" }, { "word": "跳舞", "type": "動詞" },
       { "word": "看", "type": "動詞" }, { "word": "吃", "type": "動詞" }, { "word": "喝", "type": "動詞" },
-      { "word": "玩", "type": "動詞" }, { "word": "洗", "type": "動詞" }, { "word": "問", "type": "動詞" }
+      { "word": "玩", "type": "動詞" }, { "word": "洗", "type": "動詞" }, { "word": "問", "type": "動詞" },
+      { "word": "唱歌", "type": "動詞" }, { "word": "打掃", "type": "動詞" }, { "word": "拍照", "type": "動詞" },
+      { "word": "上學", "type": "動詞" }, { "word": "買東西", "type": "動詞" }, { "word": "讀書", "type": "動詞" },
+      { "word": "看見", "type": "動詞" }, { "word": "放學", "type": "動詞" }, { "word": "採花蜜", "type": "動詞" },
+      { "word": "跳繩", "type": "動詞" }, { "word": "溫習", "type": "動詞" }, { "word": "閱讀", "type": "動詞" },
+      { "word": "開學", "type": "動詞" }, { "word": "做家務", "type": "動詞" }, { "word": "跳高", "type": "動詞" },
+      { "word": "生病", "type": "動詞" }, { "word": "寫字", "type": "動詞" }, { "word": "回家", "type": "動詞" },
+      { "word": "做早操", "type": "動詞" }, { "word": "跑步", "type": "動詞" }, { "word": "休息", "type": "動詞" },
+      { "word": "幫助", "type": "動詞" }, { "word": "感謝", "type": "動詞" }, { "word": "玩遊戲", "type": "動詞" },
+      { "word": "游泳", "type": "動詞" }, { "word": "起床", "type": "動詞" }, { "word": "走路", "type": "動詞" },
+      { "word": "喜歡", "type": "動詞" }, { "word": "看電視", "type": "動詞" }, { "word": "攀石", "type": "動詞" },
+      { "word": "洗澡", "type": "動詞" }, { "word": "照顧", "type": "動詞" }, { "word": "張開", "type": "動詞" },
+      { "word": "講故事", "type": "動詞" }, { "word": "玩耍", "type": "動詞" }, { "word": "旅行", "type": "動詞" },
+      { "word": "參加", "type": "動詞" }, { "word": "長大", "type": "動詞" }, { "word": "織毛衣", "type": "動詞" },
+      { "word": "奔跑", "type": "動詞" }, { "word": "點頭", "type": "動詞" }, { "word": "說話", "type": "動詞" },
+      { "word": "過冬", "type": "動詞" }, { "word": "踢足球", "type": "動詞" }, { "word": "跌倒", "type": "動詞" },
+      { "word": "搖頭", "type": "動詞" }, { "word": "表演", "type": "動詞" }, { "word": "練習", "type": "動詞" },
+      { "word": "騎自行車", "type": "動詞" }
+    ];
+
+    // Positive reward emojis (only positive/encouraging attributes)
+    const positiveEmojis = [
+        '🌟','🏆','🎉','👏','👍','💯','🎈','😄','🤩','🥳','🔥','⭐','💫','🎊','😊','💪','🙌'
     ];
 
     let currentWord = {};
     let score = 0;
     let lives = 3;
-    let speed = 1;
+    let speed = 0.6; // pixels per frame baseline
     let gameLoop;
     let isPaused = false;
+    let remainingIndices = [];
+    let rewardEffect = null; // { emoji, startTime }
+    let feedbackOverlay = null; // { kind: 'correct'|'wrong', startTime }
+    let awaitingContinue = false;
+
+    // Tunables
+    const SPEED_BASE = 1.2;
+    const SPEED_PER_SCORE = 0.05;
+    const FEEDBACK_FADE_IN = 250; // ms fade-in for tick/cross & banner
+    const REWARD_FADE_IN = 300; // ms fade-in for emoji
+
+    // --- Utils ---
+    function shuffleArray(arr) {
+        for (let i = arr.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            const tmp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = tmp;
+        }
+        return arr;
+    }
+
+    // Global continue handler (outside of animate scope)
+    function continueAfterFeedback() {
+        if (!awaitingContinue) return;
+        awaitingContinue = false;
+        rewardEffect = null;
+        feedbackOverlay = null;
+        setupNewWord();
+        isPaused = false;
+    }
     
     // --- Canvas Sizing ---
     function resizeCanvas() {
@@ -302,23 +375,31 @@
 
     // --- Game Logic ---
     function setupNewWord() {
-        const wordData = gameData[Math.floor(Math.random() * gameData.length)];
+        if (remainingIndices.length === 0) {
+            gameWin();
+            return;
+        }
+        const nextIndex = remainingIndices.pop();
+        const wordData = gameData[nextIndex];
         currentWord = {
             text: wordData.word,
             type: wordData.type,
             x: canvas.width / 2,
-            y: 0,
+            y: -Math.max(60, canvas.width / 8),
             size: Math.max(60, canvas.width / 8)
         };
-        // Increase speed gradually
-        speed = 1 + (score * 0.05);
+        // Increase speed gradually (slower pacing)
+        speed = SPEED_BASE + (score * SPEED_PER_SCORE);
     }
     
     function resetGame() {
         score = 0;
         lives = 3;
-        speed = 1;
+        speed = SPEED_BASE;
         isPaused = false;
+        // Rebuild the word pool without duplicates
+        remainingIndices = shuffleArray([...Array(gameData.length).keys()]);
+        awaitingContinue = false;
         updateUI();
         setupNewWord();
         modal.style.display = 'none';
@@ -333,24 +414,21 @@
     function handleCorrectAnswer() {
         score++;
         updateUI();
-        drawFeedback(true); // Draw checkmark
-        setTimeout(() => {
-            setupNewWord();
-            isPaused = false;
-        }, 500);
+        const reward = positiveEmojis[Math.floor(Math.random() * positiveEmojis.length)];
+        // Start overlays and wait for user to continue
+        feedbackOverlay = { kind: 'correct', startTime: performance.now() };
+        rewardEffect = { emoji: reward, startTime: performance.now() };
+        awaitingContinue = true;
     }
 
     function handleIncorrectAnswer() {
         lives--;
         updateUI();
-        drawFeedback(false); // Draw cross
+        feedbackOverlay = { kind: 'wrong', startTime: performance.now() };
         if (lives <= 0) {
             gameOver();
         } else {
-           setTimeout(() => {
-                setupNewWord();
-                isPaused = false;
-            }, 500);
+            awaitingContinue = true;
         }
     }
 
@@ -368,6 +446,14 @@
     function gameOver() {
         cancelAnimationFrame(gameLoop);
         finalScoreEl.textContent = `你的分數是: ${score}`;
+        modalTitleEl.textContent = '遊戲結束!';
+        modal.style.display = 'flex';
+    }
+
+    function gameWin() {
+        cancelAnimationFrame(gameLoop);
+        finalScoreEl.textContent = `恭喜通關！最終分數: ${score}`;
+        modalTitleEl.textContent = '你贏了!';
         modal.style.display = 'flex';
     }
 
@@ -398,19 +484,109 @@
         }
     }
 
-    // --- Animation Loop ---
-    function animate() {
-        if (!isPaused) {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            currentWord.y += speed;
-            drawWord();
+    function renderFeedbackOverlay(now) {
+        if (!feedbackOverlay) return;
+        const elapsed = now - feedbackOverlay.startTime;
+        const t = Math.min(1, elapsed / FEEDBACK_FADE_IN);
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const size = canvas.width / 3;
 
-            if (currentWord.y > canvas.height + currentWord.size) {
-                 isPaused = true;
-                 handleIncorrectAnswer(); // Missed the word
-            }
+        // Keep tick/cross fully visible, slight scale pop at start
+        const scale = 1 + 0.08 * (1 - t);
+        ctx.save();
+        ctx.translate(centerX, centerY);
+        ctx.scale(scale, scale);
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = `bold ${size}px sans-serif`;
+        if (feedbackOverlay.kind === 'correct') {
+            ctx.fillStyle = 'rgba(40,167,69,0.85)';
+            ctx.fillText('✅', 0, 70);
+            // Banner: green pill with "Correct"
+            const bannerAlpha = t; // fade-in then hold
+            const bannerWidth = Math.min(canvas.width * 0.7, 360);
+            const bannerHeight = Math.floor((canvas.height / 12));
+            const bannerY = -size - bannerHeight - 10; // above tick
+            ctx.globalAlpha = bannerAlpha;
+            ctx.fillStyle = '#28a745';
+            roundRect(ctx, -bannerWidth/2, bannerY, bannerWidth, bannerHeight, 20);
+            ctx.fill();
+            ctx.fillStyle = 'white';
+            ctx.font = `bold ${Math.floor(bannerHeight*0.6)}px sans-serif`;
+            ctx.fillText('Correct', 0, bannerY + bannerHeight/2 + 1);
+        } else {
+            ctx.fillStyle = 'rgba(220,53,69,0.85)';
+            ctx.fillText('❌', 0, 0);
         }
-        
+        ctx.restore();
+
+        // Do not auto-clear; hold until user continues
+    }
+
+    // Helper to draw rounded rectangles
+    function roundRect(ctx, x, y, width, height, radius) {
+        const r = Math.min(radius, height/2, width/2);
+        ctx.beginPath();
+        ctx.moveTo(x + r, y);
+        ctx.arcTo(x + width, y, x + width, y + height, r);
+        ctx.arcTo(x + width, y + height, x, y + height, r);
+        ctx.arcTo(x, y + height, x, y, r);
+        ctx.arcTo(x, y, x + width, y, r);
+        ctx.closePath();
+    }
+
+    function renderRewardEffect(now) {
+        if (!rewardEffect) return;
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const elapsed = now - rewardEffect.startTime;
+        const t = Math.min(1, elapsed / REWARD_FADE_IN);
+        // Fade-in then hold
+        const alpha = t;
+        const size = Math.floor((canvas.width / 3) * 0.6);
+        const yOffset = Math.floor((canvas.height / 6) * (0.2 - 0.2 * t)); // slight upward
+
+        ctx.save();
+        ctx.globalAlpha = alpha;
+        ctx.font = `${size}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(rewardEffect.emoji, centerX, centerY - size - yOffset);
+        ctx.restore();
+
+        // Do not auto-clear; hold until user continues
+    }
+
+    // --- Animation Loop ---
+    function animate(now) {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        if (!isPaused) {
+            currentWord.y += speed;
+        }
+        // Always draw the word so paused frames still show content
+        drawWord();
+
+        if (!isPaused && currentWord.y > canvas.height + currentWord.size) {
+            isPaused = true;
+            handleIncorrectAnswer(); // Missed the word
+        }
+
+function continueAfterFeedback() {
+    if (!awaitingContinue) return;
+    awaitingContinue = false;
+    rewardEffect = null;
+    feedbackOverlay = null;
+    setupNewWord();
+    isPaused = false;
+}
+
+        // Render reward animation on top
+        renderRewardEffect(now || performance.now());
+        // Render tick/cross and banner on top-most
+        renderFeedbackOverlay(now || performance.now());
+
         if (lives > 0) {
             gameLoop = requestAnimationFrame(animate);
         }
@@ -420,9 +596,16 @@
     nounBtn.addEventListener('click', () => checkAnswer('名詞'));
     verbBtn.addEventListener('click', () => checkAnswer('動詞'));
     restartBtn.addEventListener('click', resetGame);
+// Click anywhere on canvas or holder to continue after feedback
+document.getElementById('canvas-holder').addEventListener('click', continueAfterFeedback);
+canvas.addEventListener('click', continueAfterFeedback);
     
     // Keyboard shortcuts
     document.addEventListener('keydown', (e) => {
+    if (awaitingContinue) {
+        continueAfterFeedback();
+        return;
+    }
         if (e.key === 'ArrowLeft') {
             checkAnswer('名詞');
         } else if (e.key === 'ArrowRight') {
