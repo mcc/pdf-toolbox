@@ -9,11 +9,11 @@
             font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
             display: flex;
             justify-content: center;
-            align-items: center;
+            align-items: flex-start; /* keep UI starting at top */
             height: 100vh;
             margin: 0;
             background-color: #f0f8ff; /* AliceBlue */
-            overflow: hidden;
+            overflow: auto; /* allow scrolling if content exceeds viewport */
             -webkit-touch-callout: none; /* iOS Safari */
             -webkit-user-select: none; /* Safari, Chrome, Opera, Edge */
             -khtml-user-select: none; /* Konqueror HTML */
@@ -27,11 +27,12 @@
             flex-direction: column;
             align-items: center;
             background: white;
-            padding: 20px;
+            padding: 16px 20px;
             border-radius: 20px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
             width: 100%;
             max-width: 500px;
+            margin-top: 16px; /* space from top */
         }
 
         #game-header {
@@ -56,24 +57,28 @@
             color: #dc3545;
         }
 
+        #canvas-holder { width: 100%; display: flex; justify-content: center; }
         canvas {
             background: #e3f2fd; /* Light blue sky */
             border-radius: 15px;
             cursor: pointer;
-            width: 100%;
-            aspect-ratio: 1 / 1.2;
+            width: 500px;  /* logical width */
+            height: 600px; /* logical height (1:1.2) */
+            display: block;
+            margin: 0 auto;
+            transform-origin: top center;
         }
 
         #controls {
             display: flex;
-            justify-content: space-around;
+            justify-content: space-between;
             width: 100%;
-            margin-top: 20px;
+            margin-top: 16px;
         }
 
         .action-btn {
             padding: 20px 0;
-            width: 45%;
+            width: 48%;
             font-size: 2.5rem;
             font-weight: bold;
             cursor: pointer;
@@ -133,6 +138,60 @@
             margin-top: 10px;
         }
 
+        /* --- Responsive: Tablet (≥ 768px) --- */
+        @media (min-width: 768px) {
+            #game-wrapper {
+                max-width: 720px;
+                padding: 24px;
+            }
+
+            #game-header {
+                font-size: 1.75rem;
+                margin-bottom: 18px;
+            }
+
+            .action-btn {
+                font-size: 2.2rem;
+                padding: 18px 0;
+            }
+
+            #instructions {
+                font-size: 1rem;
+                margin-top: 18px;
+            }
+        }
+
+        /* --- Responsive: Desktop (≥ 1024px) --- */
+        @media (min-width: 1000px) {
+            body {
+                overflow: auto; /* allow scroll if needed on large screens */
+            }
+
+            #game-wrapper {
+                max-width: 960px;
+                padding: 5px;
+            }
+
+            #game-header {
+                font-size: 2rem;
+            }
+
+            #controls {
+                justify-content: center;
+                gap: 24px;
+            }
+
+            .action-btn {
+                width: 35%;
+                font-size: 1.8rem;
+                padding: 16px 0;
+            }
+
+            #modal-content h2 { font-size: 2.2rem; }
+            #modal-content p { font-size: 1.6rem; }
+            #restart-btn { font-size: 1.25rem; padding: 16px 32px; }
+        }
+
     </style>
 </head>
 <body>
@@ -142,7 +201,9 @@
         <div id="lives-display">生命: ❤️❤️❤️</div>
         <div id="score-display">分數: 0</div>
     </div>
-    <canvas id="gameCanvas"></canvas>
+    <div id="canvas-holder">
+        <canvas id="gameCanvas"></canvas>
+    </div>
     <div id="controls">
         <button id="noun-btn" class="action-btn">名詞</button>
         <button id="verb-btn" class="action-btn">動詞</button>
@@ -203,11 +264,40 @@
     // --- Canvas Sizing ---
     function resizeCanvas() {
         const wrapper = document.getElementById('game-wrapper');
-        // Subtract padding from the wrapper width
-        const canvasWidth = wrapper.clientWidth - 40; 
-        canvas.width = canvasWidth;
-        // Maintain aspect ratio
-        canvas.height = canvasWidth * 1.2;
+        const holder = document.getElementById('canvas-holder');
+        const header = document.getElementById('game-header');
+        const controls = document.getElementById('controls');
+        const instructions = document.getElementById('instructions');
+
+        // Logical canvas size (fixed for consistent gameplay)
+        const logicalWidth = 500;
+        const logicalHeight = 600; // 1:1.2
+        canvas.width = logicalWidth;
+        canvas.height = logicalHeight;
+
+        // Compute scale to fit within available wrapper width and viewport height
+        const availableWidth = Math.max(0, wrapper.clientWidth - 40); // wrapper padding
+        const wrapperTop = wrapper.getBoundingClientRect().top;
+        const viewportHeight = window.innerHeight;
+        const headerH = header ? header.offsetHeight : 0;
+        const controlsH = controls ? controls.offsetHeight : 0;
+        const instructionsH = instructions ? instructions.offsetHeight : 0;
+        const wrapperPaddingY = 40; // padding vertical
+        const spacing = 32; // account for margins between elements
+        const availableHeight = Math.max(200, viewportHeight - wrapperTop - headerH - controlsH - instructionsH - wrapperPaddingY - spacing);
+
+        const scaleX = availableWidth / logicalWidth;
+        const scaleY = availableHeight / logicalHeight;
+        const scale = Math.min(1, Math.max(0.3, Math.min(scaleX, scaleY))); // clamp between 0.3x and 1x
+
+        // Apply visual scaling
+        canvas.style.transform = `scale(${scale})`;
+
+        // Adjust holder height to reserve space equal to scaled canvas
+        holder.style.height = `${logicalHeight * scale}px`;
+
+        // Keep word size based on logical width so gameplay stays consistent
+        currentWord.size = Math.max(60, Math.floor(logicalWidth / 8));
     }
 
     // --- Game Logic ---
