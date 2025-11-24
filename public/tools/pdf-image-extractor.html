@@ -6,23 +6,23 @@
     <title>PDF Image Extractor</title>
     
     <!-- Tailwind CSS for styling -->
-    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="/tools/js/tailwindcss.3.4.16.js"></script>
     
     <!-- PDF.js for parsing -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="/tools/js/pdf.3.11.174.min.js"></script>
     
     <!-- JSZip for bundling images -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="/tools/js/jszip.js"></script>
     
     <!-- FileSaver for saving the zip -->
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+    <script src="/tools/js/FileSaver.js"></script>
 
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="/tools/js/lucide.min.js"></script>
 
     <script>
         // Set the worker source for PDF.js
-        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        pdfjsLib.GlobalWorkerOptions.workerSrc = '/tools/js/pdf.worker.3.11.174.minjs';
     </script>
 
     <style>
