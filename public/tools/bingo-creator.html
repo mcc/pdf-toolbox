@@ -54,7 +54,7 @@
             <h1 class="text-xl font-bold text-gray-800">Bingo Maker</h1>
         </div>
         <div class="text-sm text-gray-500 hidden md:block">
-            Upload &rarr; Slice &rarr; Select &rarr; Generate
+            Upload &rarr; Slice/Select &rarr; Generate
         </div>
     </header>
 
@@ -62,56 +62,85 @@
     <main class="flex-1 flex overflow-hidden">
         
         <!-- Left Sidebar: Controls -->
-        <aside class="w-full md:w-96 bg-white border-r border-gray-200 overflow-y-auto p-6 flex flex-col gap-8 shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
+        <aside class="w-full md:w-96 bg-white border-r border-gray-200 overflow-y-auto p-6 flex flex-col gap-6 shrink-0 shadow-[4px_0_24px_rgba(0,0,0,0.02)]">
             
-            <!-- Step 1: Upload -->
-            <section>
-                <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">1. Source Image</h2>
-                <div class="relative group">
-                    <input type="file" id="imageInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
-                    <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center transition group-hover:border-blue-500 group-hover:bg-blue-50">
-                        <div id="uploadPlaceholder">
-                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
-                            </svg>
-                            <p class="mt-2 text-sm text-gray-600">Click to upload photo</p>
-                        </div>
-                        <img id="imagePreviewThumb" class="mx-auto max-h-32 hidden rounded shadow-sm" />
-                    </div>
-                </div>
-            </section>
+            <!-- Mode Switcher -->
+            <div class="flex bg-gray-100 p-1 rounded-lg">
+                <button id="modeSlice" class="flex-1 py-1.5 px-3 rounded-md text-sm font-medium bg-white shadow-sm text-gray-800 transition">Slice Image</button>
+                <button id="modeUpload" class="flex-1 py-1.5 px-3 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 transition">Upload Items</button>
+            </div>
 
-            <!-- Step 2: Slicing Config -->
-            <section id="slicingSection" class="opacity-50 pointer-events-none transition-opacity duration-300">
-                <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">2. Slice Grid</h2>
-                <div class="space-y-4">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Columns (X)</label>
-                            <input type="number" id="sliceCols" value="11" min="1" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
-                        </div>
-                        <div>
-                            <label class="block text-xs font-medium text-gray-700 mb-1">Rows (Y)</label>
-                            <input type="number" id="sliceRows" value="8" min="1" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+            <!-- MODE: Slice Image -->
+            <div id="sectionSliceMode">
+                <!-- Step 1: Upload -->
+                <section class="mb-8">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">1. Source Image</h2>
+                    <div class="relative group">
+                        <input type="file" id="imageInput" accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                        <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center transition group-hover:border-blue-500 group-hover:bg-blue-50">
+                            <div id="uploadPlaceholder">
+                                <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                    <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                </svg>
+                                <p class="mt-2 text-sm text-gray-600">Click to upload photo</p>
+                            </div>
+                            <img id="imagePreviewThumb" class="mx-auto max-h-32 hidden rounded shadow-sm" />
                         </div>
                     </div>
-                    <div>
-                        <label class="block text-xs font-medium text-gray-700 mb-1">Padding (px)</label>
-                        <input type="number" id="slicePadding" value="0" min="0" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
-                        <p class="text-xs text-gray-500 mt-1">Gap between items in source image.</p>
+                </section>
+
+                <!-- Step 2: Slicing Config -->
+                <section id="slicingSection" class="opacity-50 pointer-events-none transition-opacity duration-300">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">2. Slice Grid</h2>
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Columns (X)</label>
+                                <input type="number" id="sliceCols" value="11" min="1" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+                            </div>
+                            <div>
+                                <label class="block text-xs font-medium text-gray-700 mb-1">Rows (Y)</label>
+                                <input type="number" id="sliceRows" value="8" min="1" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Padding (px)</label>
+                            <input type="number" id="slicePadding" value="0" min="0" class="w-full border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 sm:text-sm p-2 border">
+                            <p class="text-xs text-gray-500 mt-1">Gap between items in source image.</p>
+                        </div>
+                        <button id="btnSlice" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition shadow-sm flex justify-center items-center gap-2">
+                            <span>Slice Image</span>
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
+                            </svg>
+                        </button>
                     </div>
-                    <button id="btnSlice" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2 px-4 rounded-lg transition shadow-sm flex justify-center items-center gap-2">
-                        <span>Slice Image</span>
-                        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.121 14.121L19 19m-7-7l7-7m-7 7l-2.879 2.879M12 12L9.121 9.121m0 5.758a3 3 0 10-4.243 4.243 3 3 0 004.243-4.243zm0-5.758a3 3 0 10-4.243-4.243 3 3 0 004.243 4.243z" />
-                        </svg>
-                    </button>
-                </div>
-            </section>
+                </section>
+            </div>
+
+            <!-- MODE: Upload Items -->
+            <div id="sectionUploadMode" class="hidden">
+                 <section class="mb-8">
+                    <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">1. Upload Bingo Items</h2>
+                    <div class="relative group">
+                        <input type="file" id="multiInput" multiple accept="image/*" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" />
+                        <div class="border-2 border-dashed border-gray-300 rounded-xl p-8 text-center transition group-hover:border-blue-500 group-hover:bg-blue-50">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                            </svg>
+                            <p class="mt-2 text-sm text-gray-600">Drop images here or click</p>
+                            <p class="text-xs text-gray-400 mt-1">Upload multiple files at once</p>
+                        </div>
+                    </div>
+                    <div id="multiUploadStatus" class="mt-3 text-sm text-gray-600 font-medium hidden">
+                        Processing...
+                    </div>
+                </section>
+            </div>
 
             <!-- Step 3: Board Config -->
             <section id="boardSection" class="opacity-50 pointer-events-none transition-opacity duration-300">
-                <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">3. Board Settings</h2>
+                <h2 class="text-sm font-bold text-gray-400 uppercase tracking-wider mb-4">Board Settings</h2>
                 <div class="space-y-4">
                     <div class="grid grid-cols-2 gap-4">
                         <div>
@@ -136,7 +165,7 @@
                     <div id="wildcardConfig" class="bg-gray-50 p-3 rounded-lg border border-gray-200">
                         <label class="block text-xs font-medium text-gray-700 mb-1">Wildcard Text/Symbol</label>
                         <input type="text" id="wildcardText" value="FREE" class="w-full border-gray-300 rounded shadow-sm sm:text-sm p-2 border mb-2">
-                        <p class="text-xs text-gray-500">Or check "Set as Wildcard" on a sliced image.</p>
+                        <p class="text-xs text-gray-500">Or check "Set as Wildcard" on an item.</p>
                     </div>
 
                     <div>
@@ -187,8 +216,15 @@
             <div class="flex-1 overflow-auto p-8 flex items-center justify-center checkerboard relative" id="mainDisplay">
                 
                 <!-- View: Source -->
-                <div id="viewSource" class="relative shadow-2xl bg-white hidden">
+                <div id="viewSource" class="relative shadow-2xl bg-white hidden flex items-center justify-center">
                     <canvas id="sourceCanvas" class="max-w-full max-h-[70vh] block"></canvas>
+                    <div id="uploadModeMessage" class="hidden text-center bg-white p-8 rounded-xl shadow-lg">
+                        <svg class="mx-auto h-16 w-16 text-green-500 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        <h3 class="text-xl font-bold text-gray-800">Items Uploaded!</h3>
+                        <p class="text-gray-600 mt-2">Switch to the "Select Items" tab to review your images.</p>
+                    </div>
                 </div>
 
                 <!-- View: Selection -->
@@ -227,7 +263,8 @@
     <script>
         // --- State ---
         const state = {
-            image: null,
+            mode: 'slice', // 'slice' or 'upload'
+            image: null, // Slicing base image
             imageLoaded: false,
             slices: [], // Array of { id, dataUrl, selected, isWildcard }
             config: {
@@ -243,10 +280,20 @@
         // --- DOM Elements ---
         const els = {
             input: document.getElementById('imageInput'),
+            multiInput: document.getElementById('multiInput'),
             previewThumb: document.getElementById('imagePreviewThumb'),
             uploadPlaceholder: document.getElementById('uploadPlaceholder'),
+            multiUploadStatus: document.getElementById('multiUploadStatus'),
+            
+            // Sections
             slicingSection: document.getElementById('slicingSection'),
             boardSection: document.getElementById('boardSection'),
+            sectionSliceMode: document.getElementById('sectionSliceMode'),
+            sectionUploadMode: document.getElementById('sectionUploadMode'),
+            
+            // Mode Buttons
+            modeSlice: document.getElementById('modeSlice'),
+            modeUpload: document.getElementById('modeUpload'),
             sliceBtn: document.getElementById('btnSlice'),
             
             // Inputs
@@ -266,6 +313,7 @@
             viewPreview: document.getElementById('viewPreview'),
             emptyState: document.getElementById('emptyState'),
             sourceCanvas: document.getElementById('sourceCanvas'),
+            uploadModeMessage: document.getElementById('uploadModeMessage'),
             gridContainer: document.getElementById('gridContainer'),
             previewCanvas: document.getElementById('previewBoardCanvas'),
             selectionCount: document.getElementById('selectionCount'),
@@ -284,8 +332,13 @@
 
         // --- Event Listeners ---
         
+        // Mode Switch
+        els.modeSlice.addEventListener('click', () => setMode('slice'));
+        els.modeUpload.addEventListener('click', () => setMode('upload'));
+
         // Upload
         els.input.addEventListener('change', handleImageUpload);
+        els.multiInput.addEventListener('change', handleMultiUpload);
         
         // Slicing
         els.sliceBtn.addEventListener('click', sliceImage);
@@ -323,6 +376,35 @@
 
         // --- Functions ---
 
+        function setMode(mode) {
+            state.mode = mode;
+            state.slices = [];
+            state.image = null;
+            state.imageLoaded = false;
+            els.gridContainer.innerHTML = '';
+            els.selectionCount.innerText = '0';
+            updateBoardSectionVisibility();
+
+            const activeClass = "flex-1 py-1.5 px-3 rounded-md text-sm font-medium bg-white shadow-sm text-gray-800 transition";
+            const inactiveClass = "flex-1 py-1.5 px-3 rounded-md text-sm font-medium text-gray-500 hover:text-gray-700 transition";
+
+            if (mode === 'slice') {
+                els.modeSlice.className = activeClass;
+                els.modeUpload.className = inactiveClass;
+                els.sectionSliceMode.classList.remove('hidden');
+                els.sectionUploadMode.classList.add('hidden');
+                els.tabSource.innerText = "1. Source & Grid";
+            } else {
+                els.modeSlice.className = inactiveClass;
+                els.modeUpload.className = activeClass;
+                els.sectionSliceMode.classList.add('hidden');
+                els.sectionUploadMode.classList.remove('hidden');
+                els.tabSource.innerText = "1. Upload Status";
+            }
+
+            switchTab('source');
+        }
+
         function switchTab(tabName) {
             // Hide all
             els.viewSource.classList.add('hidden');
@@ -339,8 +421,22 @@
             const activeClass = "border-blue-500 text-blue-600 whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm transition";
             
             if (tabName === 'source') {
-                if(!state.imageLoaded) els.emptyState.classList.remove('hidden');
-                else els.viewSource.classList.remove('hidden');
+                if (state.mode === 'slice') {
+                    if(!state.imageLoaded) els.emptyState.classList.remove('hidden');
+                    else {
+                        els.viewSource.classList.remove('hidden');
+                        els.sourceCanvas.classList.remove('hidden');
+                        els.uploadModeMessage.classList.add('hidden');
+                    }
+                } else {
+                    // Upload mode
+                    if (state.slices.length === 0) els.emptyState.classList.remove('hidden');
+                    else {
+                        els.viewSource.classList.remove('hidden');
+                        els.sourceCanvas.classList.add('hidden');
+                        els.uploadModeMessage.classList.remove('hidden');
+                    }
+                }
                 els.tabSource.className = activeClass;
             } else if (tabName === 'selection') {
                 els.viewSelection.classList.remove('hidden');
@@ -378,6 +474,53 @@
             reader.readAsDataURL(file);
         }
 
+        async function handleMultiUpload(e) {
+            const files = Array.from(e.target.files);
+            if (files.length === 0) return;
+
+            els.multiUploadStatus.classList.remove('hidden');
+            els.multiUploadStatus.innerText = `Processing ${files.length} images...`;
+            
+            state.slices = [];
+            els.gridContainer.innerHTML = '';
+            
+            let loadedCount = 0;
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const reader = new FileReader();
+                
+                await new Promise(resolve => {
+                    reader.onload = (event) => {
+                        const sliceObj = {
+                            id: i,
+                            dataUrl: event.target.result,
+                            selected: true,
+                            isWildcard: false
+                        };
+                        state.slices.push(sliceObj);
+                        createSliceElement(sliceObj);
+                        loadedCount++;
+                        resolve();
+                    };
+                    reader.readAsDataURL(file);
+                });
+            }
+
+            els.multiUploadStatus.innerText = `Done! ${loadedCount} images loaded.`;
+            updateSelectionCount();
+            updateBoardSectionVisibility();
+            switchTab('selection');
+        }
+
+        function updateBoardSectionVisibility() {
+            if (state.slices.length > 0) {
+                els.boardSection.classList.remove('opacity-50', 'pointer-events-none');
+            } else {
+                els.boardSection.classList.add('opacity-50', 'pointer-events-none');
+            }
+        }
+
         function updateGridOverlay() {
             if (!state.image) return;
 
@@ -401,11 +544,6 @@
             // Draw grid overlay
             const totalW = state.image.width;
             const totalH = state.image.height;
-            
-            // Calculate cell sizes
-            // Width = (TotalW - (cols-1)*pad) / cols
-            // Wait, usually padding is around items. Let's assume uniform spacing.
-            // Let's assume padding is spacing between cuts.
             
             const cellW = (totalW - (padding * (cols - 1))) / cols;
             const cellH = (totalH - (padding * (rows - 1))) / rows;
@@ -473,7 +611,7 @@
             }
 
             updateSelectionCount();
-            els.boardSection.classList.remove('opacity-50', 'pointer-events-none');
+            updateBoardSectionVisibility();
             switchTab('selection');
         }
 
@@ -567,11 +705,11 @@
             const totalCells = size * size;
             const pool = state.slices.filter(s => s.selected);
             
+            if (pool.length === 0 && state.config.wildcardMode === 'none') return [];
+
             if (pool.length < totalCells) {
-                // Not enough items, allow duplicates? Or just warn?
-                // For Bingo, usually unique items per board.
-                // Let's duplicate pool if not enough
-                while(pool.length < totalCells) {
+                // Not enough items, duplicate pool
+                while(pool.length > 0 && pool.length < totalCells) {
                     pool.push(...pool);
                 }
             }
@@ -586,11 +724,8 @@
 
             if (mode === 'center') {
                 if (size % 2 !== 0) {
-                    // Exact center for odd grids (3x3 -> 4, 5x5 -> 12)
                     wcIndex = Math.floor(totalCells / 2);
                 } else {
-                    // For even grids, center is ambiguous, maybe index (size/2 * size) + size/2 - 1 ?
-                    // Let's just pick one near middle
                     wcIndex = (size * (size/2)) - (size/2); 
                 }
             } else if (mode === 'random') {
@@ -598,76 +733,15 @@
             }
 
             if (mode !== 'none' && wcIndex >= 0) {
-                // Determine wildcard content
                 const wcSlice = state.slices.find(s => s.isWildcard);
                 if (wcSlice) {
-                    board[wcIndex] = { ...wcSlice, isWildcardSlot: true }; // Use selected image
+                    board[wcIndex] = { ...wcSlice, isWildcardSlot: true }; 
                 } else {
                     board[wcIndex] = { isTextWildcard: true, text: state.config.wildcardText, isWildcardSlot: true };
                 }
             }
 
             return board;
-        }
-
-        function drawBoardToCanvas(boardData, targetCanvas) {
-            const ctx = targetCanvas.getContext('2d');
-            const size = state.config.boardSize;
-            
-            // Resolution
-            const cellRes = 300; // High res for print
-            const gap = 10;
-            const boardW = (cellRes * size) + (gap * (size + 1));
-            const boardH = boardW + 150; // Extra space for title
-
-            targetCanvas.width = boardW;
-            targetCanvas.height = boardH;
-
-            // Background
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, boardW, boardH);
-
-            // Title
-            ctx.fillStyle = '#1f2937';
-            ctx.font = 'bold 100px sans-serif';
-            ctx.textAlign = 'center';
-            ctx.fillText('BINGO', boardW / 2, 110);
-
-            // Draw Grid
-            const startY = 140;
-
-            // Draw black background for grid lines
-            ctx.fillStyle = '#000000';
-            ctx.fillRect(0, startY, boardW, boardW);
-
-            for(let r=0; r<size; r++) {
-                for(let c=0; c<size; c++) {
-                    const idx = r * size + c;
-                    const item = boardData[idx];
-                    
-                    const x = gap + (c * (cellRes + gap));
-                    const y = startY + gap + (r * (cellRes + gap));
-
-                    // Cell Background
-                    ctx.fillStyle = '#ffffff';
-                    ctx.fillRect(x, y, cellRes, cellRes);
-
-                    if (item.isTextWildcard) {
-                        ctx.fillStyle = '#fef3c7'; // yellow-100
-                        ctx.fillRect(x, y, cellRes, cellRes);
-                        ctx.fillStyle = '#000000';
-                        ctx.font = 'bold 50px sans-serif';
-                        ctx.textAlign = 'center';
-                        ctx.textBaseline = 'middle';
-                        ctx.fillText(item.text, x + cellRes/2, y + cellRes/2);
-                    } else if (item.dataUrl) {
-                        // Load image sync? No, dataUrl is already loaded string, but drawing requires Image obj
-                        // This is tricky for synchronous drawing. 
-                        // We need to return a Promise if we create new Image objects.
-                        // However, we can create Image objects once or cache them.
-                    }
-                }
-            }
         }
 
         // Async version of drawer
@@ -712,6 +786,8 @@
                 ctx.fillStyle = 'white';
                 ctx.fillRect(x, y, cellRes, cellRes);
 
+                if (!item) return Promise.resolve(); // Safety check
+
                 if (item.isTextWildcard) {
                     ctx.fillStyle = '#f3f4f6';
                     ctx.fillRect(x, y, cellRes, cellRes);
@@ -726,8 +802,7 @@
                      return new Promise(resolve => {
                         const img = new Image();
                         img.onload = () => {
-                            // Object fit: contain
-                            // Calculate aspect ratio
+                            // Object fit: contain (Keep Aspect Ratio)
                             const scale = Math.min(cellRes / img.width, cellRes / img.height);
                             const w = img.width * scale;
                             const h = img.height * scale;
@@ -743,6 +818,7 @@
                             }
                             resolve();
                         };
+                        img.onerror = resolve;
                         img.src = item.dataUrl;
                      });
                 }
@@ -755,9 +831,10 @@
 
         async function generatePreviewBoard() {
              const data = generateBoardData();
+             if (data.length === 0) return;
+             
              const canvas = await renderBoard(data);
              
-             // Copy to preview canvas
              const pCtx = els.previewCanvas.getContext('2d');
              els.previewCanvas.width = canvas.width;
              els.previewCanvas.height = canvas.height;
@@ -767,7 +844,7 @@
         async function generateAndDownload() {
             const count = parseInt(els.generateCount.value);
             if (state.slices.filter(s => s.selected).length < 1 && state.config.wildcardMode === 'none') {
-                alert("Please select some image slices first!");
+                alert("Please select some image items first!");
                 switchTab('selection');
                 return;
             }
