@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF High-Contrast B&W Tool</title>
+    <!-- Dependencies -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white; margin: 0; padding: 0; }
+            #main-viewport { display: none !important; }
+            #print-buffer { display: block !important; }
+            .print-page { page-break-after: always; display: block; width: 100%; }
+        }
+        #print-buffer { display: none; }
+        .thumbnail.active { border-color: #2563eb; background-color: #eff6ff; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+    </style>
+</head>
+<body class="bg-slate-100 h-screen overflow-hidden flex flex-col text-slate-800">
+
+    <!-- Top Navigation Bar -->
+    <header class="no-print bg-white border-b border-slate-200 px-6 py-3 flex items-center justify-between shadow-sm z-10">
+        <div class="flex items-center gap-3">
+            <div class="bg-blue-600 p-2 rounded-lg text-white">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            </div>
+            <h1 class="font-bold text-xl tracking-tight">DocContrast <span class="text-blue-600">Pro</span></h1>
+        </div>
+
+        <div id="action-buttons" class="flex items-center gap-3 hidden">
+            <button onclick="prepareAndPrint()" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"></polyline><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"></path><rect x="6" y="14" width="12" height="8"></rect></svg>
+                Print
+            </button>
+            <button id="download-btn" class="flex items-center gap-2 px-4 py-2 text-sm font-semibold text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-md shadow-blue-200 transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                Save PDF
+            </button>
+        </div>
+    </header>
+
+    <main class="flex-1 flex overflow-hidden">
+        <!-- Sidebar: File Upload and Thumbnails -->
+        <aside class="no-print w-64 bg-white border-r border-slate-200 flex flex-col">
+            <div class="p-4 border-b border-slate-100">
+                <label class="block mb-2 text-xs font-bold text-slate-400 uppercase tracking-widest">Input File</label>
+                <input type="file" id="file-input" accept="application/pdf" class="hidden">
+                <button onclick="document.getElementById('file-input').click()" class="w-full py-2 px-3 border-2 border-dashed border-slate-300 rounded-lg text-sm font-medium text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-all">
+                    Choose PDF
+                </button>
+            </div>
+
+            <div id="thumbnail-list" class="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar bg-slate-50/50">
+                <!-- Thumbnails go here -->
+                <div class="text-center mt-10 text-slate-400 px-4 italic text-sm">
+                    Upload a PDF to see page previews
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Workspace -->
+        <section class="flex-1 flex flex-col bg-slate-200 relative">
+            <!-- Toolbar -->
+            <div id="settings-bar" class="no-print bg-white/80 backdrop-blur-md border-b border-slate-300 p-4 flex items-center justify-center gap-8 opacity-50 pointer-events-none transition-opacity">
+                <div class="flex items-center gap-4 w-full max-w-xl">
+                    <span class="text-sm font-bold text-slate-700 whitespace-nowrap">Contrast Threshold</span>
+                    <input type="range" id="threshold" min="0" max="255" value="150" class="flex-1 h-2 bg-slate-300 rounded-lg appearance-none cursor-pointer accent-blue-600">
+                    <span id="threshold-val" class="text-sm font-mono font-bold bg-slate-800 text-white px-2 py-1 rounded min-w-[3ch] text-center">150</span>
+                </div>
+            </div>
+
+            <!-- Viewport -->
+            <div id="main-viewport" class="flex-1 overflow-auto p-8 flex justify-center items-start custom-scrollbar">
+                <div id="preview-canvas-holder" class="bg-white shadow-2xl transition-all">
+                    <!-- The active large canvas -->
+                </div>
+            </div>
+
+            <!-- Processing Overlay -->
+            <div id="status-overlay" class="absolute inset-0 bg-slate-900/10 backdrop-blur-sm hidden flex items-center justify-center z-50">
+                <div class="bg-white p-6 rounded-2xl shadow-xl flex items-center gap-4">
+                    <svg class="animate-spin h-6 w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    <span class="font-bold text-slate-800" id="status-text">Processing pages...</span>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Hidden Print Buffer -->
+    <div id="print-buffer"></div>
+
+    <script>
+        const { jsPDF } = window.jspdf;
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const fileInput = document.getElementById('file-input');
+        const thresholdInput = document.getElementById('threshold');
+        const thresholdValDisplay = document.getElementById('threshold-val');
+        const thumbList = document.getElementById('thumbnail-list');
+        const mainViewport = document.getElementById('preview-canvas-holder');
+        const actionButtons = document.getElementById('action-buttons');
+        const settingsBar = document.getElementById('settings-bar');
+        const statusOverlay = document.getElementById('status-overlay');
+        const statusText = document.getElementById('status-text');
+
+        let currentPdf = null;
+        let originalFileName = "document";
+        let pageCache = []; // Stores { originalData: ImageData, width, height } for each page
+        let activePageIndex = 0;
+
+        // --- Core Application Logic ---
+
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            originalFileName = file.name.replace(/\.[^/.]+$/, "");
+            toggleLoading(true, "Loading PDF...");
+
+            const reader = new FileReader();
+            reader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                try {
+                    currentPdf = await pdfjsLib.getDocument(typedarray).promise;
+                    await processAndCachePages();
+                    setupInterface();
+                } catch (err) {
+                    console.error(err);
+                    alert("Error loading PDF.");
+                } finally {
+                    toggleLoading(false);
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        });
+
+        // 1. Process pages once and store original pixel data
+        async function processAndCachePages() {
+            pageCache = [];
+            thumbList.innerHTML = '';
+            
+            for (let i = 1; i <= currentPdf.numPages; i++) {
+                const page = await currentPdf.getPage(i);
+                const viewport = page.getViewport({ scale: 2.0 }); // High res for main preview
+                const thumbViewport = page.getViewport({ scale: 0.2 });
+
+                // Create offscreen canvas for caching
+                const canvas = document.createElement('canvas');
+                const ctx = canvas.getContext('2d', { willReadFrequently: true });
+                canvas.width = viewport.width;
+                canvas.height = viewport.height;
+
+                await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+                
+                // Save original ImageData
+                const originalData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+                pageCache.push({ 
+                    originalData: originalData,
+                    width: canvas.width,
+                    height: canvas.height
+                });
+
+                // Create Thumbnail
+                const thumbWrapper = document.createElement('div');
+                thumbWrapper.className = `thumbnail cursor-pointer p-1 border-2 border-transparent rounded bg-white shadow-sm transition-all hover:border-slate-300`;
+                thumbWrapper.dataset.index = i - 1;
+                thumbWrapper.onclick = () => selectPage(i - 1);
+
+                const thumbCanvas = document.createElement('canvas');
+                thumbCanvas.width = thumbViewport.width;
+                thumbCanvas.height = thumbViewport.height;
+                const tCtx = thumbCanvas.getContext('2d');
+                tCtx.drawImage(canvas, 0, 0, thumbCanvas.width, thumbCanvas.height);
+                
+                thumbWrapper.appendChild(thumbCanvas);
+                const pNum = document.createElement('p');
+                pNum.className = "text-[10px] font-bold text-center mt-1 text-slate-500";
+                pNum.innerText = `Page ${i}`;
+                thumbWrapper.appendChild(pNum);
+
+                thumbList.appendChild(thumbWrapper);
+            }
+        }
+
+        function setupInterface() {
+            settingsBar.classList.remove('opacity-50', 'pointer-events-none');
+            actionButtons.classList.remove('hidden');
+            selectPage(0);
+        }
+
+        function selectPage(index) {
+            activePageIndex = index;
+            // UI Update
+            document.querySelectorAll('.thumbnail').forEach(t => t.classList.remove('active'));
+            document.querySelector(`.thumbnail[data-index="${index}"]`)?.classList.add('active');
+            
+            renderMainPreview();
+        }
+
+        // 2. Render from ORIGINAL CACHE using CURRENT threshold
+        function renderMainPreview() {
+            const pageObj = pageCache[activePageIndex];
+            if (!pageObj) return;
+
+            const threshold = parseInt(thresholdInput.value);
+            
+            // Create a temporary canvas for the display
+            const canvas = document.createElement('canvas');
+            canvas.width = pageObj.width;
+            canvas.height = pageObj.height;
+            const ctx = canvas.getContext('2d');
+            
+            // Put a COPY of the original data so we don't modify the cache
+            const processedData = new ImageData(
+                new Uint8ClampedArray(pageObj.originalData.data),
+                pageObj.width,
+                pageObj.height
+            );
+
+            // Apply filter to the copy
+            applyBWFilterToData(processedData, threshold);
+            ctx.putImageData(processedData, 0, 0);
+
+            mainViewport.innerHTML = '';
+            mainViewport.appendChild(canvas);
+        }
+
+        thresholdInput.addEventListener('input', (e) => {
+            thresholdValDisplay.textContent = e.target.value;
+            renderMainPreview(); // Live feedback
+        });
+
+        // Pixel Filter Helper
+        function applyBWFilterToData(imageData, threshold) {
+            const data = imageData.data;
+            for (let i = 0; i < data.length; i += 4) {
+                const grayscale = 0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2];
+                const val = grayscale > threshold ? 255 : 0;
+                data[i] = data[i + 1] = data[i + 2] = val;
+            }
+        }
+
+        // --- Export Logic ---
+
+        document.getElementById('download-btn').addEventListener('click', async () => {
+            toggleLoading(true, "Generating PDF...");
+            const threshold = parseInt(thresholdInput.value);
+            
+            const firstPage = pageCache[0];
+            const pdf = new jsPDF({
+                orientation: firstPage.width > firstPage.height ? 'l' : 'p',
+                unit: 'px',
+                format: [firstPage.width, firstPage.height],
+                hotfixes: ["px_rendering"]
+            });
+
+            const offscreenCanvas = document.createElement('canvas');
+            const offscreenCtx = offscreenCanvas.getContext('2d');
+
+            for (let i = 0; i < pageCache.length; i++) {
+                const page = pageCache[i];
+                if (i > 0) pdf.addPage([page.width, page.height], page.width > page.height ? 'l' : 'p');
+
+                offscreenCanvas.width = page.width;
+                offscreenCanvas.height = page.height;
+                
+                const frameData = new ImageData(new Uint8ClampedArray(page.originalData.data), page.width, page.height);
+                applyBWFilterToData(frameData, threshold);
+                offscreenCtx.putImageData(frameData, 0, 0);
+
+                const imgData = offscreenCanvas.toDataURL('image/jpeg', 0.85);
+                pdf.addImage(imgData, 'JPEG', 0, 0, page.width, page.height);
+            }
+
+            pdf.save(`${originalFileName}_Processed.pdf`);
+            toggleLoading(false);
+        });
+
+        async function prepareAndPrint() {
+            toggleLoading(true, "Preparing for print...");
+            const buffer = document.getElementById('print-buffer');
+            buffer.innerHTML = '';
+            const threshold = parseInt(thresholdInput.value);
+
+            for (let i = 0; i < pageCache.length; i++) {
+                const page = pageCache[i];
+                const canvas = document.createElement('canvas');
+                canvas.width = page.width;
+                canvas.height = page.height;
+                canvas.className = 'print-page';
+                
+                const ctx = canvas.getContext('2d');
+                const frameData = new ImageData(new Uint8ClampedArray(page.originalData.data), page.width, page.height);
+                applyBWFilterToData(frameData, threshold);
+                ctx.putImageData(frameData, 0, 0);
+                
+                buffer.appendChild(canvas);
+            }
+            
+            toggleLoading(false);
+            window.print();
+        }
+
+        function toggleLoading(show, text = "Processing...") {
+            statusText.innerText = text;
+            statusOverlay.classList.toggle('hidden', !show);
+        }
+    </script>
+</body>
+</html>

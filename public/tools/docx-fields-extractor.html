@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DocX Form Field Extractor</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- JSZip for XML access -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <!-- Mammoth.js for docx parsing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+    <!-- SheetJS for Excel export -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        .drop-zone {
+            transition: all 0.3s ease;
+            border: 2px dashed #cbd5e1;
+        }
+        .drop-zone.drag-over {
+            border-color: #3b82f6;
+            background-color: #eff6ff;
+        }
+        .loader {
+            border-top-color: #3498db;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+
+    <div class="max-w-6xl mx-auto px-4 py-12">
+        <header class="text-center mb-12">
+            <h1 class="text-4xl font-extrabold text-slate-800 mb-2">DocX Form Field Extractor</h1>
+            <p class="text-slate-600">Extracts data from modern Content Controls (SDT), Legacy Forms, and Dropdown Lists.</p>
+        </header>
+
+        <!-- Upload Section -->
+        <div id="dropZone" class="drop-zone bg-white rounded-xl p-10 text-center mb-8 cursor-pointer shadow-sm">
+            <div class="flex flex-col items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-slate-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                <p class="text-lg font-medium text-slate-700">Click to upload or drag and drop files here</p>
+                <p class="text-sm text-slate-500 mt-1">Supports .docx files with developer form fields</p>
+                <input type="file" id="fileInput" class="hidden" multiple accept=".docx">
+            </div>
+        </div>
+
+        <!-- Processing State -->
+        <div id="loader" class="hidden flex flex-col items-center justify-center py-10">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-12 w-12 mb-4"></div>
+            <p class="text-slate-600 font-medium">Analyzing document structure...</p>
+        </div>
+
+        <!-- Results Section -->
+        <div id="resultsArea" class="hidden animate-fade-in">
+            <div class="flex justify-between items-center mb-6">
+                <h2 class="text-2xl font-bold text-slate-800">Extracted Data (<span id="fileCount">0</span> files)</h2>
+                <div class="flex gap-2">
+                    <button id="clearBtn" class="bg-slate-200 hover:bg-slate-300 text-slate-700 px-4 py-2 rounded-lg font-semibold transition-colors">
+                        Clear
+                    </button>
+                    <button id="exportBtn" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2 rounded-lg font-semibold flex items-center shadow-md transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Export to Excel
+                    </button>
+                </div>
+            </div>
+
+            <div class="overflow-x-auto bg-white rounded-xl shadow-sm border border-slate-200">
+                <table id="dataTable" class="min-w-full divide-y divide-slate-200">
+                    <thead class="bg-slate-50">
+                        <tr id="tableHeader">
+                            <!-- Headers will be injected here -->
+                        </tr>
+                    </thead>
+                    <tbody id="tableBody" class="divide-y divide-slate-200 text-sm text-slate-700">
+                        <!-- Data rows will be injected here -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Empty/Error State -->
+        <div id="messageBox" class="hidden mt-6 p-4 rounded-lg bg-red-50 text-red-700 text-center border border-red-200">
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const loader = document.getElementById('loader');
+        const resultsArea = document.getElementById('resultsArea');
+        const tableHeader = document.getElementById('tableHeader');
+        const tableBody = document.getElementById('tableBody');
+        const exportBtn = document.getElementById('exportBtn');
+        const clearBtn = document.getElementById('clearBtn');
+        const fileCountSpan = document.getElementById('fileCount');
+        const messageBox = document.getElementById('messageBox');
+
+        let extractedData = [];
+        let uniqueFields = new Set();
+
+        // --- Event Listeners ---
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => { dropZone.classList.remove('drag-over'); });
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            handleFiles(e.dataTransfer.files);
+        });
+
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        exportBtn.addEventListener('click', () => extractedData.length && exportToExcel());
+        clearBtn.addEventListener('click', () => {
+            extractedData = [];
+            uniqueFields = new Set(['Filename']);
+            resultsArea.classList.add('hidden');
+            fileInput.value = '';
+        });
+
+        // --- Logic ---
+
+        async function handleFiles(files) {
+            const docxFiles = Array.from(files).filter(f => f.name.endsWith('.docx'));
+            if (!docxFiles.length) {
+                showMessage("Please upload valid .docx files.");
+                return;
+            }
+
+            showMessage("");
+            loader.classList.remove('hidden');
+            extractedData = [];
+            uniqueFields = new Set(['Filename']);
+
+            try {
+                for (const file of docxFiles) {
+                    const data = await processDocx(file);
+                    extractedData.push(data);
+                }
+                renderTable();
+                loader.classList.add('hidden');
+                resultsArea.classList.remove('hidden');
+            } catch (err) {
+                console.error(err);
+                loader.classList.add('hidden');
+                showMessage("Error processing files. Some fields might be in a protected or unsupported format.");
+            }
+        }
+
+        async function processDocx(file) {
+            const arrayBuffer = await file.arrayBuffer();
+            const rowData = { 'Filename': file.name };
+            try {
+                const zip = await JSZip.loadAsync(arrayBuffer);
+                const xmlData = await zip.file("word/document.xml").async("string");
+                const fields = extractFieldsFromXml(xmlData);
+                
+                Object.assign(rowData, fields);
+                Object.keys(fields).forEach(key => uniqueFields.add(key));
+                return rowData;
+            } catch (e) {
+                console.error("Parse error for " + file.name, e);
+                return rowData;
+            }
+        }
+
+        function findParentByTagName(node, tagName) {
+            let parent = node.parentNode;
+            while (parent) {
+                if (parent.tagName === tagName || parent.tagName === "w:" + tagName) return parent;
+                parent = parent.parentNode;
+            }
+            return null;
+        }
+
+        function extractFieldsFromXml(xmlString) {
+            const parser = new DOMParser();
+            const xmlDoc = parser.parseFromString(xmlString, "text/xml");
+            const fields = {};
+
+            // 1. CONTENT CONTROLS (SDTs) - Includes modern dropdowns
+            const sdts = xmlDoc.getElementsByTagName("w:sdt");
+            for (let sdt of sdts) {
+                let key = "";
+                let value = "";
+
+                const pr = sdt.getElementsByTagName("w:sdtPr")[0];
+                if (pr) {
+                    const tagEl = pr.getElementsByTagName("w:tag")[0];
+                    const aliasEl = pr.getElementsByTagName("w:alias")[0];
+                    key = tagEl?.getAttribute("w:val") || aliasEl?.getAttribute("w:val") || "Unnamed Field";
+                }
+
+                const content = sdt.getElementsByTagName("w:sdtContent")[0];
+                if (content) {
+                    const checkbox = pr?.getElementsByTagName("w14:checkbox")[0];
+                    if (checkbox) {
+                        const checkedEl = checkbox.getElementsByTagName("w14:checked")[0];
+                        value = checkedEl?.getAttribute("w14:val") === "1" ? "Checked" : "Unchecked";
+                    } else {
+                        // For text and dropdowns, the selected value is in the w:t nodes
+                        const textNodes = content.getElementsByTagName("w:t");
+                        value = Array.from(textNodes).map(t => t.textContent).join("").trim();
+                    }
+                }
+                
+                if (key) {
+                    // Filter common placeholders
+                    if (/Choose an item|Click or tap|enter text/i.test(value)) value = "";
+                    fields[key] = value;
+                }
+            }
+
+            // 2. LEGACY FIELDS (FFDATA) - Includes legacy dropdowns
+            const fldDatas = xmlDoc.getElementsByTagName("w:ffData");
+            for (let fld of fldDatas) {
+                const nameEl = fld.getElementsByTagName("w:name")[0];
+                if (!nameEl) continue;
+
+                const fieldName = nameEl.getAttribute("w:val");
+                let fieldValue = "";
+
+                // Check for Legacy Checkbox
+                const checkBox = fld.getElementsByTagName("w:checkBox")[0];
+                const ddList = fld.getElementsByTagName("w:ddList")[0];
+
+                if (checkBox) {
+                    const checked = checkBox.getElementsByTagName("w:checked")[0]?.getAttribute("w:val") === "1" ||
+                                    checkBox.getElementsByTagName("w:default")[0]?.getAttribute("w:val") === "1";
+                    fieldValue = checked ? "Yes" : "No";
+                } else if (ddList) {
+                    // LEGACY DROPDOWN: Find the selected index
+                    const resultIndexEl = fld.getElementsByTagName("w:result")[0];
+                    const index = parseInt(resultIndexEl?.getAttribute("w:val") || "0");
+                    const entries = ddList.getElementsByTagName("w:listEntry");
+                    if (entries[index]) {
+                        fieldValue = entries[index].getAttribute("w:val");
+                    }
+                } else {
+                    // LEGACY TEXT INPUT: Use paragraph text traversal
+                    let parentP = findParentByTagName(fld, "w:p");
+                    if (parentP) {
+                        const textNodes = parentP.getElementsByTagName("w:t");
+                        fieldValue = Array.from(textNodes).map(t => t.textContent).join("").trim();
+                    }
+                }
+                if (fieldName) fields[fieldName] = fieldValue;
+            }
+
+            // 3. SIMPLE FIELDS (w:fldSimple)
+            const simpleFields = xmlDoc.getElementsByTagName("w:fldSimple");
+            for (let f of simpleFields) {
+                const instr = f.getAttribute("w:instr") || "";
+                if (instr.includes("FORMTEXT") || instr.includes("FORMDROPDOWN")) {
+                    const match = instr.match(/FORM(?:TEXT|DROPDOWN)\s+"?([^"]+)"?/);
+                    const key = match ? match[1] : "Field";
+                    const textNodes = f.getElementsByTagName("w:t");
+                    fields[key] = Array.from(textNodes).map(t => t.textContent).join("").trim();
+                }
+            }
+
+            return fields;
+        }
+
+        function renderTable() {
+            const fieldList = Array.from(uniqueFields);
+            fileCountSpan.textContent = extractedData.length;
+            tableHeader.innerHTML = '';
+            tableBody.innerHTML = '';
+
+            fieldList.forEach(field => {
+                const th = document.createElement('th');
+                th.className = "px-6 py-3 text-left text-xs font-semibold text-slate-500 uppercase tracking-wider bg-slate-50 sticky top-0 border-b";
+                th.textContent = field;
+                tableHeader.appendChild(th);
+            });
+
+            extractedData.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-slate-50 transition-colors border-b border-slate-100";
+                fieldList.forEach(field => {
+                    const td = document.createElement('td');
+                    td.className = "px-6 py-4 whitespace-nowrap text-sm text-slate-600";
+                    td.textContent = row[field] || "";
+                    tr.appendChild(td);
+                });
+                tableBody.appendChild(tr);
+            });
+        }
+
+        function exportToExcel() {
+            const fieldList = Array.from(uniqueFields);
+            const worksheetData = extractedData.map(row => {
+                const obj = {};
+                fieldList.forEach(f => obj[f] = row[f] || "");
+                return obj;
+            });
+            const worksheet = XLSX.utils.json_to_sheet(worksheetData);
+            const workbook = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(workbook, worksheet, "Data");
+            XLSX.writeFile(workbook, `Extraction_${new Date().toISOString().slice(0,10)}.xlsx`);
+        }
+
+        function showMessage(msg) {
+            messageBox.textContent = msg;
+            messageBox.classList.toggle('hidden', !msg);
+        }
+
+        function loadScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = reject;
+                document.head.appendChild(script);
+            });
+        }
+    </script>
+</body>
+</html>
