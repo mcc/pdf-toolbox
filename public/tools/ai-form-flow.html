@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FormFlow AI</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    
+    <!-- Babel (for JSX compilation in browser) -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <style>
+        body {
+            background-color: #f8fafc;
+        }
+        /* Custom scrollbar for a cleaner feel */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9; 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1; 
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8; 
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // --- Globals & Imports ---
+        const { useState, useEffect, useRef, useCallback } = React;
+
+        // --- Icon Components (Inline to avoid CDN UMD issues) ---
+        const IconWrapper = ({ children, className, ...props }) => (
+            <svg 
+                xmlns="http://www.w3.org/2000/svg" 
+                width="24" 
+                height="24" 
+                viewBox="0 0 24 24" 
+                fill="none" 
+                stroke="currentColor" 
+                strokeWidth="2" 
+                strokeLinecap="round" 
+                strokeLinejoin="round" 
+                className={className} 
+                {...props}
+            >
+                {children}
+            </svg>
+        );
+
+        const Upload = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></IconWrapper>;
+        const FileText = (props) => <IconWrapper {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="16" x2="8" y1="13" y2="13"/><line x1="16" x2="8" y1="17" y2="17"/><line x1="10" x2="8" y1="9" y2="9"/></IconWrapper>;
+        const Settings = (props) => <IconWrapper {...props}><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.38a2 2 0 0 0-.73-2.73l-.15-.1a2 2 0 0 1-1-1.72v-.51a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></IconWrapper>;
+        const Play = (props) => <IconWrapper {...props}><polygon points="5 3 19 12 5 21 5 3"/></IconWrapper>;
+        const CheckCircle = (props) => <IconWrapper {...props}><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></IconWrapper>;
+        const AlertCircle = (props) => <IconWrapper {...props}><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></IconWrapper>;
+        const Download = (props) => <IconWrapper {...props}><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></IconWrapper>;
+        const ChevronLeft = (props) => <IconWrapper {...props}><path d="m15 18-6-6 6-6"/></IconWrapper>;
+        const ChevronRight = (props) => <IconWrapper {...props}><path d="m9 18 6-6-6-6"/></IconWrapper>;
+        const Trash2 = (props) => <IconWrapper {...props}><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/></IconWrapper>;
+        const Plus = (props) => <IconWrapper {...props}><line x1="12" x2="12" y1="5" y2="19"/><line x1="5" x2="19" y1="12" y2="12"/></IconWrapper>;
+        const Save = (props) => <IconWrapper {...props}><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></IconWrapper>;
+        const Eye = (props) => <IconWrapper {...props}><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></IconWrapper>;
+        const Edit3 = (props) => <IconWrapper {...props}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></IconWrapper>;
+        const Database = (props) => <IconWrapper {...props}><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></IconWrapper>;
+        const Loader2 = (props) => <IconWrapper {...props}><path d="M21 12a9 9 0 1 1-6.219-8.56"/></IconWrapper>;
+        const FolderOpen = (props) => <IconWrapper {...props}><path d="m6 14 1.45-2.9A2 2 0 0 1 9.24 10H20a2 2 0 0 1 1.94 2.5l-1.55 6a2 2 0 0 1-1.94 1.5H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h3.9a2 2 0 0 1 1.69.9l.81 1.2a2 2 0 0 0 1.67.9H18a2 2 0 0 1 2 2v2"/></IconWrapper>;
+        const FilePlus = (props) => <IconWrapper {...props}><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><line x1="12" x2="12" y1="12" y2="18"/><line x1="9" x2="15" y1="15" y2="15"/></IconWrapper>;
+        const X = (props) => <IconWrapper {...props}><path d="M18 6 6 18"/><path d="m6 6 12 12"/></IconWrapper>;
+
+        // --- Constants & Config ---
+        const DEFAULT_SETTINGS = {
+            modelName: "qwen/qwen3-vl-4b",
+            apiBaseUrl: "http://127.0.0.1:1234/v1/chat/completions",
+            temperature: 0.1,
+            responseFormat: "json_schema" // json_schema, json_object, or text
+        };
+        
+        // --- Schema Generator ---
+        // Converts form field schema to JSON Schema format
+        const generateJsonSchema = (formFields) => {
+            if (!formFields || formFields.length === 0) {
+                // Default schema for discovery phase
+                return {
+                    type: "object",
+                    properties: {
+                        fields: {
+                            type: "array",
+                            items: {
+                                type: "object",
+                                properties: {
+                                    key: { type: "string" },
+                                    label: { type: "string" },
+                                    type: { type: "string" }
+                                },
+                                required: ["key", "label", "type"],
+                                additionalProperties: false
+                            }
+                        }
+                    },
+                    required: ["fields"],
+                    additionalProperties: false
+                };
+            }
+
+            // Generate schema based on form fields
+            const properties = {};
+            const required = [];
+
+            formFields.forEach(field => {
+                let fieldSchema;
+                
+                switch(field.type) {
+                    case 'checkbox':
+                        // Checkbox is always boolean
+                        fieldSchema = { type: "boolean" };
+                        break;
+                    case 'number':
+                        // Number fields - use string type since they can be empty
+                        fieldSchema = { 
+                            type: "string",
+                            description: "Numeric value or empty string if not found"
+                        };
+                        break;
+                    case 'date':
+                        fieldSchema = { 
+                            type: "string",
+                            description: "ISO date format YYYY-MM-DD or empty string if not found"
+                        };
+                        break;
+                    case 'select':
+                    case 'text':
+                    case 'textarea':
+                    default:
+                        fieldSchema = { type: "string" };
+                        break;
+                }
+
+                properties[field.key] = fieldSchema;
+                required.push(field.key); // Make all fields required (can be empty string)
+            });
+
+            return {
+                type: "object",
+                properties: properties,
+                required: required,
+                additionalProperties: false
+            };
+        };
+
+        // --- API Helper ---
+        // Handles communication with local OpenAI-compatible LLM
+        const callGemini = async (promptText, files = [], formFields = null, systemInstruction = null, settings = DEFAULT_SETTINGS) => {
+            const makeRequest = async () => {
+                // Build messages array in OpenAI format
+                const messages = [];
+                
+                // Add system message if provided
+                if (systemInstruction) {
+                    messages.push({
+                        role: "system",
+                        content: systemInstruction
+                    });
+                }
+                
+                // Build user message content
+                const userContent = [];
+                
+                // Add text prompt
+                userContent.push({
+                    type: "text",
+                    text: promptText
+                });
+                
+                // Add images if provided
+                files.forEach(f => {
+                    userContent.push({
+                        type: "image_url",
+                        image_url: {
+                            url: `data:${f.mimeType};base64,${f.base64}`
+                        }
+                    });
+                });
+                
+                messages.push({
+                    role: "user",
+                    content: userContent
+                });
+
+                const payload = {
+                    model: settings.modelName,
+                    messages: messages,
+                    temperature: settings.temperature
+                };
+
+                // Add response_format based on setting
+                if (settings.responseFormat === "json_schema") {
+                    const jsonSchema = generateJsonSchema(formFields);
+                    payload.response_format = {
+                        type: "json_schema",
+                        json_schema: {
+                            name: "form_extraction",
+                            strict: true,
+                            schema: jsonSchema
+                        }
+                    };
+                } else if (settings.responseFormat === "json_object") {
+                    payload.response_format = { type: "json_object" };
+                }
+                // If "text", don't add response_format
+
+                return fetch(settings.apiBaseUrl, {
+                    method: 'POST',
+                    headers: { 
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(payload)
+                });
+            };
+
+            // Retry logic for robustness
+            let attempt = 0;
+            const maxAttempts = 2;
+            
+            while (attempt < maxAttempts) {
+                try {
+                    const response = await makeRequest();
+
+                    if (!response.ok) {
+                        const errorText = await response.text();
+                        throw new Error(`API Error: ${response.status} ${response.statusText} - ${errorText}`);
+                    }
+
+                    const data = await response.json();
+                    const text = data.choices?.[0]?.message?.content;
+                    
+                    if (!text) throw new Error("No content generated");
+
+                    return JSON.parse(text);
+                } catch (error) {
+                    attempt++;
+                    if (attempt === maxAttempts) {
+                        console.error(error);
+                        throw error;
+                    }
+                    await new Promise(r => setTimeout(r, 1000 * attempt));
+                }
+            }
+        };
+
+        // --- Utilities ---
+        const processUploadedFiles = (fileList) => {
+            const validFiles = Array.from(fileList).filter(f => 
+                f.type.startsWith('image/') || f.type === 'application/pdf'
+            );
+            
+            return Promise.all(validFiles.map(file => {
+                return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                    resolve({
+                    id: Math.random().toString(36).substr(2, 9),
+                    file: file,
+                    name: file.name,
+                    mimeType: file.type,
+                    base64: reader.result.split(',')[1],
+                    preview: reader.result,
+                    status: 'pending', 
+                    data: {} 
+                    });
+                };
+                reader.readAsDataURL(file);
+                });
+            }));
+        };
+
+        // --- Components ---
+
+        // 1. Landing / Upload
+        const UploadZone = ({ onFilesSelected }) => {
+            const fileInputRef = useRef(null);
+            const [isDragging, setIsDragging] = useState(false);
+
+            const handleDrop = async (e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                const processed = await processUploadedFiles(e.dataTransfer.files);
+                onFilesSelected(processed);
+            };
+
+            const handleInput = async (e) => {
+                const processed = await processUploadedFiles(e.target.files);
+                onFilesSelected(processed);
+            };
+
+            return (
+                <div className="flex flex-col items-center justify-center h-full p-12 bg-slate-50">
+                <div 
+                    className={`w-full max-w-2xl p-12 border-2 border-dashed rounded-xl transition-all cursor-pointer flex flex-col items-center
+                    ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-slate-300 bg-white hover:border-blue-400'}`}
+                    onDragOver={(e) => { e.preventDefault(); setIsDragging(true); }}
+                    onDragLeave={() => setIsDragging(false)}
+                    onDrop={handleDrop}
+                    onClick={() => fileInputRef.current?.click()}
+                >
+                    <div className="bg-blue-100 p-4 rounded-full mb-4">
+                    <Upload className="w-8 h-8 text-blue-600" />
+                    </div>
+                    <h2 className="text-2xl font-bold text-slate-800 mb-2">Upload Forms</h2>
+                    <p className="text-slate-500 text-center max-w-md">
+                    Drag & drop your scanned forms (PDF, JPG, PNG) here. 
+                    We'll analyze the first file to set up the automation.
+                    </p>
+                    <input 
+                    type="file" 
+                    multiple 
+                    accept="image/*,application/pdf"
+                    className="hidden"
+                    ref={fileInputRef}
+                    onChange={handleInput}
+                    />
+                </div>
+                </div>
+            );
+        };
+
+        // 2. Schema Editor
+        const SchemaBuilder = ({ schema, setSchema, systemPrompt, setSystemPrompt, onProceed, isDiscovering, onSaveConfig, savedConfigs, onLoadConfig }) => {
+            const [activeTab, setActiveTab] = useState('fields'); // fields | prompt
+            const [isSaving, setIsSaving] = useState(false);
+
+            const addField = () => {
+                setSchema([...schema, { key: `field_${schema.length + 1}`, label: "New Field", type: "text" }]);
+            };
+
+            const updateField = (index, updates) => {
+                const newSchema = [...schema];
+                newSchema[index] = { ...newSchema[index], ...updates };
+                setSchema(newSchema);
+            };
+
+            const removeField = (index) => {
+                setSchema(schema.filter((_, i) => i !== index));
+            };
+
+            const handleSave = async () => {
+                setIsSaving(true);
+                await onSaveConfig();
+                setIsSaving(false);
+            };
+
+            if (isDiscovering) {
+                return (
+                <div className="flex flex-col items-center justify-center h-full space-y-4">
+                    <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+                    <h3 className="text-xl font-semibold text-slate-800">Analyzing Form Structure...</h3>
+                    <p className="text-slate-500">Identifying fields, checkboxes, and layout patterns.</p>
+                </div>
+                );
+            }
+
+            return (
+                <div className="flex flex-col h-full bg-white">
+                {/* Header */}
+                <div className="border-b px-6 py-4 flex justify-between items-center bg-white sticky top-0 z-10">
+                    <div>
+                    <h2 className="text-xl font-bold text-slate-800">Configuration</h2>
+                    <p className="text-sm text-slate-500">Review the detected fields and extraction prompt.</p>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                    {savedConfigs.length > 0 && (
+                        <div className="relative group">
+                            <button className="flex items-center space-x-2 px-3 py-2 text-slate-600 hover:bg-slate-100 rounded-lg text-sm border">
+                            <FolderOpen className="w-4 h-4" />
+                            <span>Load</span>
+                            </button>
+                            <div className="absolute right-0 top-full mt-2 w-48 bg-white border rounded-lg shadow-xl hidden group-hover:block z-20">
+                            {savedConfigs.map((cfg, i) => (
+                                <button 
+                                key={i} 
+                                onClick={() => onLoadConfig(cfg)}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-600"
+                                >
+                                {cfg.name}
+                                </button>
+                            ))}
+                            </div>
+                        </div>
+                    )}
+
+                    <button 
+                        onClick={handleSave}
+                        disabled={isSaving}
+                        className="flex items-center space-x-2 px-3 py-2 text-blue-600 hover:bg-blue-50 rounded-lg text-sm font-medium border border-blue-200 transition-colors"
+                    >
+                        {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                        <span>Save Config</span>
+                    </button>
+
+                    <button 
+                        onClick={onProceed}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center space-x-2 shadow-sm transition-colors"
+                    >
+                        <Play className="w-4 h-4" />
+                        <span>Start Batch Processing</span>
+                    </button>
+                    </div>
+                </div>
+
+                {/* Tabs */}
+                <div className="flex border-b px-6 bg-slate-50">
+                    <button 
+                    onClick={() => setActiveTab('fields')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'fields' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600 hover:text-slate-800'}`}
+                    >
+                    Field Schema ({schema.length})
+                    </button>
+                    <button 
+                    onClick={() => setActiveTab('prompt')}
+                    className={`px-4 py-3 text-sm font-medium border-b-2 transition-colors ${activeTab === 'prompt' ? 'border-blue-600 text-blue-600' : 'border-transparent text-slate-600 hover:text-slate-800'}`}
+                    >
+                    System Prompt
+                    </button>
+                </div>
+
+                {/* Content */}
+                <div className="flex-1 overflow-auto p-6 bg-slate-50">
+                    {activeTab === 'fields' ? (
+                    <div className="max-w-4xl mx-auto bg-white rounded-xl shadow-sm border overflow-hidden">
+                        <table className="w-full text-left">
+                        <thead className="bg-slate-100 border-b">
+                            <tr>
+                            <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Field Key</th>
+                            <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Display Label</th>
+                            <th className="p-4 text-xs font-semibold text-slate-500 uppercase">Data Type</th>
+                            <th className="p-4 w-10"></th>
+                            </tr>
+                        </thead>
+                        <tbody className="divide-y">
+                            {schema.map((field, idx) => (
+                            <tr key={idx} className="hover:bg-slate-50 group">
+                                <td className="p-3">
+                                <input 
+                                    value={field.key} 
+                                    onChange={(e) => updateField(idx, { key: e.target.value })}
+                                    className="w-full bg-transparent border-none focus:ring-0 font-mono text-sm text-slate-700 p-0"
+                                />
+                                </td>
+                                <td className="p-3">
+                                <input 
+                                    value={field.label} 
+                                    onChange={(e) => updateField(idx, { label: e.target.value })}
+                                    className="w-full bg-transparent border-none focus:ring-0 text-sm text-slate-800 p-0"
+                                />
+                                </td>
+                                <td className="p-3">
+                                <select 
+                                    value={field.type}
+                                    onChange={(e) => updateField(idx, { type: e.target.value })}
+                                    className="bg-transparent border-none text-sm text-slate-600 focus:ring-0 p-0 cursor-pointer"
+                                >
+                                    <option value="text">Text</option>
+                                    <option value="number">Number</option>
+                                    <option value="date">Date</option>
+                                    <option value="checkbox">Checkbox</option>
+                                    <option value="select">Select</option>
+                                    <option value="textarea">Long Text</option>
+                                </select>
+                                </td>
+                                <td className="p-3 text-right">
+                                <button onClick={() => removeField(idx)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <Trash2 className="w-4 h-4" />
+                                </button>
+                                </td>
+                            </tr>
+                            ))}
+                        </tbody>
+                        </table>
+                        <div className="p-3 border-t bg-slate-50">
+                        <button onClick={addField} className="text-sm text-blue-600 hover:text-blue-700 font-medium flex items-center space-x-1">
+                            <Plus className="w-4 h-4" />
+                            <span>Add Field</span>
+                        </button>
+                        </div>
+                    </div>
+                    ) : (
+                    <div className="max-w-4xl mx-auto h-full">
+                        <textarea 
+                        value={systemPrompt}
+                        onChange={(e) => setSystemPrompt(e.target.value)}
+                        className="w-full h-full min-h-[500px] p-6 rounded-xl border-slate-200 shadow-sm focus:border-blue-500 focus:ring-blue-500 font-mono text-sm text-slate-700 leading-relaxed resize-none"
+                        placeholder="Enter system prompt..."
+                        />
+                    </div>
+                    )}
+                </div>
+                </div>
+            );
+        };
+
+        // 3. Review & Data Correction
+        const ReviewWorkspace = ({ files, activeFileId, onSelectFile, onUpdateData, onExport, processingCount, onAddFiles }) => {
+            const activeFile = files.find(f => f.id === activeFileId);
+            const [zoom, setZoom] = useState(100);
+            const fileInputRef = useRef(null);
+
+            const handleInputChange = (key, value) => {
+                if (!activeFile) return;
+                const newData = { ...activeFile.data, [key]: value };
+                onUpdateData(activeFile.id, newData);
+            };
+
+            const handleAddFileClick = () => {
+                fileInputRef.current?.click();
+            };
+
+            const handleFileInput = async (e) => {
+                if (e.target.files.length > 0) {
+                    const processed = await processUploadedFiles(e.target.files);
+                    onAddFiles(processed);
+                }
+            };
+
+            const getStatusColor = (status) => {
+                switch(status) {
+                case 'processed': return 'bg-green-100 text-green-700 border-green-200';
+                case 'processing': return 'bg-blue-50 text-blue-600 border-blue-100';
+                default: return 'bg-slate-100 text-slate-500 border-slate-200';
+                }
+            };
+
+            return (
+                <div className="flex h-screen bg-white">
+                {/* Left Sidebar: File List */}
+                <div className="w-64 border-r flex flex-col bg-slate-50">
+                    <div className="p-4 border-b bg-white flex justify-between items-center">
+                    <h2 className="font-bold text-slate-800 flex items-center">
+                        <Database className="w-4 h-4 mr-2 text-blue-600" />
+                        Records ({files.length})
+                    </h2>
+                    <button 
+                        onClick={handleAddFileClick}
+                        className="p-1 hover:bg-slate-100 rounded-full text-blue-600 transition-colors"
+                        title="Add more files"
+                    >
+                        <FilePlus className="w-4 h-4" />
+                    </button>
+                    <input 
+                        type="file" 
+                        multiple 
+                        className="hidden" 
+                        ref={fileInputRef}
+                        onChange={handleFileInput}
+                        accept="image/*,application/pdf"
+                    />
+                    </div>
+                    <div className="flex-1 overflow-y-auto p-2 space-y-2">
+                    {files.map(file => (
+                        <button
+                        key={file.id}
+                        onClick={() => onSelectFile(file.id)}
+                        className={`w-full text-left p-3 rounded-lg border transition-all ${
+                            file.id === activeFileId 
+                            ? 'bg-white border-blue-400 shadow-sm ring-1 ring-blue-100' 
+                            : 'bg-white border-transparent hover:border-slate-300'
+                        }`}
+                        >
+                        <div className="flex justify-between items-start mb-1">
+                            <span className="font-medium text-sm text-slate-700 truncate block w-24" title={file.name}>
+                            {file.name}
+                            </span>
+                            {file.status === 'processing' ? (
+                            <Loader2 className="w-3 h-3 animate-spin text-blue-500" />
+                            ) : (
+                            <div className={`text-[10px] px-1.5 py-0.5 rounded border ${getStatusColor(file.status)} uppercase font-bold tracking-wider`}>
+                                {file.status}
+                            </div>
+                            )}
+                        </div>
+                        <div className="text-xs text-slate-400 truncate">
+                            {Object.keys(file.data).length} fields extracted
+                        </div>
+                        </button>
+                    ))}
+                    </div>
+                    <div className="p-4 border-t bg-white space-y-2">
+                    <button 
+                        onClick={() => onExport('csv')}
+                        disabled={processingCount > 0}
+                        className="w-full flex items-center justify-center space-x-2 bg-slate-800 hover:bg-slate-900 text-white py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                    >
+                        <Download className="w-4 h-4" />
+                        <span>Export CSV</span>
+                    </button>
+                    <button 
+                        onClick={() => onExport('json')}
+                        disabled={processingCount > 0}
+                        className="w-full flex items-center justify-center space-x-2 border hover:bg-slate-50 text-slate-700 py-2 rounded-lg text-sm transition-colors disabled:opacity-50"
+                    >
+                        <span>Export JSON</span>
+                    </button>
+                    </div>
+                </div>
+
+                {/* Main Content Area */}
+                <div className="flex-1 flex flex-col min-w-0">
+                    {/* Toolbar */}
+                    <div className="h-14 border-b flex items-center justify-between px-4 bg-white">
+                    <div className="flex items-center space-x-4">
+                        <h3 className="font-semibold text-slate-800 truncate max-w-xs">
+                        {activeFile ? activeFile.name : 'Select a file'}
+                        </h3>
+                        {activeFile?.status === 'processed' && (
+                            <span className="flex items-center text-xs text-green-600 bg-green-50 px-2 py-1 rounded-full">
+                            <CheckCircle className="w-3 h-3 mr-1" />
+                            Verified by AI
+                            </span>
+                        )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                        <button onClick={() => setZoom(z => Math.max(z - 10, 50))} className="p-1.5 hover:bg-slate-100 rounded text-slate-600">-</button>
+                        <span className="text-xs text-slate-500 w-12 text-center">{zoom}%</span>
+                        <button onClick={() => setZoom(z => Math.min(z + 10, 200))} className="p-1.5 hover:bg-slate-100 rounded text-slate-600">+</button>
+                    </div>
+                    </div>
+
+                    {/* Split View */}
+                    {activeFile ? (
+                    <div className="flex-1 flex overflow-hidden">
+                        {/* Left: Document Preview */}
+                        <div className="flex-1 bg-slate-100 overflow-auto p-8 flex items-start justify-center relative">
+                        <div 
+                            className="shadow-lg transition-transform origin-top"
+                            style={{ transform: `scale(${zoom / 100})` }}
+                        >
+                            {activeFile.mimeType === 'application/pdf' ? (
+                            <embed 
+                                src={activeFile.preview} 
+                                type="application/pdf"
+                                className="w-[600px] h-[800px] bg-white"
+                            />
+                            ) : (
+                            <img 
+                                src={activeFile.preview} 
+                                alt="Form"
+                                className="max-w-none w-[600px] bg-white" 
+                            />
+                            )}
+                        </div>
+                        </div>
+
+                        {/* Right: Data Form */}
+                        <div className="w-[400px] border-l bg-white overflow-y-auto flex flex-col shadow-[rgba(0,0,0,0.05)_0px_0px_15px]">
+                        <div className="p-6 space-y-6">
+                            {Object.entries(activeFile.data).map(([key, value]) => {
+                            // Attempt to find schema type for better input rendering, default to text
+                            // Since we might not have the original schema passed here easily without prop drilling, 
+                            // we infer simple types or treat as text.
+                            const isDate = key.toLowerCase().includes('date');
+                            const isNum = key.toLowerCase().includes('amount') || key.toLowerCase().includes('total') || key.toLowerCase().includes('id');
+                            
+                            return (
+                                <div key={key} className="group">
+                                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5 flex justify-between">
+                                    {key.replace(/_/g, ' ')}
+                                    <Edit3 className="w-3 h-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                </label>
+                                {value === true || value === false || value === 'true' || value === 'false' ? (
+                                    <div className="flex items-center space-x-2 mt-1">
+                                    <input 
+                                        type="checkbox"
+                                        checked={value === true || value === 'true'}
+                                        onChange={(e) => handleInputChange(key, e.target.checked)}
+                                        className="w-4 h-4 text-blue-600 rounded border-slate-300 focus:ring-blue-500"
+                                    />
+                                    <span className="text-sm text-slate-700">{value ? 'Checked' : 'Unchecked'}</span>
+                                    </div>
+                                ) : (
+                                    <input 
+                                    type={isDate ? 'date' : (isNum ? 'text' : 'text')} 
+                                    value={value || ''}
+                                    onChange={(e) => handleInputChange(key, e.target.value)}
+                                    className={`w-full text-sm p-2 rounded border border-slate-200 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 outline-none transition-all
+                                        ${!value ? 'bg-red-50 border-red-200' : 'bg-white'}
+                                    `}
+                                    placeholder="Empty"
+                                    />
+                                )}
+                                </div>
+                            );
+                            })}
+                            {Object.keys(activeFile.data).length === 0 && (
+                            <div className="text-center py-12 text-slate-400">
+                                <p>No data extracted yet.</p>
+                                {activeFile.status === 'processing' && <p className="text-sm mt-2">Processing...</p>}
+                            </div>
+                            )}
+                        </div>
+                        </div>
+                    </div>
+                    ) : (
+                    <div className="flex-1 flex items-center justify-center text-slate-400 bg-slate-50">
+                        Select a file to review
+                    </div>
+                    )}
+                </div>
+                </div>
+            );
+        };
+
+
+        // --- Settings Modal Component ---
+        const SettingsModal = ({ isOpen, onClose, settings, onSave }) => {
+            const [localSettings, setLocalSettings] = useState(settings);
+
+            useEffect(() => {
+                setLocalSettings(settings);
+            }, [settings]);
+
+            if (!isOpen) return null;
+
+            const handleSave = () => {
+                onSave(localSettings);
+                onClose();
+            };
+
+            return (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+                        {/* Header */}
+                        <div className="flex items-center justify-between p-6 border-b">
+                            <div className="flex items-center space-x-3">
+                                <Settings className="w-6 h-6 text-blue-600" />
+                                <h2 className="text-xl font-bold text-slate-800">API Settings</h2>
+                            </div>
+                            <button 
+                                onClick={onClose}
+                                className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
+                            >
+                                <X className="w-5 h-5 text-slate-500" />
+                            </button>
+                        </div>
+
+                        {/* Content */}
+                        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+                            {/* Model Name */}
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                    Model Name
+                                </label>
+                                <input 
+                                    type="text"
+                                    value={localSettings.modelName}
+                                    onChange={(e) => setLocalSettings({...localSettings, modelName: e.target.value})}
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                                    placeholder="e.g., qwen/qwen3-vl-4b"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">The model identifier for your LLM server</p>
+                            </div>
+
+                            {/* API Base URL */}
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                    API Base URL
+                                </label>
+                                <input 
+                                    type="text"
+                                    value={localSettings.apiBaseUrl}
+                                    onChange={(e) => setLocalSettings({...localSettings, apiBaseUrl: e.target.value})}
+                                    className="w-full px-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none font-mono text-sm"
+                                    placeholder="http://127.0.0.1:1234/v1/chat/completions"
+                                />
+                                <p className="text-xs text-slate-500 mt-1">OpenAI-compatible API endpoint</p>
+                            </div>
+
+                            {/* Temperature */}
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                    Temperature: {localSettings.temperature}
+                                </label>
+                                <input 
+                                    type="range"
+                                    min="0"
+                                    max="1"
+                                    step="0.1"
+                                    value={localSettings.temperature}
+                                    onChange={(e) => setLocalSettings({...localSettings, temperature: parseFloat(e.target.value)})}
+                                    className="w-full"
+                                />
+                                <div className="flex justify-between text-xs text-slate-500 mt-1">
+                                    <span>Precise (0.0)</span>
+                                    <span>Creative (1.0)</span>
+                                </div>
+                            </div>
+
+                            {/* Response Format */}
+                            <div>
+                                <label className="block text-sm font-semibold text-slate-700 mb-2">
+                                    Response Format
+                                </label>
+                                <div className="space-y-2">
+                                    <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                        <input 
+                                            type="radio"
+                                            name="responseFormat"
+                                            value="json_schema"
+                                            checked={localSettings.responseFormat === "json_schema"}
+                                            onChange={(e) => setLocalSettings({...localSettings, responseFormat: e.target.value})}
+                                            className="w-4 h-4 text-blue-600"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-800 flex items-center">
+                                                JSON Schema (Strict)
+                                                <span className="ml-2 text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-semibold">Dynamic</span>
+                                            </div>
+                                            <div className="text-xs text-slate-500">Enforces strict schema validation with auto-generated schema from form fields</div>
+                                        </div>
+                                    </label>
+                                    
+                                    <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                        <input 
+                                            type="radio"
+                                            name="responseFormat"
+                                            value="json_object"
+                                            checked={localSettings.responseFormat === "json_object"}
+                                            onChange={(e) => setLocalSettings({...localSettings, responseFormat: e.target.value})}
+                                            className="w-4 h-4 text-blue-600"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-800">JSON Object</div>
+                                            <div className="text-xs text-slate-500">Returns valid JSON without strict schema</div>
+                                        </div>
+                                    </label>
+                                    
+                                    <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-slate-50 transition-colors">
+                                        <input 
+                                            type="radio"
+                                            name="responseFormat"
+                                            value="text"
+                                            checked={localSettings.responseFormat === "text"}
+                                            onChange={(e) => setLocalSettings({...localSettings, responseFormat: e.target.value})}
+                                            className="w-4 h-4 text-blue-600"
+                                        />
+                                        <div className="flex-1">
+                                            <div className="font-medium text-slate-800">Text</div>
+                                            <div className="text-xs text-slate-500">Plain text response (requires manual JSON parsing)</div>
+                                        </div>
+                                    </label>
+                                </div>
+                            </div>
+
+                            {/* Info Box */}
+                            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                <div className="flex items-start space-x-3">
+                                    <AlertCircle className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                                    <div className="text-sm text-blue-800">
+                                        <p className="font-semibold mb-1">Configuration Tips:</p>
+                                        <ul className="list-disc list-inside space-y-1 text-xs">
+                                            <li>Use <code className="bg-blue-100 px-1 rounded">json_schema</code> for best results - automatically generates schema from your form fields</li>
+                                            <li>Lower temperature (0.0-0.3) for consistent extraction</li>
+                                            <li>Settings are saved in browser localStorage</li>
+                                            <li>Dynamic schema adapts to field types (text, number, date, checkbox, etc.)</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer */}
+                        <div className="flex items-center justify-end space-x-3 p-6 border-t bg-slate-50">
+                            <button 
+                                onClick={onClose}
+                                className="px-4 py-2 text-slate-600 hover:bg-slate-200 rounded-lg transition-colors"
+                            >
+                                Cancel
+                            </button>
+                            <button 
+                                onClick={handleSave}
+                                className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors flex items-center space-x-2"
+                            >
+                                <Save className="w-4 h-4" />
+                                <span>Save Settings</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+
+        // --- Main App Orchestrator ---
+
+        function App() {
+            const [appState, setAppState] = useState('upload'); // upload, discovery, config, processing, review
+            const [files, setFiles] = useState([]);
+            const [activeFileId, setActiveFileId] = useState(null);
+            
+            // Configuration State
+            const [schema, setSchema] = useState([]);
+            const [systemPrompt, setSystemPrompt] = useState("");
+            const [savedConfigs, setSavedConfigs] = useState([]);
+            
+            const [processingCount, setProcessingCount] = useState(0);
+            
+            // Settings State
+            const [settings, setSettings] = useState(DEFAULT_SETTINGS);
+            const [showSettings, setShowSettings] = useState(false);
+
+            // Load Settings & Configs
+            useEffect(() => {
+                // Load saved settings
+                const savedSettings = localStorage.getItem('formflow_settings');
+                if (savedSettings) {
+                    try {
+                        setSettings(JSON.parse(savedSettings));
+                    } catch (e) { console.error('Failed to load settings'); }
+                }
+                
+                // Load saved configs
+                const saved = localStorage.getItem('formflow_configs');
+                if (saved) {
+                    try {
+                        setSavedConfigs(JSON.parse(saved));
+                    } catch (e) { console.error('Failed to load configs'); }
+                }
+            }, []);
+
+            const handleSaveSettings = (newSettings) => {
+                setSettings(newSettings);
+                localStorage.setItem('formflow_settings', JSON.stringify(newSettings));
+            };
+
+            // Phase 1: Upload & Initial Discovery
+            const handleFilesSelected = async (newFiles) => {
+                setFiles(prev => [...prev, ...newFiles]);
+                
+                // If first time, go to discovery with the first file
+                if (appState === 'upload' && newFiles.length > 0) {
+                setAppState('discovery');
+                const sampleFile = newFiles[0];
+                
+                try {
+                    // Discovery Prompt
+                    const discoveryPrompt = `
+                    Analyze the structure of this form image. 
+                    Identify all input fields, checkboxes, and important data points.
+                    Return a JSON object with a single key "fields" which is an array of objects.
+                    Each object must have:
+                    - "key": snake_case unique identifier
+                    - "label": Human readable label found on form
+                    - "type": One of "text", "number", "date", "checkbox", "select", "textarea"
+                    
+                    Do not extract data yet, just the structure.
+                    `;
+                    
+                    // Pass null for formFields during discovery (uses default schema)
+                    const result = await callGemini(discoveryPrompt, [sampleFile], null, null, settings);
+                    
+                    if (result && result.fields) {
+                    setSchema(result.fields);
+                    // Generate a default system prompt based on discovered fields
+                    setSystemPrompt(`
+You are a specialized data extraction assistant.
+Extract the following fields from the provided form image:
+
+Schema:
+${JSON.stringify(result.fields.map(f => ({ key: f.key, type: f.type })), null, 2)}
+
+Return a flat JSON object where keys match the schema keys exactly.
+- For checkboxes, return boolean true or false.
+- For dates, use ISO YYYY-MM-DD format.
+- For numbers, return the numeric value as a string.
+- If a field is illegible, empty, or not found, use an empty string "".
+- Do not use null values.
+- Do not include markdown formatting, just raw JSON.
+                    `);
+                    setAppState('config');
+                    } else {
+                    throw new Error("Invalid discovery response");
+                    }
+                } catch (err) {
+                    console.error("Discovery failed", err);
+                    alert("Failed to analyze form structure automatically. You can build it manually.");
+                    setSchema([]); 
+                    setAppState('config');
+                }
+                }
+            };
+
+            // Phase 2: Start Batch Processing
+            const startProcessing = () => {
+                setAppState('review');
+                const pendingFiles = files.filter(f => f.status === 'pending');
+                
+                if (pendingFiles.length === 0) {
+                // Just go to review if no new files
+                if(files.length > 0 && !activeFileId) setActiveFileId(files[0].id);
+                return;
+                }
+
+                setProcessingCount(prev => prev + pendingFiles.length);
+                if (!activeFileId && files.length > 0) setActiveFileId(files[0]?.id);
+
+                // Process queue
+                pendingFiles.forEach(async (file) => {
+                // Mark as processing
+                setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'processing' } : f));
+
+                try {
+                    const result = await callGemini(
+                    `Extract data based on the established schema.`, 
+                    [file], 
+                    schema, // Pass form fields for dynamic schema generation
+                    systemPrompt,
+                    settings
+                    );
+
+                    setFiles(prev => prev.map(f => f.id === file.id ? { 
+                    ...f, 
+                    status: 'processed', 
+                    data: result 
+                    } : f));
+                } catch (err) {
+                    console.error(`Failed to process ${file.name}`, err);
+                    setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'error' } : f));
+                } finally {
+                    setProcessingCount(c => c - 1);
+                }
+                });
+            };
+
+            const handleUpdateData = (fileId, newData) => {
+                setFiles(prev => prev.map(f => f.id === fileId ? { ...f, data: newData } : f));
+            };
+
+            // Handling adding files during review
+            const handleAddFiles = (newFiles) => {
+                setFiles(prev => [...prev, ...newFiles]);
+                setProcessingCount(prev => prev + newFiles.length);
+                newFiles.forEach(async (file) => {
+                    try {
+                    const result = await callGemini(
+                        `Extract data based on the established schema.`, 
+                        [file], 
+                        schema, // Pass form fields for dynamic schema generation
+                        systemPrompt,
+                        settings
+                    );
+                    setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'processed', data: result } : f));
+                    } catch(err) {
+                    setFiles(prev => prev.map(f => f.id === file.id ? { ...f, status: 'error' } : f));
+                    } finally {
+                    setProcessingCount(c => c - 1);
+                    }
+                });
+            };
+
+            const handleSaveConfig = async () => {
+                if (schema.length === 0) return;
+                try {
+                // 1. Ask Gemini for a name
+                const fieldsStr = schema.map(f => f.key).join(', ');
+                const nameResult = await callGemini(`
+                    Suggest a short, descriptive snake_case name (max 25 chars) for a form configuration that extracts these fields: ${fieldsStr}. 
+                    Return ONLY the raw JSON string: {"name": "example_name"}
+                `, [], null, null, settings);
+                
+                const configName = nameResult.name || `config_${Date.now()}`;
+                
+                // 2. Save
+                const newConfig = {
+                    name: configName,
+                    schema,
+                    systemPrompt,
+                    date: new Date().toISOString()
+                };
+                
+                const updatedConfigs = [...savedConfigs, newConfig];
+                setSavedConfigs(updatedConfigs);
+                localStorage.setItem('formflow_configs', JSON.stringify(updatedConfigs));
+                alert(`Configuration saved as: ${configName}`);
+                } catch (e) {
+                console.error("Save failed", e);
+                alert("Failed to generate name or save config.");
+                }
+            };
+
+            const handleLoadConfig = (config) => {
+                if (confirm(`Load configuration "${config.name}"? This will overwrite current settings.`)) {
+                setSchema(config.schema);
+                setSystemPrompt(config.systemPrompt);
+                }
+            };
+
+            const handleExport = (format) => {
+                if (files.length === 0) return;
+                
+                // Flatten data for export
+                const headers = schema.map(s => s.key);
+                const rows = files.map(f => {
+                return headers.map(h => {
+                    let val = f.data[h];
+                    if (val === null || val === undefined) return '';
+                    if (typeof val === 'boolean') return val ? 'Yes' : 'No';
+                    // escape CSV
+                    const str = String(val);
+                    return format === 'csv' && (str.includes(',') || str.includes('"') || str.includes('\n'))
+                    ? `"${str.replace(/"/g, '""')}"` 
+                    : str;
+                });
+                });
+
+                let content = '';
+                let mime = '';
+                let ext = '';
+
+                if (format === 'csv') {
+                content = [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+                mime = 'text/csv';
+                ext = 'csv';
+                } else {
+                const jsonExport = files.map(f => ({ fileName: f.name, ...f.data }));
+                content = JSON.stringify(jsonExport, null, 2);
+                mime = 'application/json';
+                ext = 'json';
+                }
+
+                const blob = new Blob([content], { type: mime });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `form_export_${new Date().toISOString().slice(0,10)}.${ext}`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+            };
+
+            return (
+                <div className="h-screen flex flex-col font-sans text-slate-800">
+                {/* Settings Modal */}
+                <SettingsModal 
+                    isOpen={showSettings}
+                    onClose={() => setShowSettings(false)}
+                    settings={settings}
+                    onSave={handleSaveSettings}
+                />
+
+                {/* Top Navigation Bar */}
+                <nav className="h-14 bg-slate-900 text-white flex items-center justify-between px-6 shadow-md z-50">
+                    <div className="flex items-center space-x-2">
+                    <FileText className="w-6 h-6 text-blue-400" />
+                    <span className="font-bold text-lg tracking-tight">FormFlow AI</span>
+                    </div>
+                    <div className="flex items-center space-x-6">
+                    <div className="flex space-x-6 text-sm font-medium text-slate-300">
+                        <button 
+                            onClick={() => setAppState('upload')}
+                            className={`hover:text-white transition-colors ${appState === 'upload' ? 'text-white' : ''}`}
+                        >
+                            Upload
+                        </button>
+                        <button 
+                            disabled={files.length === 0}
+                            onClick={() => setAppState('config')}
+                            className={`hover:text-white transition-colors disabled:opacity-30 ${appState === 'config' ? 'text-white' : ''}`}
+                        >
+                            Config
+                        </button>
+                        <button 
+                            disabled={files.length === 0}
+                            onClick={() => setAppState('review')}
+                            className={`hover:text-white transition-colors disabled:opacity-30 ${appState === 'review' ? 'text-white' : ''}`}
+                        >
+                            Review
+                        </button>
+                    </div>
+                    <button 
+                        onClick={() => setShowSettings(true)}
+                        className="p-2 hover:bg-slate-800 rounded-lg transition-colors"
+                        title="Settings"
+                    >
+                        <Settings className="w-5 h-5" />
+                    </button>
+                    </div>
+                </nav>
+
+                {/* Main Stage */}
+                <main className="flex-1 overflow-hidden relative bg-slate-50">
+                    {appState === 'upload' && (
+                    <UploadZone onFilesSelected={handleFilesSelected} />
+                    )}
+                    
+                    {(appState === 'discovery' || appState === 'config') && (
+                    <SchemaBuilder 
+                        schema={schema} 
+                        setSchema={setSchema}
+                        systemPrompt={systemPrompt}
+                        setSystemPrompt={setSystemPrompt}
+                        isDiscovering={appState === 'discovery'}
+                        onProceed={startProcessing}
+                        onSaveConfig={handleSaveConfig}
+                        savedConfigs={savedConfigs}
+                        onLoadConfig={handleLoadConfig}
+                    />
+                    )}
+
+                    {appState === 'review' && (
+                    <ReviewWorkspace 
+                        files={files} 
+                        activeFileId={activeFileId}
+                        onSelectFile={setActiveFileId}
+                        onUpdateData={handleUpdateData}
+                        onExport={handleExport}
+                        processingCount={processingCount}
+                        onAddFiles={handleAddFiles}
+                    />
+                    )}
+                </main>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
