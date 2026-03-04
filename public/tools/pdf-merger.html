@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser PDF Merger</title>
+    <script src="https://unpkg.com/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; max-width: 800px; margin: 2rem auto; padding: 0 1rem; line-height: 1.5; background: #f4f7f6; }
+        .container { background: white; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        h1 { color: #2d3748; margin-top: 0; }
+        .drop-zone { border: 2px dashed #cbd5e0; border-radius: 8px; padding: 2rem; text-align: center; cursor: pointer; transition: 0.3s; background: #fafafa; }
+        .drop-zone:hover { border-color: #4299e1; background: #ebf8ff; }
+        .controls { margin: 1.5rem 0; display: flex; gap: 10px; flex-wrap: wrap; }
+        button { padding: 0.6rem 1.2rem; border: none; border-radius: 6px; cursor: pointer; font-weight: 600; transition: 0.2s; }
+        .btn-sort { background: #edf2f7; color: #4a5568; }
+        .btn-sort:hover { background: #e2e8f0; }
+        .btn-merge { background: #48bb78; color: white; margin-left: auto; }
+        .btn-merge:hover { background: #38a169; }
+        .btn-merge:disabled { background: #cbd5e0; cursor: not-allowed; }
+        ul { list-style: none; padding: 0; border: 1px solid #e2e8f0; border-radius: 6px; }
+        li { padding: 0.75rem 1rem; border-bottom: 1px solid #e2e8f0; display: flex; justify-content: space-between; font-size: 0.9rem; background: white; }
+        li:last-child { border-bottom: none; }
+        .file-info { color: #718096; font-size: 0.8rem; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>PDF Merger</h1>
+    <p>All processing happens locally in your browser. No files are uploaded.</p>
+
+    <div class="drop-zone" id="dropZone">
+        <strong>Click to upload</strong> or drag and drop PDF files here
+        <input type="file" id="fileInput" multiple accept="application/pdf" style="display: none;">
+    </div>
+
+    <div class="controls">
+        <button class="btn-sort" onclick="sortFiles('name')">Sort by Name</button>
+        <button class="btn-sort" onclick="sortFiles('date')">Sort by Date</button>
+        <button id="mergeBtn" class="btn-merge" onclick="mergePDFs()" disabled>Merge & Download</button>
+    </div>
+
+    <ul id="fileList"></ul>
+</div>
+
+<script>
+    let filesArray = [];
+    const fileInput = document.getElementById('fileInput');
+    const dropZone = document.getElementById('dropZone');
+    const fileList = document.getElementById('fileList');
+    const mergeBtn = document.getElementById('mergeBtn');
+
+    // Trigger file selection
+    dropZone.onclick = () => fileInput.click();
+
+    fileInput.onchange = (e) => handleFiles(e.target.files);
+
+    function handleFiles(files) {
+        const newFiles = Array.from(files).filter(f => f.type === "application/pdf");
+        filesArray = [...filesArray, ...newFiles];
+        renderList();
+    }
+
+    function renderList() {
+        fileList.innerHTML = '';
+        filesArray.forEach((file, index) => {
+            const li = document.createElement('li');
+            const date = new Date(file.lastModified).toLocaleDateString();
+            li.innerHTML = `
+                <span>${file.name}</span>
+                <span class="file-info">${(file.size / 1024 / 1024).toFixed(2)} MB | ${date}</span>
+            `;
+            fileList.appendChild(li);
+        });
+        mergeBtn.disabled = filesArray.length < 2;
+    }
+
+    function sortFiles(criteria) {
+        if (criteria === 'name') {
+            filesArray.sort((a, b) => a.name.localeCompare(b.name));
+        } else if (criteria === 'date') {
+            filesArray.sort((a, b) => b.lastModified - a.lastModified);
+        }
+        renderList();
+    }
+
+    async function mergePDFs() {
+        mergeBtn.innerText = 'Processing...';
+        mergeBtn.disabled = true;
+
+        try {
+            const mergedPdf = await PDFLib.PDFDocument.create();
+            
+            for (const file of filesArray) {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await PDFLib.PDFDocument.load(arrayBuffer);
+                const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+                copiedPages.forEach((page) => mergedPdf.addPage(page));
+            }
+
+            const pdfBytes = await mergedPdf.save();
+            download(pdfBytes, "merged_document.pdf", "application/pdf");
+        } catch (error) {
+            console.error(error);
+            alert("An error occurred while merging the PDFs.");
+        } finally {
+            mergeBtn.innerText = 'Merge & Download';
+            mergeBtn.disabled = false;
+        }
+    }
+
+    function download(data, filename, type) {
+        const file = new Blob([data], { type: type });
+        const a = document.createElement("a");
+        const url = URL.createObjectURL(file);
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+            document.body.removeChild(a);
+            window.URL.revokeObjectURL(url);
+        }, 0);
+    }
+
+    // Drag and Drop listeners
+    dropZone.ondragover = (e) => { e.preventDefault(); dropZone.style.borderColor = "#4299e1"; };
+    dropZone.ondragleave = () => { dropZone.style.borderColor = "#cbd5e0"; };
+    dropZone.ondrop = (e) => {
+        e.preventDefault();
+        dropZone.style.borderColor = "#cbd5e0";
+        handleFiles(e.dataTransfer.files);
+    };
+</script>
+
+</body>
+</html>

@@ -1,0 +1,442 @@
+<!DOCTYPE html>
+<html lang="en" class="antialiased">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MarkItDown WASM - Local Document Converter</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background-color: #cbd5e1; border-radius: 10px; }
+        @media (prefers-color-scheme: dark) {
+            ::-webkit-scrollbar-thumb { background-color: #475569; }
+        }
+
+        .dropzone-active {
+            border-color: #3b82f6 !important;
+            background-color: #eff6ff !important;
+        }
+        .dark .dropzone-active {
+            border-color: #3b82f6 !important;
+            background-color: #1e3a8a !important;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateY(100%); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+        .animate-slide-in { animation: slideIn 0.3s ease-out forwards; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100 min-h-screen flex flex-col font-sans">
+
+    <!-- Navbar -->
+    <nav class="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-20 shadow-sm">
+        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center gap-2">
+                <div class="bg-blue-600 text-white p-2 rounded-lg">
+                    <i data-lucide="file-text" class="w-5 h-5"></i>
+                </div>
+                <h1 class="text-xl font-bold tracking-tight">MarkItDown <span class="text-blue-600 dark:text-blue-400">WASM</span></h1>
+            </div>
+            <div class="flex items-center gap-4 text-sm font-medium text-slate-500 dark:text-slate-400">
+                <div class="flex items-center gap-1.5 px-3 py-1 bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 rounded-full border border-green-100 dark:border-green-900/30">
+                    <i data-lucide="shield-check" class="w-4 h-4"></i>
+                    Local Processing
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <main class="flex-grow max-w-6xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 flex flex-col gap-6">
+        
+        <!-- Status Panel -->
+        <div id="status-panel" class="bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/30 rounded-2xl p-4 flex items-center gap-4 transition-all duration-500">
+            <div id="status-icon" class="bg-blue-100 dark:bg-blue-800 p-2 rounded-xl text-blue-600 dark:text-blue-400">
+                <i data-lucide="loader-2" class="w-6 h-6 animate-spin"></i>
+            </div>
+            <div class="flex-grow">
+                <h3 id="status-title" class="text-sm font-bold text-blue-900 dark:text-blue-100 uppercase tracking-wider">Initializing Engine</h3>
+                <p id="status-desc" class="text-sm text-blue-700 dark:text-blue-300">Loading Pyodide & MarkItDown (approx. 40MB)...</p>
+            </div>
+            <div id="progress-container" class="hidden sm:block w-32 h-2 bg-blue-200 dark:bg-blue-800 rounded-full overflow-hidden">
+                <div id="progress-bar" class="h-full bg-blue-600 transition-all duration-500 w-0"></div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 flex-grow">
+            <!-- Input Section -->
+            <div class="flex flex-col gap-4">
+                <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-full">
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <h2 class="font-bold flex items-center gap-2">
+                            <i data-lucide="upload" class="w-4 h-4 text-blue-500"></i>
+                            Input Document
+                        </h2>
+                    </div>
+                    <div class="p-6 flex-grow flex flex-col">
+                        <div id="dropzone" class="relative group flex-grow flex flex-col items-center justify-center w-full min-h-[300px] border-2 border-slate-200 dark:border-slate-800 border-dashed rounded-2xl bg-slate-50 dark:bg-slate-900/50 hover:border-blue-400 dark:hover:border-blue-500 transition-all cursor-pointer opacity-50 pointer-events-none">
+                            <input id="file-input" type="file" class="hidden" accept=".pdf,.docx,.xlsx,.pptx,.html,.htm,.csv,.txt" />
+                            <div class="flex flex-col items-center text-center p-8">
+                                <div class="w-16 h-16 bg-white dark:bg-slate-800 rounded-2xl shadow-sm flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                                    <i data-lucide="file-plus" class="w-8 h-8 text-blue-600"></i>
+                                </div>
+                                <p class="text-lg font-semibold text-slate-800 dark:text-slate-200">Drag & drop files</p>
+                                <p class="text-sm text-slate-500 dark:text-slate-400 mt-1">PDF, Office, HTML, or CSV</p>
+                                <button class="mt-6 px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full font-medium transition-colors">
+                                    Browse Files
+                                </button>
+                            </div>
+                        </div>
+                        <div class="mt-4 p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                            <div class="flex gap-2">
+                                <i data-lucide="info" class="w-4 h-4 shrink-0 text-blue-500"></i>
+                                <span>Powered by <strong>Microsoft MarkItDown</strong>. This tool runs entirely in your browser. Your data never leaves your machine.</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Output Section -->
+            <div class="flex flex-col gap-4">
+                <div class="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden flex flex-col h-full">
+                    <div class="px-6 py-4 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <h2 class="font-bold flex items-center gap-2">
+                            <i data-lucide="file-code" class="w-4 h-4 text-blue-500"></i>
+                            Markdown Output
+                        </h2>
+                        <div class="flex items-center gap-1">
+                            <button id="btn-copy" disabled class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all disabled:opacity-30" title="Copy Content">
+                                <i data-lucide="copy" class="w-5 h-5"></i>
+                            </button>
+                            <button id="btn-download" disabled class="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-all disabled:opacity-30" title="Download .md">
+                                <i data-lucide="download" class="w-5 h-5"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="relative flex-grow min-h-[400px]">
+                        <textarea id="output" readonly class="absolute inset-0 w-full h-full p-6 bg-transparent border-none resize-none focus:ring-0 font-mono text-sm leading-relaxed text-slate-700 dark:text-slate-300" placeholder="Conversion result will appear here..."></textarea>
+                        
+                        <!-- Overlay for processing -->
+                        <div id="processing-overlay" class="absolute inset-0 bg-white/60 dark:bg-slate-900/60 backdrop-blur-[2px] z-10 flex flex-col items-center justify-center hidden">
+                            <div class="bg-white dark:bg-slate-800 p-6 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 flex flex-col items-center gap-4">
+                                <i data-lucide="cpu" class="w-10 h-10 text-blue-600 animate-pulse"></i>
+                                <div class="text-center">
+                                    <p class="font-bold text-slate-800 dark:text-slate-100">Converting Document</p>
+                                    <p class="text-xs text-slate-500 dark:text-slate-400 mt-1">This may take a few seconds...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Toast -->
+    <div id="toast" class="fixed bottom-8 left-1/2 -translate-x-1/2 z-50 hidden">
+        <div class="bg-slate-900 dark:bg-white text-white dark:text-slate-900 px-6 py-3 rounded-full shadow-2xl flex items-center gap-3 animate-slide-in">
+            <i data-lucide="check-circle" class="w-5 h-5 text-green-400"></i>
+            <span id="toast-text" class="text-sm font-medium">Action successful</span>
+        </div>
+    </div>
+
+    <!-- Worker Logic -->
+    <script id="worker-script" type="text/javascript-worker">
+        importScripts("https://cdn.jsdelivr.net/pyodide/v0.26.4/full/pyodide.js");
+
+        let pyodide;
+        let markitdown;
+
+        async function init() {
+            try {
+                self.postMessage({ type: 'status', title: 'System', desc: 'Starting Python Runtime...', progress: 10 });
+                
+                pyodide = await loadPyodide();
+                
+                self.postMessage({ type: 'status', title: 'Environment', desc: 'Setting up package manager...', progress: 25 });
+                
+                // ADDED pandas and Pillow to native Pyodide packages to support .xlsx and image extraction
+                await pyodide.loadPackage(["micropip", "lxml", "cryptography", "pandas", "Pillow"]);
+                
+                // 1. Patch micropip to handle version conflicts safely
+                await pyodide.runPythonAsync(`
+import micropip
+import micropip.transaction
+import re
+
+orig_check = micropip.transaction.Transaction.check_version_satisfied
+
+def bypass_check(self, req):
+    try:
+        return orig_check(self, req)
+    except ValueError as e:
+        # Instead of accessing self.env (which was removed in newer Pyodide versions),
+        # we parse the ValueError string directly:
+        # e.g., "Requested 'magika~=0.6.1', but magika==0.5.0 is already installed"
+        msg = str(e)
+        match = re.search(r"==([0-9a-zA-Z.-]+) is already installed", msg)
+        if match:
+            return (True, match.group(1))
+        # Fallback dummy version if regex fails
+        return (True, "99.99.99")
+
+micropip.transaction.Transaction.check_version_satisfied = bypass_check
+                `);
+
+                const micropip = pyodide.pyimport("micropip");
+
+                // 2. Mock native dependencies
+                self.postMessage({ type: 'status', title: 'Preparation', desc: 'Mocking native libraries...', progress: 40 });
+                await micropip.add_mock_package("onnxruntime", "1.19.0");
+                await micropip.add_mock_package("onnx", "1.16.0");
+                // Updated magika mock to match markitdown's preferred requirement
+                await micropip.add_mock_package("magika", "0.6.1");
+                // Mock pypdfium2 to bypass the C++ dependency missing wheel error
+                await micropip.add_mock_package("pypdfium2", "4.30.0");
+
+                // 3. Install core libraries
+                self.postMessage({ type: 'status', title: 'Installing', desc: 'Downloading MarkItDown & Parsers...', progress: 60 });
+                await micropip.install([
+                    'charset-normalizer',
+                    'typing-extensions',
+                    'pdfminer.six', 
+                    'beautifulsoup4', 
+                    'markitdown[pdf]',
+                    'openpyxl',
+                    'python-docx',
+                    'python-pptx',
+                    'mammoth'
+                ]);
+
+                // 4. Setup application logic
+                self.postMessage({ type: 'status', title: 'Finalizing', desc: 'Bootstrapping converter...', progress: 90 });
+                await pyodide.runPythonAsync(`
+import sys
+import os
+from unittest.mock import MagicMock
+import traceback
+
+# Final Magika/ONNX environment mock
+mock_magika = MagicMock()
+class MockMagika:
+    def _guess_mime(self, path_or_name):
+        res = MagicMock()
+        res.output.mime_type = "application/octet-stream"
+        if not path_or_name:
+            return res
+        ext = os.path.splitext(str(path_or_name))[1].lower()
+        if ext == '.pdf': res.output.mime_type = "application/pdf"
+        elif ext in ['.docx', '.doc']: res.output.mime_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        elif ext in ['.xlsx', '.xls']: res.output.mime_type = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        elif ext in ['.pptx', '.ppt']: res.output.mime_type = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        elif ext in ['.html', '.htm']: res.output.mime_type = "text/html"
+        elif ext == '.csv': res.output.mime_type = "text/csv"
+        return res
+
+    def identify_path(self, path):
+        return self._guess_mime(path)
+        
+    def identify_stream(self, stream):
+        name = getattr(stream, 'name', '')
+        return self._guess_mime(name)
+        
+    def identify_bytes(self, content):
+        return self._guess_mime('')
+
+mock_magika.Magika = MockMagika
+sys.modules["magika"] = mock_magika
+sys.modules["onnxruntime"] = MagicMock()
+
+# Pre-flight check to ensure PDF Miner loaded correctly
+try:
+    import pdfminer.high_level
+except Exception as e:
+    print(f"WARNING: PDF Miner failed to initialize natively: {e}")
+
+from markitdown import MarkItDown
+
+md_engine = MarkItDown()
+
+def convert_bytes(filename, content):
+    try:
+        # Write to virtual FS
+        with open(filename, "wb") as f:
+            f.write(content.to_py())
+        
+        result = md_engine.convert(filename)
+        
+        # Cleanup
+        os.remove(filename)
+        
+        return {"success": True, "text": result.text_content}
+    except Exception as e:
+        return {"success": False, "error": f"{str(e)}\\n{traceback.format_exc()}"}
+                `);
+
+                self.postMessage({ type: 'ready' });
+            } catch (err) {
+                self.postMessage({ type: 'error', message: err.message });
+            }
+        }
+
+        self.onmessage = async (e) => {
+            const { type, filename, content } = e.data;
+            if (type === 'init') {
+                await init();
+            } else if (type === 'convert') {
+                const convert_func = pyodide.globals.get("convert_bytes");
+                const result = convert_func(filename, content);
+                self.postMessage({ 
+                    type: 'result', 
+                    success: result.get('success'),
+                    text: result.get('text'),
+                    error: result.get('error')
+                });
+                result.destroy();
+            }
+        };
+    </script>
+
+    <!-- UI Logic -->
+    <script>
+        lucide.createIcons();
+
+        const UI = {
+            statusPanel: document.getElementById('status-panel'),
+            statusIcon: document.getElementById('status-icon'),
+            statusTitle: document.getElementById('status-title'),
+            statusDesc: document.getElementById('status-desc'),
+            progressBar: document.getElementById('progress-bar'),
+            dropzone: document.getElementById('dropzone'),
+            fileInput: document.getElementById('file-input'),
+            output: document.getElementById('output'),
+            overlay: document.getElementById('processing-overlay'),
+            btnCopy: document.getElementById('btn-copy'),
+            btnDownload: document.getElementById('btn-download'),
+            toast: document.getElementById('toast'),
+            toastText: document.getElementById('toast-text')
+        };
+
+        // Create Web Worker from script tag
+        const blob = new Blob([document.getElementById('worker-script').textContent], { type: 'text/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+
+        function showToast(text, isError = false) {
+            UI.toastText.textContent = text;
+            UI.toast.classList.remove('hidden');
+            setTimeout(() => UI.toast.classList.add('hidden'), 3000);
+        }
+
+        function updateStatus(title, desc, progress, state = 'loading') {
+            UI.statusTitle.textContent = title;
+            UI.statusDesc.textContent = desc;
+            UI.progressBar.style.width = `${progress}%`;
+
+            if (state === 'ready') {
+                UI.statusPanel.className = 'bg-green-50 dark:bg-green-900/20 border border-green-100 dark:border-green-900/30 rounded-2xl p-4 flex items-center gap-4 transition-all duration-500';
+                UI.statusIcon.className = 'bg-green-100 dark:bg-green-800 p-2 rounded-xl text-green-600 dark:text-green-400';
+                UI.statusIcon.innerHTML = '<i data-lucide="check" class="w-6 h-6"></i>';
+                UI.dropzone.classList.remove('opacity-50', 'pointer-events-none');
+                lucide.createIcons({ root: UI.statusIcon });
+            } else if (state === 'error') {
+                UI.statusPanel.className = 'bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-900/30 rounded-2xl p-4 flex items-center gap-4';
+                UI.statusIcon.className = 'bg-red-100 dark:bg-red-800 p-2 rounded-xl text-red-600 dark:text-red-400';
+                UI.statusIcon.innerHTML = '<i data-lucide="alert-circle" class="w-6 h-6"></i>';
+                lucide.createIcons({ root: UI.statusIcon });
+            }
+        }
+
+        worker.onmessage = (e) => {
+            const data = e.data;
+            switch(data.type) {
+                case 'status':
+                    updateStatus(data.title, data.desc, data.progress);
+                    break;
+                case 'ready':
+                    updateStatus('Engine Ready', 'Documents processed 100% locally.', 100, 'ready');
+                    break;
+                case 'error':
+                    updateStatus('System Error', data.message, 0, 'error');
+                    break;
+                case 'result':
+                    UI.overlay.classList.add('hidden');
+                    if (data.success) {
+                        UI.output.value = data.text;
+                        UI.btnCopy.disabled = false;
+                        UI.btnDownload.disabled = false;
+                        showToast('Conversion complete!');
+                    } else {
+                        UI.output.value = `Error during conversion:\n\n${data.error}`;
+                        showToast('Conversion failed', true);
+                    }
+                    break;
+            }
+        };
+
+        // Init worker
+        worker.postMessage({ type: 'init' });
+
+        // Interaction
+        UI.dropzone.onclick = () => UI.fileInput.click();
+        
+        UI.fileInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            UI.overlay.classList.remove('hidden');
+            UI.output.value = '';
+            UI.btnCopy.disabled = true;
+            UI.btnDownload.disabled = true;
+
+            const buffer = await file.arrayBuffer();
+            worker.postMessage({
+                type: 'convert',
+                filename: file.name,
+                content: new Uint8Array(buffer)
+            }, [buffer]);
+            
+            UI.fileInput.value = ''; // Reset
+        };
+
+        // Drag & Drop
+        UI.dropzone.ondragover = (e) => { e.preventDefault(); UI.dropzone.classList.add('dropzone-active'); };
+        UI.dropzone.ondragleave = () => UI.dropzone.classList.remove('dropzone-active');
+        UI.dropzone.ondrop = (e) => {
+            e.preventDefault();
+            UI.dropzone.classList.remove('dropzone-active');
+            const file = e.dataTransfer.files[0];
+            if (file) {
+                UI.fileInput.files = e.dataTransfer.files;
+                UI.fileInput.dispatchEvent(new Event('change'));
+            }
+        };
+
+        // Toolbar
+        UI.btnCopy.onclick = () => {
+            UI.output.select();
+            document.execCommand('copy');
+            UI.output.setSelectionRange(0, 0);
+            showToast('Copied to clipboard');
+        };
+
+        UI.btnDownload.onclick = () => {
+            const blob = new Blob([UI.output.value], { type: 'text/markdown' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'document.md';
+            a.click();
+            URL.revokeObjectURL(url);
+        };
+    </script>
+</body>
+</html>

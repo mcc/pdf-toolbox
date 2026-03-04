@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Tight-Print Utility</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f8fafc;
+        }
+
+        /* Print-specific styles */
+        @media print {
+            @page {
+                margin: 0;
+                size: auto;
+            }
+            body {
+                background-color: white;
+                margin: 0;
+                padding: 0;
+            }
+            #ui-layer {
+                display: none !important;
+            }
+            #print-area {
+                display: block !important;
+                width: 100vw;
+            }
+            .print-page {
+                display: grid !important;
+                width: 100vw;
+                height: 100vh;
+                page-break-after: always;
+                align-content: start;
+                gap: 2mm;
+                padding: 5mm;
+                box-sizing: border-box;
+            }
+            /* Grid Logic based on user choice */
+            .grid-2 { grid-template-columns: 1fr; grid-template-rows: 1fr 1fr; }
+            .grid-4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+            .grid-6 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr; }
+            .grid-8 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr 1fr 1fr; }
+            
+            .print-item {
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                overflow: hidden;
+            }
+            .print-item img {
+                max-width: 100%;
+                max-height: 100%;
+                object-fit: contain;
+            }
+        }
+
+        /* UI Styles */
+        .loading-spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #3b82f6;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="text-slate-900">
+
+    <div id="ui-layer" class="min-h-screen p-4 md:p-8">
+        <header class="max-w-5xl mx-auto mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-slate-900 flex items-center gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="text-blue-600"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="M16 13H8"/><path d="M16 17H8"/><path d="M10 9H8"/></svg>
+                    Tight-Print
+                </h1>
+                <p class="text-slate-500 mt-1">Remove PDF borders and maximize paper space.</p>
+            </div>
+            
+            <div class="flex items-center gap-3 bg-white p-2 rounded-xl shadow-sm border border-slate-200">
+                <label class="text-sm font-semibold px-2">Grid:</label>
+                <select id="grid-select" class="bg-slate-50 border border-slate-300 rounded-lg px-3 py-1 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                    <option value="2">2 per page</option>
+                    <option value="4" selected>4 per page</option>
+                    <option value="6">6 per page</option>
+                    <option value="8">8 per page</option>
+                </select>
+                <button id="print-btn" disabled class="bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold py-2 px-6 rounded-lg transition-colors flex items-center gap-2 shadow-md">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect width="12" height="8" x="6" y="14"/></svg>
+                    Print
+                </button>
+            </div>
+        </header>
+
+        <main class="max-w-5xl mx-auto">
+            <!-- Dropzone -->
+            <div id="dropzone" class="relative border-2 border-dashed border-slate-300 rounded-2xl p-12 text-center bg-white hover:border-blue-500 hover:bg-blue-50 transition-all cursor-pointer group mb-8">
+                <input type="file" id="pdf-input" class="absolute inset-0 w-full h-full opacity-0 cursor-pointer" accept="application/pdf">
+                <div class="space-y-4">
+                    <div class="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto text-blue-600 group-hover:scale-110 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>
+                    </div>
+                    <div>
+                        <p class="text-xl font-semibold">Upload PDF</p>
+                        <p class="text-slate-500">Click or drag and drop your file here</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Progress -->
+            <div id="status-container" class="hidden bg-white border border-slate-200 rounded-xl p-4 mb-8 flex items-center justify-between shadow-sm">
+                <div class="flex items-center gap-4">
+                    <div class="loading-spinner" id="spinner"></div>
+                    <div>
+                        <p id="status-text" class="font-medium">Processing pages...</p>
+                        <p id="status-subtext" class="text-xs text-slate-500 italic">Finding borders & cropping...</p>
+                    </div>
+                </div>
+                <div class="text-right">
+                    <span id="progress-count" class="text-2xl font-bold text-blue-600">0</span>
+                    <span class="text-slate-400">/</span>
+                    <span id="total-count" class="text-slate-400">0</span>
+                </div>
+            </div>
+
+            <!-- Previews -->
+            <div id="preview-grid" class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                <!-- Preview items will appear here -->
+            </div>
+        </main>
+    </div>
+
+    <!-- The actual area that gets printed -->
+    <div id="print-area" class="hidden"></div>
+
+    <script>
+        const pdfjsLib = window['pdfjs-dist/build/pdf'];
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.4.120/pdf.worker.min.js';
+
+        const pdfInput = document.getElementById('pdf-input');
+        const gridSelect = document.getElementById('grid-select');
+        const printBtn = document.getElementById('print-btn');
+        const previewGrid = document.getElementById('preview-grid');
+        const printArea = document.getElementById('print-area');
+        const statusContainer = document.getElementById('status-container');
+        const progressCount = document.getElementById('progress-count');
+        const totalCount = document.getElementById('total-count');
+        const spinner = document.getElementById('spinner');
+
+        let processedImages = [];
+
+        pdfInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            // Reset UI
+            previewGrid.innerHTML = '';
+            printArea.innerHTML = '';
+            processedImages = [];
+            printBtn.disabled = true;
+            statusContainer.classList.remove('hidden');
+            spinner.classList.remove('hidden');
+
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                const pdf = await pdfjsLib.getDocument(arrayBuffer).promise;
+                totalCount.textContent = pdf.numPages;
+                
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    progressCount.textContent = i;
+                    const page = await pdf.getPage(i);
+                    
+                    // High scale for crisp printing (3.0 scale ~ 216 DPI)
+                    const viewport = page.getViewport({ scale: 2.5 });
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+
+                    // Auto-Crop logic
+                    const croppedCanvas = getAutoCroppedCanvas(canvas);
+                    const imgData = croppedCanvas.toDataURL('image/png');
+                    processedImages.push(imgData);
+
+                    // Add to UI Preview
+                    const previewCard = document.createElement('div');
+                    previewCard.className = 'bg-white p-2 rounded-lg border border-slate-200 shadow-sm hover:shadow-md transition-shadow';
+                    previewCard.innerHTML = `
+                        <div class="aspect-[1/1.4] bg-slate-100 rounded overflow-hidden flex items-center justify-center">
+                            <img src="${imgData}" class="max-w-full max-h-full object-contain shadow-sm">
+                        </div>
+                        <p class="text-[10px] text-center mt-1 font-bold text-slate-400">Page ${i}</p>
+                    `;
+                    previewGrid.appendChild(previewCard);
+                }
+
+                buildPrintLayout();
+                printBtn.disabled = false;
+                spinner.classList.add('hidden');
+                document.getElementById('status-text').textContent = 'Ready to print!';
+                document.getElementById('status-subtext').textContent = 'Content borders successfully removed.';
+
+            } catch (err) {
+                console.error(err);
+                alert('Error processing PDF. Please try a different file.');
+                statusContainer.classList.add('hidden');
+            }
+        });
+
+        gridSelect.addEventListener('change', buildPrintLayout);
+        printBtn.addEventListener('click', () => window.print());
+
+        /**
+         * Scans canvas pixels to find the bounding box of non-white content
+         */
+        function getAutoCroppedCanvas(sourceCanvas) {
+            const ctx = sourceCanvas.getContext('2d');
+            const width = sourceCanvas.width;
+            const height = sourceCanvas.height;
+            const imageData = ctx.getImageData(0, 0, width, height);
+            const data = imageData.data;
+
+            // Simple white threshold
+            const isBlank = (x, y) => {
+                const index = (y * width + x) * 4;
+                const r = data[index];
+                const g = data[index + 1];
+                const b = data[index + 2];
+                // Check if color is very close to white (allow slight noise)
+                return r > 250 && g > 250 && b > 250;
+            };
+
+            let top = 0, bottom = height - 1, left = 0, right = width - 1;
+
+            // Scan Top
+            scanTop: for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    if (!isBlank(x, y)) { top = y; break scanTop; }
+                }
+            }
+
+            // Scan Bottom
+            scanBottom: for (let y = height - 1; y >= top; y--) {
+                for (let x = 0; x < width; x++) {
+                    if (!isBlank(x, y)) { bottom = y; break scanBottom; }
+                }
+            }
+
+            // Scan Left
+            scanLeft: for (let x = 0; x < width; x++) {
+                for (let y = top; y <= bottom; y++) {
+                    if (!isBlank(x, y)) { left = x; break scanLeft; }
+                }
+            }
+
+            // Scan Right
+            scanRight: for (let x = width - 1; x >= left; x--) {
+                for (let y = top; y <= bottom; y++) {
+                    if (!isBlank(x, y)) { right = x; break scanRight; }
+                }
+            }
+
+            // Create new cropped canvas
+            const cropW = (right - left) + 1;
+            const cropH = (bottom - top) + 1;
+            
+            // Safety check: if page is totally blank, return original
+            if (cropW <= 0 || cropH <= 0) return sourceCanvas;
+
+            const croppedCanvas = document.createElement('canvas');
+            croppedCanvas.width = cropW;
+            croppedCanvas.height = cropH;
+            const croppedCtx = croppedCanvas.getContext('2d');
+            
+            croppedCtx.drawImage(sourceCanvas, left, top, cropW, cropH, 0, 0, cropW, cropH);
+            return croppedCanvas;
+        }
+
+        /**
+         * Organizes processed images into grid pages for the print media CSS
+         */
+        function buildPrintLayout() {
+            printArea.innerHTML = '';
+            const itemsPerPage = parseInt(gridSelect.value);
+            const gridClass = `grid-${itemsPerPage}`;
+
+            for (let i = 0; i < processedImages.length; i += itemsPerPage) {
+                const pageDiv = document.createElement('div');
+                pageDiv.className = `print-page ${gridClass}`;
+
+                const chunk = processedImages.slice(i, i + itemsPerPage);
+                chunk.forEach(imgSrc => {
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'print-item';
+                    const img = document.createElement('img');
+                    img.src = imgSrc;
+                    itemDiv.appendChild(img);
+                    pageDiv.appendChild(itemDiv);
+                });
+
+                printArea.appendChild(pageDiv);
+            }
+        }
+
+        // Drag and Drop Visuals
+        const dropzone = document.getElementById('dropzone');
+        ['dragenter', 'dragover'].forEach(name => {
+            dropzone.addEventListener(name, () => dropzone.classList.add('border-blue-500', 'bg-blue-50'), false);
+        });
+        ['dragleave', 'drop'].forEach(name => {
+            dropzone.addEventListener(name, () => dropzone.classList.remove('border-blue-500', 'bg-blue-50'), false);
+        });
+    </script>
+</body>
+</html>

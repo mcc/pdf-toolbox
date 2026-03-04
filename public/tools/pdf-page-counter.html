@@ -1,0 +1,680 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Page Verification & OCR</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- PDF.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- Tesseract.js -->
+    <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #1a202c; color: #e2e8f0; height: 100vh; overflow: hidden; }
+        
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #2d3748; }
+        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #718096; }
+
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3498db;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Canvas Wrapper for Zoom/Pan */
+        #canvas-wrapper {
+            transform-origin: 0 0;
+            transition: transform 0.1s ease-out;
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
+        }
+
+        /* The Red ROI Box */
+        #roi-overlay {
+            border: 2px solid rgba(239, 68, 68, 0.8);
+            background-color: rgba(239, 68, 68, 0.1);
+            position: absolute;
+            pointer-events: none; /* Let clicks pass through */
+            z-index: 10;
+        }
+
+        .status-match { border-left: 4px solid #48bb78; }
+        .status-mismatch { border-left: 4px solid #f56565; }
+        .status-pending { border-left: 4px solid #ecc94b; }
+        
+        .thumb-active { ring: 2px solid #63b3ed; background-color: #2d3748; }
+        
+        /* Input within results */
+        .page-input {
+            background: #2d3748;
+            border: 1px solid #4a5568;
+            color: white;
+            width: 50px;
+            text-align: center;
+            border-radius: 4px;
+            font-size: 0.8rem;
+        }
+        .page-input:focus { outline: none; border-color: #63b3ed; }
+    </style>
+</head>
+<body class="flex flex-col h-screen">
+
+    <!-- HEADER: Controls & Config -->
+    <header class="bg-gray-800 border-b border-gray-700 p-4 shadow-md z-20">
+        <div class="flex flex-wrap items-center justify-between gap-4">
+            
+            <!-- File Input -->
+            <div class="flex items-center gap-2">
+                <label class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded cursor-pointer transition text-sm font-semibold">
+                    <i class="fas fa-file-pdf mr-2"></i> Load PDF
+                    <input type="file" id="file-input" accept="application/pdf" class="hidden">
+                </label>
+                <span id="file-name" class="text-xs text-gray-400 italic truncate max-w-[150px]">No file selected</span>
+            </div>
+
+            <!-- ROI Controls -->
+            <div class="flex items-center gap-4 bg-gray-900 p-2 rounded-lg border border-gray-700 relative group">
+                <span class="text-xs font-bold text-gray-400 uppercase tracking-wider mr-2">Detection Area</span>
+                
+                <!-- Tooltip for shortcuts -->
+                <div class="absolute -top-12 left-0 bg-black text-white text-xs p-2 rounded shadow-lg hidden group-hover:block whitespace-nowrap border border-gray-600">
+                    <p><span class="text-yellow-400 font-bold">WASD</span> Move | <span class="text-yellow-400 font-bold">R/E</span> Width | <span class="text-yellow-400 font-bold">G/F</span> Height</p>
+                </div>
+
+                <div class="flex flex-col w-20">
+                    <label class="text-[10px] text-gray-500 flex justify-between">X <span id="val-x">80%</span></label>
+                    <input type="range" id="roi-x" min="0" max="100" value="80" class="h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div class="flex flex-col w-20">
+                    <label class="text-[10px] text-gray-500 flex justify-between">Y <span id="val-y">90%</span></label>
+                    <input type="range" id="roi-y" min="0" max="100" value="90" class="h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div class="flex flex-col w-20">
+                    <label class="text-[10px] text-gray-500 flex justify-between">W <span id="val-w">15%</span></label>
+                    <input type="range" id="roi-w" min="1" max="50" value="15" class="h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+                <div class="flex flex-col w-20">
+                    <label class="text-[10px] text-gray-500 flex justify-between">H <span id="val-h">8%</span></label>
+                    <input type="range" id="roi-h" min="1" max="50" value="8" class="h-1 bg-gray-600 rounded-lg appearance-none cursor-pointer">
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="flex items-center gap-2">
+                <button id="btn-process" disabled class="bg-green-600 hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed text-white px-4 py-2 rounded text-sm font-semibold transition shadow-lg">
+                    <i class="fas fa-play mr-1"></i> Verify All
+                </button>
+                <div id="progress-container" class="hidden items-center gap-2">
+                    <div class="loader"></div>
+                    <span id="progress-text" class="text-xs text-gray-300">0%</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN CONTENT: Split View -->
+    <div class="flex flex-1 overflow-hidden">
+        
+        <!-- LEFT: Main Viewer -->
+        <div class="w-2/3 bg-gray-900 relative overflow-hidden flex flex-col border-r border-gray-700">
+            <!-- Toolbar -->
+            <div class="absolute top-4 left-4 z-30 flex gap-2 bg-gray-800 p-2 rounded shadow-lg border border-gray-700 opacity-90">
+                <button id="zoom-in" class="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded text-white flex items-center justify-center"><i class="fas fa-plus"></i></button>
+                <button id="zoom-out" class="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded text-white flex items-center justify-center"><i class="fas fa-minus"></i></button>
+                <button id="zoom-reset" class="w-8 h-8 bg-gray-700 hover:bg-gray-600 rounded text-white flex items-center justify-center" title="Fit to Screen"><i class="fas fa-compress"></i></button>
+            </div>
+
+            <div id="viewer-viewport" class="w-full h-full overflow-auto flex items-center justify-center bg-gray-900 cursor-grab active:cursor-grabbing p-10">
+                <div id="canvas-container" class="relative">
+                    <canvas id="pdf-render" class="shadow-2xl"></canvas>
+                    <div id="roi-overlay"></div>
+                </div>
+            </div>
+            
+            <div class="absolute bottom-4 left-4 text-xs text-gray-500 bg-gray-800 px-2 py-1 rounded">
+                Shortcuts: <span class="text-yellow-500">WASD</span> Move ROI | <span class="text-yellow-500">R/E</span> Width | <span class="text-yellow-500">G/F</span> Height
+            </div>
+        </div>
+
+        <!-- RIGHT: Thumbnails & Results -->
+        <div class="w-1/3 bg-gray-800 flex flex-col h-full border-l border-gray-700">
+            <div class="p-3 border-b border-gray-700 bg-gray-800 font-semibold text-sm flex justify-between items-center">
+                <span>Verification Results</span>
+                <div class="flex items-center gap-2">
+                     <button id="btn-next-issue" class="hidden text-xs bg-red-600 hover:bg-red-700 text-white px-2 py-1 rounded transition shadow-sm animate-pulse">
+                        Next Issue <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                    <span id="stats" class="text-xs font-normal text-gray-400">Total: 0 | Issues: 0</span>
+                </div>
+            </div>
+            
+            <div id="results-list" class="flex-1 overflow-y-auto p-2 space-y-2">
+                <!-- Empty State -->
+                <div class="flex flex-col items-center justify-center h-full text-gray-500 opacity-50">
+                    <i class="fas fa-search fa-3x mb-2"></i>
+                    <p class="text-sm">Load a PDF to start verification</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. CONFIGURATION & STATE ---
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const state = {
+            pdfDoc: null,
+            currentPage: 1,
+            scale: 1.0,
+            zoom: 1.0,
+            panX: 0,
+            panY: 0,
+            isDragging: false,
+            lastMouseX: 0,
+            lastMouseY: 0,
+            roi: { x: 80, y: 90, w: 15, h: 8 }, // Percentages
+            pageResults: [], // { pageIndex, blob, text, isValid, offset }
+            // sequenceOffset removed from here, handled per-page now
+        };
+
+        // --- 2. DOM ELEMENTS ---
+        const els = {
+            fileInput: document.getElementById('file-input'),
+            fileName: document.getElementById('file-name'),
+            canvas: document.getElementById('pdf-render'),
+            ctx: document.getElementById('pdf-render').getContext('2d'),
+            overlay: document.getElementById('roi-overlay'),
+            container: document.getElementById('canvas-container'),
+            viewport: document.getElementById('viewer-viewport'),
+            resultsList: document.getElementById('results-list'),
+            btnProcess: document.getElementById('btn-process'),
+            progress: document.getElementById('progress-container'),
+            progressText: document.getElementById('progress-text'),
+            stats: document.getElementById('stats'),
+            inputs: {
+                x: document.getElementById('roi-x'),
+                y: document.getElementById('roi-y'),
+                w: document.getElementById('roi-w'),
+                h: document.getElementById('roi-h')
+            },
+            labels: {
+                x: document.getElementById('val-x'),
+                y: document.getElementById('val-y'),
+                w: document.getElementById('val-w'),
+                h: document.getElementById('val-h')
+            }
+        };
+
+        // --- 3. EVENT LISTENERS ---
+        
+        // Next Issue Button
+        document.getElementById('btn-next-issue').addEventListener('click', goToNextIssue);
+
+        // File Loading
+        els.fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+            els.fileName.textContent = file.name;
+            const fileReader = new FileReader();
+            
+            fileReader.onload = async function() {
+                const typedarray = new Uint8Array(this.result);
+                try {
+                    state.pdfDoc = await pdfjsLib.getDocument(typedarray).promise;
+                    els.btnProcess.disabled = false;
+                    els.resultsList.innerHTML = '';
+                    state.pageResults = [];
+                    // state.sequenceOffset = 0; // No longer needed
+                    state.currentPage = 1;
+                    
+                    // Initial Render of Page 1
+                    renderPage(1);
+                    updateResultsPlaceholder();
+                } catch (err) {
+                    alert('Error loading PDF: ' + err.message);
+                }
+            };
+            fileReader.readAsArrayBuffer(file);
+        });
+
+        // ROI Sliders
+        Object.keys(els.inputs).forEach(key => {
+            els.inputs[key].addEventListener('input', (e) => {
+                state.roi[key] = parseInt(e.target.value);
+                updateROIUI();
+            });
+        });
+
+        // Keyboard Shortcuts for ROI
+        window.addEventListener('keydown', (e) => {
+            // Do not capture keys if user is typing in an input field (e.g. changing page number)
+            if (e.target.tagName === 'INPUT') return;
+
+            const step = 1;
+            let changed = false;
+
+            switch(e.key.toLowerCase()) {
+                case 'w': // Move Up
+                    state.roi.y = Math.max(0, state.roi.y - step);
+                    changed = true;
+                    break;
+                case 's': // Move Down
+                    state.roi.y = Math.min(100, state.roi.y + step);
+                    changed = true;
+                    break;
+                case 'a': // Move Left
+                    state.roi.x = Math.max(0, state.roi.x - step);
+                    changed = true;
+                    break;
+                case 'd': // Move Right
+                    state.roi.x = Math.min(100, state.roi.x + step);
+                    changed = true;
+                    break;
+                case 'r': // Increase Width
+                    state.roi.w = Math.min(100 - state.roi.x, state.roi.w + step);
+                    changed = true;
+                    break;
+                case 'e': // Decrease Width
+                    state.roi.w = Math.max(1, state.roi.w - step);
+                    changed = true;
+                    break;
+                case 'g': // Increase Height
+                    state.roi.h = Math.min(100 - state.roi.y, state.roi.h + step);
+                    changed = true;
+                    break;
+                case 'f': // Decrease Height
+                    state.roi.h = Math.max(1, state.roi.h - step);
+                    changed = true;
+                    break;
+            }
+
+            if (changed) {
+                updateROIUI();
+            }
+        });
+
+        function updateROIUI() {
+            // Sync values to inputs
+            els.inputs.x.value = state.roi.x;
+            els.inputs.y.value = state.roi.y;
+            els.inputs.w.value = state.roi.w;
+            els.inputs.h.value = state.roi.h;
+            
+            // Sync text labels
+            els.labels.x.innerText = state.roi.x + '%';
+            els.labels.y.innerText = state.roi.y + '%';
+            els.labels.w.innerText = state.roi.w + '%';
+            els.labels.h.innerText = state.roi.h + '%';
+            
+            updateOverlay();
+        }
+
+        // Processing
+        els.btnProcess.addEventListener('click', startBatchProcessing);
+
+        // Zoom & Pan
+        document.getElementById('zoom-in').addEventListener('click', () => updateZoom(0.2));
+        document.getElementById('zoom-out').addEventListener('click', () => updateZoom(-0.2));
+        document.getElementById('zoom-reset').addEventListener('click', () => {
+            state.zoom = 1.0; 
+            state.panX = 0; 
+            state.panY = 0; 
+            applyTransform();
+        });
+
+        els.viewport.addEventListener('wheel', (e) => {
+            if (e.ctrlKey) {
+                e.preventDefault();
+                updateZoom(e.deltaY * -0.001);
+            }
+        });
+
+        els.viewport.addEventListener('mousedown', (e) => {
+            state.isDragging = true;
+            state.lastMouseX = e.clientX;
+            state.lastMouseY = e.clientY;
+            els.viewport.style.cursor = 'grabbing';
+        });
+
+        window.addEventListener('mouseup', () => {
+            state.isDragging = false;
+            els.viewport.style.cursor = 'grab';
+        });
+
+        window.addEventListener('mousemove', (e) => {
+            if (!state.isDragging) return;
+            e.preventDefault();
+            const deltaX = e.clientX - state.lastMouseX;
+            const deltaY = e.clientY - state.lastMouseY;
+            state.panX += deltaX;
+            state.panY += deltaY;
+            state.lastMouseX = e.clientX;
+            state.lastMouseY = e.clientY;
+            applyTransform();
+        });
+
+        // --- 4. CORE FUNCTIONS ---
+
+        async function renderPage(pageNum) {
+            if (!state.pdfDoc) return;
+            state.currentPage = pageNum;
+
+            const page = await state.pdfDoc.getPage(pageNum);
+            const viewport = page.getViewport({ scale: 1.5 });
+
+            els.canvas.width = viewport.width;
+            els.canvas.height = viewport.height;
+
+            const renderContext = {
+                canvasContext: els.ctx,
+                viewport: viewport
+            };
+
+            await page.render(renderContext).promise;
+            
+            updateOverlay();
+            
+            document.querySelectorAll('.result-item').forEach(el => el.classList.remove('thumb-active'));
+            const activeThumb = document.getElementById(`thumb-${pageNum}`);
+            if(activeThumb) activeThumb.classList.add('thumb-active');
+        }
+
+        function updateOverlay() {
+            const w = els.canvas.width;
+            const h = els.canvas.height;
+
+            const rx = (state.roi.x / 100) * w;
+            const ry = (state.roi.y / 100) * h;
+            const rw = (state.roi.w / 100) * w;
+            const rh = (state.roi.h / 100) * h;
+
+            els.overlay.style.left = `${rx}px`;
+            els.overlay.style.top = `${ry}px`;
+            els.overlay.style.width = `${rw}px`;
+            els.overlay.style.height = `${rh}px`;
+        }
+
+        function updateZoom(delta) {
+            state.zoom += delta;
+            if (state.zoom < 0.1) state.zoom = 0.1;
+            if (state.zoom > 5) state.zoom = 5;
+            applyTransform();
+        }
+
+        function applyTransform() {
+            els.container.style.transform = `translate(${state.panX}px, ${state.panY}px) scale(${state.zoom})`;
+        }
+
+        function updateResultsPlaceholder() {
+            els.resultsList.innerHTML = '';
+            for(let i=1; i<=state.pdfDoc.numPages; i++) {
+                const div = document.createElement('div');
+                div.id = `thumb-${i}`;
+                div.className = 'result-item bg-gray-700 p-2 rounded flex gap-3 items-center cursor-pointer hover:bg-gray-600 transition status-pending border border-gray-600';
+                div.innerHTML = `
+                    <div class="w-16 h-12 bg-gray-800 flex items-center justify-center text-xs text-gray-500 rounded overflow-hidden relative">
+                       <span class="z-10">P${i}</span>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex justify-between items-center mb-1">
+                            <span class="text-sm font-bold text-gray-200">PDF Page ${i}</span>
+                            <span class="text-xs text-yellow-500"><i class="fas fa-clock"></i> Waiting</span>
+                        </div>
+                        <div class="h-2 bg-gray-600 rounded w-full"></div>
+                    </div>
+                `;
+                div.onclick = () => renderPage(i);
+                els.resultsList.appendChild(div);
+            }
+            updateStats(0, 0);
+        }
+
+        async function startBatchProcessing() {
+            if (!state.pdfDoc) return;
+
+            els.btnProcess.disabled = true;
+            els.progress.classList.remove('hidden');
+            els.progress.classList.add('flex');
+            
+            updateResultsPlaceholder();
+            state.pageResults = []; // Clear memory
+
+            // Initialize Tesseract Worker
+            const worker = await Tesseract.createWorker('eng');
+            await worker.setParameters({
+                tessedit_char_whitelist: '0123456789', // Numbers only
+            });
+
+            // Default offset starts at 0 (PDF Page 1 = Book Page 1)
+            let currentOffset = 0; 
+
+            for (let i = 1; i <= state.pdfDoc.numPages; i++) {
+                const pct = Math.round((i / state.pdfDoc.numPages) * 100);
+                els.progressText.textContent = `${pct}%`;
+
+                // 1. Render for OCR
+                const page = await state.pdfDoc.getPage(i);
+                const viewport = page.getViewport({ scale: 2.0 }); 
+                const tempCanvas = document.createElement('canvas');
+                tempCanvas.width = viewport.width;
+                tempCanvas.height = viewport.height;
+                const tempCtx = tempCanvas.getContext('2d');
+                await page.render({ canvasContext: tempCtx, viewport: viewport }).promise;
+
+                // 2. Crop
+                const rx = (state.roi.x / 100) * viewport.width;
+                const ry = (state.roi.y / 100) * viewport.height;
+                const rw = (state.roi.w / 100) * viewport.width;
+                const rh = (state.roi.h / 100) * viewport.height;
+
+                const sx = Math.max(0, rx);
+                const sy = Math.max(0, ry);
+                const sWidth = Math.min(rw, viewport.width - sx);
+                const sHeight = Math.min(rh, viewport.height - sy);
+
+                const cropCanvas = document.createElement('canvas');
+                cropCanvas.width = sWidth;
+                cropCanvas.height = sHeight;
+                const cropCtx = cropCanvas.getContext('2d');
+                cropCtx.drawImage(tempCanvas, sx, sy, sWidth, sHeight, 0, 0, sWidth, sHeight);
+
+                const cropDataUrl = cropCanvas.toDataURL('image/jpeg', 0.8);
+
+                // 3. OCR
+                const { data: { text } } = await worker.recognize(cropDataUrl);
+                const cleanedText = text.replace(/\D/g, '').trim(); 
+                
+                // 4. Store Data
+                // Use currentOffset (initially 0)
+                const expectedNum = i + currentOffset;
+                const detectedNum = parseInt(cleanedText, 10);
+                const isValid = detectedNum === expectedNum;
+
+                state.pageResults[i] = {
+                    pdfIndex: i,
+                    blob: cropDataUrl,
+                    text: cleanedText,
+                    detectedNum: detectedNum,
+                    isValid: isValid,
+                    offset: currentOffset // Store offset per page
+                };
+
+                // 5. Update UI
+                updateResultItem(i);
+                
+                const item = document.getElementById(`thumb-${i}`);
+                if (item && i % 5 === 0) {
+                     item.scrollIntoView({ behavior: 'smooth', block: 'end' });
+                }
+            }
+
+            await worker.terminate();
+            els.btnProcess.disabled = false;
+            els.progress.classList.add('hidden');
+            els.progress.classList.remove('flex');
+            
+            recalcAllStats();
+        }
+
+        // Called when user changes "Expected" number input
+        window.updateSequenceOffset = function(pdfPageIndex, newExpectedVal) {
+            const newExpected = parseInt(newExpectedVal);
+            if (isNaN(newExpected)) return;
+
+            // Calculate new offset based on this specific page: BookPage - PdfIndex
+            const newOffset = newExpected - pdfPageIndex;
+            
+            // Only update THIS page and FOLLOWING pages
+            // Do not touch pages 1 to (pdfPageIndex - 1)
+            for (let i = pdfPageIndex; i < state.pageResults.length; i++) {
+                const pageData = state.pageResults[i];
+                if (!pageData) continue;
+
+                // Update offset for this and subsequent pages
+                pageData.offset = newOffset;
+
+                // Re-validate
+                const expected = i + newOffset;
+                pageData.isValid = (pageData.detectedNum === expected);
+                
+                // Refresh UI for this item
+                updateResultItem(i); 
+            }
+
+            recalcAllStats();
+        }
+
+        function updateResultItem(pageIndex) {
+            const data = state.pageResults[pageIndex];
+            if (!data) return;
+
+            const el = document.getElementById(`thumb-${pageIndex}`);
+            if (!el) return;
+
+            // Determine status
+            const isValid = data.isValid;
+            el.className = `result-item bg-gray-700 p-2 rounded flex gap-3 items-center cursor-pointer hover:bg-gray-600 transition border border-gray-600 ${isValid ? 'status-match' : 'status-mismatch'}`;
+            
+            if(state.currentPage === pageIndex) el.classList.add('thumb-active');
+
+            const icon = isValid 
+                ? '<i class="fas fa-check-circle text-green-400"></i>' 
+                : '<i class="fas fa-exclamation-triangle text-red-400"></i>';
+            
+            const statusText = isValid ? 'Match' : 'Mismatch';
+            const statusColor = isValid ? 'text-green-400' : 'text-red-400';
+
+            // Use the individual page offset
+            const expectedNum = pageIndex + (data.offset || 0);
+
+            el.innerHTML = `
+                <div class="w-16 h-auto bg-black rounded overflow-hidden border border-gray-500" onclick="renderPage(${pageIndex})">
+                    <img src="${data.blob}" class="w-full h-full object-contain" alt="Crop">
+                </div>
+                <div class="flex-1">
+                    <div class="flex justify-between items-start">
+                        <div>
+                             <span class="text-xs text-gray-400 block">PDF Page ${pageIndex}</span>
+                             <div class="flex items-center gap-2 mt-1">
+                                <span class="text-xs text-gray-300">Exp:</span>
+                                <input type="number" 
+                                       class="page-input" 
+                                       value="${expectedNum}" 
+                                       onclick="event.stopPropagation()" 
+                                       onchange="updateSequenceOffset(${pageIndex}, this.value)"
+                                >
+                             </div>
+                        </div>
+                        <div class="flex flex-col items-end">
+                            <span class="text-xs ${statusColor} font-bold mb-1">${icon} ${statusText}</span>
+                            <div class="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
+                                Det: <span class="font-mono text-white">${data.text || '?'}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Re-attach click listener for main row (avoiding input click issues)
+            el.onclick = (e) => {
+                if(e.target.tagName !== 'INPUT') renderPage(pageIndex);
+            };
+        }
+
+        function recalcAllStats() {
+            let issues = 0;
+            let total = 0;
+            state.pageResults.forEach(p => {
+                if(p) {
+                    total++;
+                    if(!p.isValid) issues++;
+                }
+            });
+            updateStats(total, issues);
+        }
+
+        function updateStats(total, issues) {
+            const color = issues > 0 ? 'text-red-400' : 'text-green-400';
+            els.stats.innerHTML = `Total: ${total} | Issues: <span class="${color} font-bold">${issues}</span>`;
+            
+            // Toggle Next Issue Button
+            const btn = document.getElementById('btn-next-issue');
+            if (issues > 0) {
+                btn.classList.remove('hidden');
+            } else {
+                btn.classList.add('hidden');
+            }
+        }
+
+        function goToNextIssue() {
+            const results = state.pageResults;
+            if (!results.length) return;
+
+            // Search for next issue after current page
+            let nextIssueIndex = -1;
+            
+            // 1. Search forward from current page + 1
+            for (let i = state.currentPage + 1; i < results.length; i++) {
+                if (results[i] && !results[i].isValid) {
+                    nextIssueIndex = i;
+                    break;
+                }
+            }
+
+            // 2. Wrap around: Search from start up to current page
+            if (nextIssueIndex === -1) {
+                for (let i = 1; i <= state.currentPage; i++) {
+                     if (results[i] && !results[i].isValid) {
+                        nextIssueIndex = i;
+                        break;
+                    }
+                }
+            }
+
+            if (nextIssueIndex !== -1) {
+                renderPage(nextIssueIndex);
+                const item = document.getElementById(`thumb-${nextIssueIndex}`);
+                if (item) item.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            } else {
+                alert("No issues found!");
+            }
+        }
+
+    </script>
+</body>
+</html>

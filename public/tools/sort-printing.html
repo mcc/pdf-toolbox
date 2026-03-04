@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Consolidator & Print</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- React & ReactDOM -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- PDF.js for Thumbnails -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    
+    <!-- PDF-lib for Merging & Editing -->
+    <script src="https://unpkg.com/pdf-lib/dist/pdf-lib.min.js"></script>
+
+    <style>
+        body { margin: 0; padding: 0; background-color: #f3f4f6; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: #f1f1f1; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        /* Spinner */
+        .loader {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        // Initialize PDF.js worker
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+        const { useState, useEffect, useRef, useMemo } = React;
+
+        // SVG Icons
+        const Icons = {
+            Upload: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>,
+            Print: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>,
+            Up: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>,
+            Down: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>,
+            ChevronRight: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="9 18 15 12 9 6"/></svg>,
+            ChevronDown: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9"/></svg>,
+            Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+            Sort: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18H3M21 6H3M11 12H3"/></svg>,
+            FileBlank: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        };
+
+        const App = () => {
+            // State
+            // groups: Array of { id, name, isOpen, items: [{ id, fileObject }] }
+            const [groups, setGroups] = useState([]);
+            const [thumbnails, setThumbnails] = useState({});
+            
+            const [settings, setSettings] = useState({
+                addHeaderFooter: true,
+                position: 'Top-Left', // Top-Left, Top-Center, Top-Right, Bottom-Left, Bottom-Center, Bottom-Right
+                margin: 18,
+                fontSize: 8,
+                addBlankPageForDuplex: true
+            });
+
+            const [previewUrl, setPreviewUrl] = useState(null);
+            const [isMerging, setIsMerging] = useState(false);
+            const [isDragging, setIsDragging] = useState(false);
+            
+            const fileInputRef = useRef(null);
+
+            // Generate a thumbnail for a given PDF file
+            const generateThumbnail = async (fileObject) => {
+                try {
+                    const arrayBuffer = await fileObject.arrayBuffer();
+                    const pdf = await window.pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+                    const page = await pdf.getPage(1);
+                    const viewport = page.getViewport({ scale: 0.3 }); // Small scale for thumbnail
+                    
+                    const canvas = document.createElement('canvas');
+                    const context = canvas.getContext('2d');
+                    canvas.height = viewport.height;
+                    canvas.width = viewport.width;
+                    
+                    await page.render({ canvasContext: context, viewport: viewport }).promise;
+                    return canvas.toDataURL('image/jpeg');
+                } catch (e) {
+                    console.error("Thumbnail generation error:", e);
+                    return null;
+                }
+            };
+
+            // Process an array of files (from input or drag-and-drop)
+            const processFiles = (files) => {
+                const uploadedFiles = Array.from(files).filter(f => f.type === 'application/pdf');
+                if (uploadedFiles.length === 0) return;
+
+                setGroups(prevGroups => {
+                    const newGroups = [...prevGroups];
+                    const itemsToGenerateThumbnails = [];
+
+                    uploadedFiles.forEach(file => {
+                        const newItem = {
+                            id: Math.random().toString(36).substring(2, 9),
+                            fileObject: file
+                        };
+                        itemsToGenerateThumbnails.push(newItem);
+
+                        // Find existing group by name to create tree structure
+                        const existingGroupIndex = newGroups.findIndex(g => g.name === file.name);
+                        if (existingGroupIndex !== -1) {
+                            newGroups[existingGroupIndex].items.push(newItem);
+                        } else {
+                            newGroups.push({
+                                id: Math.random().toString(36).substring(2, 9),
+                                name: file.name,
+                                isOpen: true,
+                                items: [newItem]
+                            });
+                        }
+                    });
+
+                    // Kick off thumbnail generation
+                    itemsToGenerateThumbnails.forEach(async (item) => {
+                        const thumbDataUrl = await generateThumbnail(item.fileObject);
+                        if (thumbDataUrl) {
+                            setThumbnails(prev => ({ ...prev, [item.id]: thumbDataUrl }));
+                        }
+                    });
+
+                    return newGroups;
+                });
+            };
+
+            // Handle file selection via click
+            const handleFileUpload = (event) => {
+                processFiles(event.target.files);
+                // Clear input
+                if (fileInputRef.current) fileInputRef.current.value = '';
+            };
+
+            // Drag and Drop Handlers
+            const handleDragOver = (e) => {
+                e.preventDefault();
+                setIsDragging(true);
+            };
+
+            const handleDragLeave = (e) => {
+                e.preventDefault();
+                // Ensure we only disable dragging when leaving the main container
+                if (!e.currentTarget.contains(e.relatedTarget)) {
+                    setIsDragging(false);
+                }
+            };
+
+            const handleDrop = (e) => {
+                e.preventDefault();
+                setIsDragging(false);
+                if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+                    processFiles(e.dataTransfer.files);
+                }
+            };
+
+            // Merge and annotate PDFs
+            const mergePdfs = async () => {
+                // Flatten the groups to get the exact linear printing order
+                const flattenedItems = groups.flatMap(group => group.items);
+                
+                if (flattenedItems.length === 0) {
+                    if (previewUrl) URL.revokeObjectURL(previewUrl);
+                    setPreviewUrl(null);
+                    return;
+                }
+
+                setIsMerging(true);
+                try {
+                    const { PDFDocument, rgb, StandardFonts } = window.PDFLib;
+                    const mergedPdf = await PDFDocument.create();
+                    
+                    // Helvetica is safe and standard for basic ascii.
+                    const font = await mergedPdf.embedFont(StandardFonts.Helvetica);
+
+                    for (const item of flattenedItems) {
+                        const arrayBuffer = await item.fileObject.arrayBuffer();
+                        const pdf = await PDFDocument.load(arrayBuffer);
+                        const copiedPages = await mergedPdf.copyPages(pdf, pdf.getPageIndices());
+
+                        copiedPages.forEach((page) => {
+                            // Add Header/Footer if enabled
+                            if (settings.addHeaderFooter) {
+                                const { width, height } = page.getSize();
+                                const text = item.fileObject.name;
+                                const fontSize = Number(settings.fontSize) || 12;
+                                const margin = Number(settings.margin) || 30;
+                                
+                                // Clean text of non-latin characters if using Helvetica to prevent crash
+                                // (A robust production app would embed a custom Unicode font here)
+                                const safeText = text.replace(/[^\x00-\x7F]/g, ""); 
+                                
+                                let textWidth = 0;
+                                try { textWidth = font.widthOfTextAtSize(safeText, fontSize); } catch(e){}
+
+                                let x = margin;
+                                let y = margin;
+
+                                // Y Position
+                                if (settings.position.includes('Top')) {
+                                    y = height - margin - fontSize;
+                                } else {
+                                    y = margin;
+                                }
+
+                                // X Position
+                                if (settings.position.includes('Center')) {
+                                    x = (width / 2) - (textWidth / 2);
+                                } else if (settings.position.includes('Right')) {
+                                    x = width - textWidth - margin;
+                                } else {
+                                    x = margin; // Left
+                                }
+
+                                try {
+                                    page.drawText(safeText, {
+                                        x, y, size: fontSize, font: font, color: rgb(0, 0, 0)
+                                    });
+                                } catch(e) { console.warn("Could not draw text on page", e); }
+                            }
+                            mergedPdf.addPage(page);
+                        });
+
+                        // Add a blank page if duplex printing is enabled and the page count is odd
+                        if (settings.addBlankPageForDuplex && copiedPages.length % 2 !== 0) {
+                            const lastPage = copiedPages[copiedPages.length - 1];
+                            const { width, height } = lastPage ? lastPage.getSize() : { width: 595.28, height: 841.89 };
+                            mergedPdf.addPage([width, height]);
+                        }
+                    }
+
+                    const mergedBytes = await mergedPdf.save();
+                    const blob = new Blob([mergedBytes], { type: 'application/pdf' });
+                    const url = URL.createObjectURL(blob);
+
+                    if (previewUrl) URL.revokeObjectURL(previewUrl); // Cleanup
+                    setPreviewUrl(url);
+
+                } catch (error) {
+                    console.error("Error merging PDFs:", error);
+                    alert("An error occurred while consolidating the PDFs.");
+                } finally {
+                    setIsMerging(false);
+                }
+            };
+
+            // Trigger merge when files or settings change (Debounced)
+            useEffect(() => {
+                const timeoutId = setTimeout(() => {
+                    mergePdfs();
+                }, 600);
+                return () => clearTimeout(timeoutId);
+            }, [groups, settings]);
+
+            // UI Actions
+            const toggleGroupOpen = (groupId) => {
+                setGroups(groups.map(g => g.id === groupId ? { ...g, isOpen: !g.isOpen } : g));
+            };
+
+            const moveGroup = (index, direction) => {
+                if ((direction === -1 && index === 0) || (direction === 1 && index === groups.length - 1)) return;
+                const newGroups = [...groups];
+                const temp = newGroups[index];
+                newGroups[index] = newGroups[index + direction];
+                newGroups[index + direction] = temp;
+                setGroups(newGroups);
+            };
+
+            const removeGroup = (groupId) => {
+                setGroups(groups.filter(g => g.id !== groupId));
+            };
+
+            const removeItem = (groupId, itemId) => {
+                setGroups(groups.map(g => {
+                    if (g.id === groupId) {
+                        return { ...g, items: g.items.filter(i => i.id !== itemId) };
+                    }
+                    return g;
+                }).filter(g => g.items.length > 0)); // Remove group if empty
+            };
+
+            const sortGroupsAlphabetically = () => {
+                const sorted = [...groups].sort((a, b) => a.name.localeCompare(b.name));
+                setGroups(sorted);
+            };
+
+            const handlePrint = () => {
+                if (!previewUrl) return;
+                
+                // Directly printing the iframe contentWindow is blocked by browser sandbox/CORS policies.
+                // Instead, we trigger a download of the Blob URL.
+                const link = document.createElement('a');
+                link.href = previewUrl;
+                link.download = 'Consolidated_Document.pdf';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
+
+            return (
+                <div 
+                    className="flex h-screen bg-white overflow-hidden text-sm relative"
+                    onDragOver={handleDragOver}
+                    onDragLeave={handleDragLeave}
+                    onDrop={handleDrop}
+                >
+                    {/* Drag & Drop Overlay */}
+                    {isDragging && (
+                        <div className="absolute inset-0 z-50 flex items-center justify-center bg-blue-500/90 backdrop-blur-sm border-4 border-white border-dashed m-3 rounded-xl pointer-events-none transition-all">
+                            <div className="text-white flex flex-col items-center">
+                                <div className="scale-[3] mb-8"><Icons.Upload /></div>
+                                <h2 className="text-3xl font-bold">Drop PDF Files Here</h2>
+                                <p className="mt-2 text-blue-100">Files will be added to your consolidation list</p>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* LEFT PANEL - PREVIEW */}
+                    <div className="flex-1 flex flex-col border-r border-gray-200 bg-gray-100 relative">
+                        <div className="h-14 bg-white border-b border-gray-200 flex items-center justify-between px-6 shadow-sm z-10">
+                            <h1 className="text-lg font-semibold text-gray-800 flex items-center gap-2">
+                                <span className="bg-blue-600 text-white p-1 rounded"><Icons.Print /></span>
+                                Smart PDF Consolidator
+                            </h1>
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={handlePrint}
+                                    disabled={!previewUrl || isMerging}
+                                    className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white px-4 py-2 rounded-md font-medium transition-colors"
+                                >
+                                    <Icons.Print /> Download / Print PDF
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="flex-1 relative p-4 flex flex-col">
+                            {isMerging && (
+                                <div className="absolute inset-0 bg-white/70 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-lg m-4">
+                                    <div className="loader mb-4"></div>
+                                    <p className="text-gray-600 font-medium">Consolidating and applying settings...</p>
+                                </div>
+                            )}
+
+                            {!previewUrl && !isMerging && (
+                                <div className="flex-1 flex flex-col items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 rounded-lg bg-gray-50">
+                                    <Icons.Upload />
+                                    <p className="mt-4 text-base">Upload PDFs on the right panel to see preview</p>
+                                </div>
+                            )}
+
+                            {previewUrl && (
+                                <iframe 
+                                    id="pdf-preview-iframe"
+                                    src={previewUrl} 
+                                    className="flex-1 w-full h-full rounded-lg shadow-md border border-gray-200 bg-white"
+                                    title="PDF Preview"
+                                />
+                            )}
+                        </div>
+                    </div>
+
+                    {/* RIGHT PANEL - CONTROLS */}
+                    <div className="w-[420px] flex flex-col bg-white shadow-xl z-10">
+                        
+                        {/* Settings Area (Fixed Top) */}
+                        <div className="p-5 border-b border-gray-100 bg-gray-50">
+                            <label className="flex items-center justify-center w-full bg-white border-2 border-dashed border-blue-300 hover:border-blue-500 hover:bg-blue-50 text-blue-600 rounded-lg p-6 cursor-pointer transition-colors group">
+                                <input 
+                                    type="file" 
+                                    accept=".pdf" 
+                                    multiple 
+                                    onChange={handleFileUpload} 
+                                    className="hidden" 
+                                    ref={fileInputRef}
+                                />
+                                <div className="flex flex-col items-center">
+                                    <div className="bg-blue-100 p-2 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                                        <Icons.Upload />
+                                    </div>
+                                    <span className="font-semibold text-base">Upload PDF Batch</span>
+                                    <span className="text-xs text-gray-400 mt-1">Drag & drop supported via browser</span>
+                                </div>
+                            </label>
+
+                            <div className="mt-6 bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                                <label className="flex items-center font-medium text-gray-700 cursor-pointer">
+                                    <input 
+                                        type="checkbox" 
+                                        className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        checked={settings.addHeaderFooter}
+                                        onChange={(e) => setSettings({...settings, addHeaderFooter: e.target.checked})}
+                                    />
+                                    <Icons.Settings /> <span className="ml-2">Add Filename Header/Footer</span>
+                                </label>
+                                
+                                {settings.addHeaderFooter && (
+                                    <div className="mt-4 grid grid-cols-2 gap-3 text-xs">
+                                        <div className="col-span-2">
+                                            <label className="block text-gray-500 mb-1">Position</label>
+                                            <select 
+                                                className="w-full border border-gray-300 rounded p-1.5 focus:ring-blue-500 focus:border-blue-500"
+                                                value={settings.position}
+                                                onChange={(e) => setSettings({...settings, position: e.target.value})}
+                                            >
+                                                <option>Top-Left</option>
+                                                <option>Top-Center</option>
+                                                <option>Top-Right</option>
+                                                <option>Bottom-Left</option>
+                                                <option>Bottom-Center</option>
+                                                <option>Bottom-Right</option>
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-500 mb-1">Margin (px)</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full border border-gray-300 rounded p-1.5 focus:ring-blue-500"
+                                                value={settings.margin}
+                                                onChange={(e) => setSettings({...settings, margin: e.target.value})}
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-500 mb-1">Font Size (px)</label>
+                                            <input 
+                                                type="number" 
+                                                className="w-full border border-gray-300 rounded p-1.5 focus:ring-blue-500"
+                                                value={settings.fontSize}
+                                                onChange={(e) => setSettings({...settings, fontSize: e.target.value})}
+                                            />
+                                        </div>
+                                    </div>
+                                )}
+                                
+                                <label className="flex items-center font-medium text-gray-700 cursor-pointer mt-4 pt-4 border-t border-gray-100">
+                                    <input 
+                                        type="checkbox" 
+                                        className="mr-3 w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500"
+                                        checked={settings.addBlankPageForDuplex}
+                                        onChange={(e) => setSettings({...settings, addBlankPageForDuplex: e.target.checked})}
+                                    />
+                                    <Icons.FileBlank /> <span className="ml-2">Add blank page for odd-page PDFs (Duplex)</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        {/* File Tree List Area (Scrollable) */}
+                        <div className="flex-1 overflow-y-auto custom-scrollbar p-5">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="font-semibold text-gray-700">Document Tree ({groups.reduce((acc, g) => acc + g.items.length, 0)} files)</h3>
+                                <button 
+                                    onClick={sortGroupsAlphabetically}
+                                    title="Sort Alphabetically"
+                                    className="text-gray-500 hover:text-blue-600 flex items-center gap-1 bg-gray-100 hover:bg-blue-50 px-2 py-1 rounded text-xs transition-colors"
+                                >
+                                    <Icons.Sort /> Sort A-Z
+                                </button>
+                            </div>
+
+                            {groups.length === 0 ? (
+                                <div className="text-center text-gray-400 mt-10 text-xs">
+                                    No PDFs uploaded yet.
+                                </div>
+                            ) : (
+                                <div className="space-y-3">
+                                    {groups.map((group, groupIndex) => (
+                                        <div key={group.id} className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+                                            {/* Group Header */}
+                                            <div className="flex items-center justify-between bg-gray-50 p-2 border-b border-gray-200">
+                                                <div 
+                                                    className="flex items-center gap-2 cursor-pointer flex-1 overflow-hidden"
+                                                    onClick={() => toggleGroupOpen(group.id)}
+                                                >
+                                                    <span className="text-gray-400">
+                                                        {group.isOpen ? <Icons.ChevronDown /> : <Icons.ChevronRight />}
+                                                    </span>
+                                                    <span className="font-medium text-gray-800 truncate" title={group.name}>{group.name}</span>
+                                                    <span className="text-xs bg-gray-200 text-gray-600 px-1.5 rounded-full">{group.items.length}</span>
+                                                </div>
+                                                
+                                                <div className="flex items-center gap-1 ml-2">
+                                                    <button onClick={() => moveGroup(groupIndex, -1)} disabled={groupIndex === 0} className="p-1 text-gray-400 hover:text-gray-800 disabled:opacity-30"><Icons.Up /></button>
+                                                    <button onClick={() => moveGroup(groupIndex, 1)} disabled={groupIndex === groups.length - 1} className="p-1 text-gray-400 hover:text-gray-800 disabled:opacity-30"><Icons.Down /></button>
+                                                    <button onClick={() => removeGroup(group.id)} className="p-1 text-red-400 hover:text-red-600 ml-1"><Icons.Trash /></button>
+                                                </div>
+                                            </div>
+
+                                            {/* Group Items (Instances) */}
+                                            {group.isOpen && (
+                                                <div className="divide-y divide-gray-100 bg-white">
+                                                    {group.items.map((item, itemIndex) => (
+                                                        <div key={item.id} className="flex items-center p-2 pl-8 hover:bg-blue-50/50 transition-colors">
+                                                            <div className="w-8 h-10 bg-gray-100 border border-gray-200 rounded flex-shrink-0 flex items-center justify-center overflow-hidden mr-3">
+                                                                {thumbnails[item.id] ? (
+                                                                    <img src={thumbnails[item.id]} alt="thumb" className="w-full h-full object-cover" />
+                                                                ) : (
+                                                                    <span className="text-[8px] text-gray-400">PDF</span>
+                                                                )}
+                                                            </div>
+                                                            <div className="flex-1 text-xs text-gray-500 truncate">
+                                                                Instance {itemIndex + 1}
+                                                            </div>
+                                                            <button 
+                                                                onClick={() => removeItem(group.id, item.id)}
+                                                                className="p-1.5 text-gray-300 hover:text-red-500"
+                                                                title="Remove this instance"
+                                                            >
+                                                                <Icons.Trash />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
