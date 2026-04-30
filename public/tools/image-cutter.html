@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Image Slicer with Padding</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+
+    <style>
+        :root {
+            --primary: #4a90e2;
+            --line-color: rgba(255, 0, 80, 0.8);
+            --line-hover: #ff0000;
+            --preview-color: rgba(100, 255, 100, 0.3);
+            --preview-border: rgba(50, 200, 50, 0.8);
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f0f2f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            margin: 0;
+        }
+
+        /* Controls UI */
+        .controls {
+            background: white;
+            padding: 15px 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.08);
+            display: flex;
+            gap: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+            z-index: 20;
+            position: sticky;
+            top: 20px;
+        }
+
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .control-group label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: #555;
+        }
+
+        input[type="number"] {
+            width: 60px;
+            padding: 6px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.1s, background 0.2s;
+            height: 40px;
+            align-self: flex-end;
+        }
+
+        button:hover { background-color: #357abd; transform: translateY(-1px); }
+        button:active { transform: translateY(1px); }
+
+        /* Workspace Area */
+        #workspace {
+            position: relative;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            user-select: none;
+            line-height: 0;
+            display: none; /* Hidden until image loads */
+            border: 4px solid white;
+        }
+
+        #sourceImage {
+            max-width: 85vw;
+            max-height: 75vh;
+            display: block;
+            pointer-events: none;
+        }
+
+        /* The Canvas Overlay for Green Preview Boxes */
+        #previewCanvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to lines */
+            z-index: 5;
+        }
+
+        /* Draggable Grid Lines */
+        #linesContainer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            pointer-events: none; /* Allow clicking on the canvas/image where there are no lines */
+        }
+
+        .grid-line {
+            position: absolute;
+            background-color: var(--line-color);
+            pointer-events: auto; /* Re-enable clicks specifically for lines */
+            touch-action: none;
+        }
+
+        .grid-line:hover, .grid-line.active {
+            background-color: var(--line-hover);
+            box-shadow: 0 0 8px rgba(255, 255, 255, 1);
+        }
+
+        .v-line {
+            width: 4px;
+            height: 100%;
+            top: 0;
+            cursor: col-resize;
+            transform: translateX(-50%);
+            margin-left: -1px; /* Visual tweak */
+        }
+
+        .h-line {
+            height: 4px;
+            width: 100%;
+            left: 0;
+            cursor: row-resize;
+            transform: translateY(-50%);
+            margin-top: -1px;
+        }
+
+        /* Loading Overlay */
+        #loading {
+            display: none;
+            position: fixed;
+            top:0; left:0; right:0; bottom:0;
+            background: rgba(255,255,255,0.9);
+            z-index: 100;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5rem;
+            color: #333;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="controls">
+        <div class="control-group">
+            <label>Upload Image</label>
+            <input type="file" id="imageInput" accept="image/*">
+        </div>
+        
+        <div class="control-group">
+            <label>Rows</label>
+            <input type="number" id="rowsInput" value="4" min="1" max="20">
+        </div>
+        
+        <div class="control-group">
+            <label>Columns</label>
+            <input type="number" id="colsInput" value="4" min="1" max="20">
+        </div>
+
+        <div class="control-group">
+            <label>Padding (px)</label>
+            <input type="number" id="paddingInput" value="0" min="0" step="1">
+        </div>
+
+        <button onclick="initGrid()">Reset Grid</button>
+        <button onclick="processAndDownload()">Download ZIP</button>
+    </div>
+
+    <div id="workspace">
+        <img id="sourceImage" src="" alt="">
+        <canvas id="previewCanvas"></canvas>
+        <div id="linesContainer"></div>
+    </div>
+
+    <div id="loading">
+        <div>Processing Slices...</div>
+        <div style="font-size: 1rem; margin-top:10px; color:#666;">Please wait</div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const imageInput = document.getElementById('imageInput');
+        const sourceImage = document.getElementById('sourceImage');
+        const workspace = document.getElementById('workspace');
+        const linesContainer = document.getElementById('linesContainer');
+        const previewCanvas = document.getElementById('previewCanvas');
+        const ctxPreview = previewCanvas.getContext('2d');
+
+        // Inputs
+        const rowsInput = document.getElementById('rowsInput');
+        const colsInput = document.getElementById('colsInput');
+        const paddingInput = document.getElementById('paddingInput');
+        
+        // State
+        let verticalPositions = [];   // % (0 to 100)
+        let horizontalPositions = []; // % (0 to 100)
+        let isDragging = null;
+
+        // --- 1. Initialization ---
+
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                sourceImage.src = event.target.result;
+                sourceImage.onload = () => {
+                    workspace.style.display = 'block';
+                    initGrid();
+                };
+            };
+            reader.readAsDataURL(file);
+        });
+
+        // Add listeners for live updates without resetting
+        paddingInput.addEventListener('input', drawPreview);
+
+        function initGrid() {
+            if (!sourceImage.src) return;
+
+            linesContainer.innerHTML = '';
+            verticalPositions = [];
+            horizontalPositions = [];
+
+            const rows = parseInt(rowsInput.value) || 1;
+            const cols = parseInt(colsInput.value) || 1;
+
+            // Create Vertical Lines
+            for (let i = 1; i < cols; i++) {
+                const pct = (i / cols) * 100;
+                createLine('v', pct, i - 1);
+                verticalPositions.push(pct);
+            }
+
+            // Create Horizontal Lines
+            for (let i = 1; i < rows; i++) {
+                const pct = (i / rows) * 100;
+                createLine('h', pct, i - 1);
+                horizontalPositions.push(pct);
+            }
+
+            drawPreview();
+        }
+
+        function createLine(type, pct, index) {
+            const line = document.createElement('div');
+            line.classList.add('grid-line');
+            line.classList.add(type === 'v' ? 'v-line' : 'h-line');
+            
+            line.dataset.type = type;
+            line.dataset.index = index;
+
+            if (type === 'v') line.style.left = pct + '%';
+            else line.style.top = pct + '%';
+
+            line.addEventListener('mousedown', startDrag);
+            linesContainer.appendChild(line);
+        }
+
+        // --- 2. Visualization (The Green Boxes) ---
+
+        function drawPreview() {
+            if (!sourceImage.src) return;
+
+            // Match canvas size to displayed image size
+            const rect = sourceImage.getBoundingClientRect();
+            previewCanvas.width = rect.width;
+            previewCanvas.height = rect.height;
+
+            ctxPreview.clearRect(0, 0, previewCanvas.width, previewCanvas.height);
+            
+            // Sort positions
+            const sortedV = [...verticalPositions].sort((a, b) => a - b);
+            const sortedH = [...horizontalPositions].sort((a, b) => a - b);
+            const xCuts = [0, ...sortedV, 100];
+            const yCuts = [0, ...sortedH, 100];
+
+            const padding = parseInt(paddingInput.value) || 0;
+
+            // Set Styles
+            ctxPreview.strokeStyle = "rgba(50, 255, 50, 0.8)";
+            ctxPreview.fillStyle = "rgba(100, 255, 100, 0.2)";
+            ctxPreview.lineWidth = 1;
+
+            // Loop and draw rects
+            for (let r = 0; r < yCuts.length - 1; r++) {
+                for (let c = 0; c < xCuts.length - 1; c++) {
+                    
+                    // Convert % to Screen Pixels
+                    const x1 = (xCuts[c] / 100) * previewCanvas.width;
+                    const x2 = (xCuts[c+1] / 100) * previewCanvas.width;
+                    const y1 = (yCuts[r] / 100) * previewCanvas.height;
+                    const y2 = (yCuts[r+1] / 100) * previewCanvas.height;
+
+                    // Apply padding
+                    let drawX = x1 + padding;
+                    let drawY = y1 + padding;
+                    let drawW = (x2 - x1) - (padding * 2);
+                    let drawH = (y2 - y1) - (padding * 2);
+
+                    // Skip if padding makes it vanish
+                    if (drawW <= 0 || drawH <= 0) continue;
+
+                    ctxPreview.fillRect(drawX, drawY, drawW, drawH);
+                    ctxPreview.strokeRect(drawX, drawY, drawW, drawH);
+                }
+            }
+        }
+
+        // --- 3. Drag Logic ---
+
+        function startDrag(e) {
+            isDragging = e.target;
+            isDragging.classList.add('active');
+            document.addEventListener('mousemove', onDrag);
+            document.addEventListener('mouseup', stopDrag);
+        }
+
+        function onDrag(e) {
+            if (!isDragging) return;
+
+            const rect = workspace.getBoundingClientRect();
+            const type = isDragging.dataset.type;
+            const index = parseInt(isDragging.dataset.index);
+
+            // Calculate percentage
+            let clientCoord = (type === 'v') ? e.clientX : e.clientY;
+            let startCoord = (type === 'v') ? rect.left : rect.top;
+            let size = (type === 'v') ? rect.width : rect.height;
+
+            let pct = ((clientCoord - startCoord) / size) * 100;
+            pct = Math.max(0, Math.min(100, pct));
+
+            // Update DOM
+            if (type === 'v') {
+                isDragging.style.left = pct + '%';
+                verticalPositions[index] = pct;
+            } else {
+                isDragging.style.top = pct + '%';
+                horizontalPositions[index] = pct;
+            }
+
+            // Update Visuals
+            drawPreview();
+        }
+
+        function stopDrag() {
+            if (isDragging) {
+                isDragging.classList.remove('active');
+                isDragging = null;
+            }
+            document.removeEventListener('mousemove', onDrag);
+            document.removeEventListener('mouseup', stopDrag);
+        }
+
+        // --- 4. Export Logic ---
+
+        async function processAndDownload() {
+            if (!sourceImage.src) {
+                alert("Please upload an image first.");
+                return;
+            }
+
+            document.getElementById('loading').style.display = 'flex';
+            await new Promise(r => setTimeout(r, 50)); // UI Breath
+
+            const zip = new JSZip();
+            const imgW = sourceImage.naturalWidth;
+            const imgH = sourceImage.naturalHeight;
+            const padding = parseInt(paddingInput.value) || 0;
+
+            const sortedV = [...verticalPositions].sort((a, b) => a - b);
+            const sortedH = [...horizontalPositions].sort((a, b) => a - b);
+            
+            const xCuts = [0, ...sortedV, 100];
+            const yCuts = [0, ...sortedH, 100];
+
+            let count = 0;
+
+            for (let r = 0; r < yCuts.length - 1; r++) {
+                for (let c = 0; c < xCuts.length - 1; c++) {
+                    
+                    // 1. Get raw cell coordinates (Natural Pixels)
+                    const xStartRaw = Math.floor((xCuts[c] / 100) * imgW);
+                    const xEndRaw = Math.floor((xCuts[c+1] / 100) * imgW);
+                    const yStartRaw = Math.floor((yCuts[r] / 100) * imgH);
+                    const yEndRaw = Math.floor((yCuts[r+1] / 100) * imgH);
+
+                    // 2. Apply Padding (Natural Pixels)
+                    const xStart = xStartRaw + padding;
+                    const yStart = yStartRaw + padding;
+                    const width = (xEndRaw - xStartRaw) - (padding * 2);
+                    const height = (yEndRaw - yStartRaw) - (padding * 2);
+
+                    if (width <= 0 || height <= 0) continue;
+
+                    // 3. Draw to temporary canvas
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+
+                    ctx.drawImage(
+                        sourceImage, 
+                        xStart, yStart, width, height, 
+                        0, 0, width, height
+                    );
+
+                    // 4. Add to Zip
+                    const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+                    zip.file(`slice_${r+1}_${c+1}.png`, blob);
+                    count++;
+                }
+            }
+
+            zip.generateAsync({type:"blob"}).then(function(content) {
+                saveAs(content, "sliced_images_padded.zip");
+                document.getElementById('loading').style.display = 'none';
+            });
+        }
+    </script>
+</body>
+</html>

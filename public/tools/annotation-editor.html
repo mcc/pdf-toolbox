@@ -181,6 +181,9 @@
                         file:bg-blue-50 file:text-blue-700
                         hover:file:bg-blue-100 cursor-pointer rounded-md border border-gray-300 p-2">
                 </div>
+                <button id="convertLegacyJsonBtn" class="w-full bg-amber-600 text-white py-2 px-4 rounded-md hover:bg-amber-700 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2 shadow-md">
+                    Convert Legacy box_2d JSON
+                </button>
             </div>
 
             <hr class="border-t border-gray-200">
@@ -196,8 +199,8 @@
                 </div>
                 <div>
                     <label for="geminiPrompt" class="block text-sm font-medium text-gray-700 mb-1">Gemini AI Prompt</label>
-                    <textarea id="geminiPrompt" rows="6" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">Return bounding boxes as a JSON array with labels. Never return masks or code fencing. Limit to 100 objects.If an object is present multiple times, name them with sequence. Detect the 2d bounding boxes of the checkbox, you need to deduce the field name about the checkbox, use “label” for the field name, with following example per element
-{"box_2d": [672, 702, 684, 717], "type": "checkbox", "label": "Whooping cough"}</textarea>
+                    <textarea id="geminiPrompt" rows="6" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm sm:text-sm p-2 border">Return bounding boxes as a JSON array with labels. Never return masks or code fencing. Limit to 100 objects. If an object is present multiple times, name them with sequence. Detect the 2d bounding boxes of the checkbox, you need to deduce the field name about the checkbox, use "label" for the field name, with following example per element
+{"bbox_2d": [702, 672, 717, 684], "type": "checkbox", "label": "Whooping cough"}</textarea>
                 </div>
                 <button id="generateAnnotationsBtn" class="w-full bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 shadow-md flex items-center justify-center gap-2">
                     <i class="fas fa-magic"></i>
@@ -342,6 +345,7 @@
         const toastContainer = document.getElementById('toastContainer');
         const addAnnotationBtn = document.getElementById('addAnnotationBtn');
         const downloadJsonBtn = document.getElementById('downloadJsonBtn');
+        const convertLegacyJsonBtn = document.getElementById('convertLegacyJsonBtn');
         const drawingModeMessage = document.getElementById('drawingModeMessage');
         const jsonSourceWidthInput = document.getElementById('jsonSourceWidth');
         const jsonSourceHeightInput = document.getElementById('jsonSourceHeight');
@@ -370,6 +374,7 @@
         // Global variables for application state
         let image = new Image();
         let annotations = [];
+        let pendingLegacyAnnotations = [];
         let currentImageWidth = 0;
         let currentImageHeight = 0;
         let canvasWidth = 0;
@@ -434,20 +439,37 @@
          * Converts JSON coordinates to canvas pixel coordinates.
          */
         function toCanvasCoords(jsonBox) {
-            const [y1, x1, y2, x2] = jsonBox;
+            const [x1, y1, x2, y2] = jsonBox;
             const scaleX = canvasWidth / jsonSourceWidth;
             const scaleY = canvasHeight / jsonSourceHeight;
-            return [y1 * scaleY, x1 * scaleX, y2 * scaleY, x2 * scaleX];
+            return [x1 * scaleX, y1 * scaleY, x2 * scaleX, y2 * scaleY];
         }
 
         /**
          * Converts canvas pixel coordinates to JSON coordinates.
          */
         function toJsonCoords(canvasBox) {
-            const [canvasY1, canvasX1, canvasY2, canvasX2] = canvasBox;
+            const [canvasX1, canvasY1, canvasX2, canvasY2] = canvasBox;
             const scaleX = jsonSourceWidth / canvasWidth;
             const scaleY = jsonSourceHeight / canvasHeight;
-            return [Math.round(canvasY1 * scaleY), Math.round(canvasX1 * scaleX), Math.round(canvasY2 * scaleY), Math.round(canvasX2 * scaleX)];
+            return [Math.round(canvasX1 * scaleX), Math.round(canvasY1 * scaleY), Math.round(canvasX2 * scaleX), Math.round(canvasY2 * scaleY)];
+        }
+
+        function isValidBbox2d(value) {
+            return Array.isArray(value) && value.length === 4 && value.every((coord) => Number.isFinite(coord));
+        }
+
+        function normalizeBbox2d(bbox) {
+            const [x1, y1, x2, y2] = bbox.map(Number);
+            return [Math.min(x1, x2), Math.min(y1, y2), Math.max(x1, x2), Math.max(y1, y2)];
+        }
+
+        function normalizeAnnotationForEditor(item) {
+            return {
+                label: String(item.label ?? 'Unlabeled'),
+                type: String(item.type ?? 'free_text'),
+                bbox_2d: normalizeBbox2d(item.bbox_2d)
+            };
         }
 
         /**
@@ -475,7 +497,7 @@
             });
 
             if (isDrawingNewAnnotation && newAnnotationPreview) {
-                const [y1, x1, y2, x2] = newAnnotationPreview;
+                const [x1, y1, x2, y2] = newAnnotationPreview;
                 ctx.strokeStyle = '#4CAF50';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(x1, y1, x2 - x1, y2 - y1);
@@ -497,7 +519,7 @@
          * Draws a single annotation box.
          */
         function drawAnnotation(annotation, index, isSelected) {
-            const [y1, x1, y2, x2] = toCanvasCoords(annotation.box_2d);
+            const [x1, y1, x2, y2] = toCanvasCoords(annotation.bbox_2d);
             const width = x2 - x1;
             const height = y2 - y1;
 
@@ -539,7 +561,7 @@
         function isOverMoveIcon(mouseX, mouseY) {
             if (selectedAnnotationIndices.length !== 1) return false;
             const annotation = annotations[selectedAnnotationIndices[0]];
-            const [y1, x1, y2, x2] = toCanvasCoords(annotation.box_2d);
+            const [x1, y1, x2, y2] = toCanvasCoords(annotation.bbox_2d);
             const centerX = x1 + (x2 - x1) / 2;
             const centerY = y1 + (y2 - y1) / 2;
             const halfIconSize = ICON_SIZE / 2;
@@ -553,7 +575,7 @@
         function isOverResizeIcon(mouseX, mouseY) {
             if (selectedAnnotationIndices.length !== 1) return null;
             const annotation = annotations[selectedAnnotationIndices[0]];
-            const [, , y2, x2] = toCanvasCoords(annotation.box_2d);
+            const [, , x2, y2] = toCanvasCoords(annotation.bbox_2d);
             const halfIconSize = ICON_SIZE / 2;
             const resizeX = x2 - halfIconSize;
             const resizeY = y2 - halfIconSize;
@@ -583,7 +605,7 @@
                 listItem.innerHTML = `
                     <p class="font-semibold text-gray-800">${annotation.label}</p>
                     <p class="text-sm text-gray-600">Type: ${annotation.type}</p>
-                    <p class="text-xs text-gray-500">Box: [${annotation.box_2d.map(c => Math.round(c)).join(', ')}]</p>
+                    <p class="text-xs text-gray-500">bbox_2d: [${annotation.bbox_2d.map(c => Math.round(c)).join(', ')}]</p>
                 `;
                 annotationList.appendChild(listItem);
             });
@@ -597,10 +619,10 @@
                 const annotation = annotations[selectedAnnotationIndices[0]];
                 editLabel.value = annotation.label;
                 editType.value = annotation.type;
-                editY1.value = annotation.box_2d[0];
-                editX1.value = annotation.box_2d[1];
-                editY2.value = annotation.box_2d[2];
-                editX2.value = annotation.box_2d[3];
+                editX1.value = annotation.bbox_2d[0];
+                editY1.value = annotation.bbox_2d[1];
+                editX2.value = annotation.bbox_2d[2];
+                editY2.value = annotation.bbox_2d[3];
                 
                 annotationEditSection.classList.remove('hidden');
                 singleEditForm.classList.remove('hidden');
@@ -722,17 +744,29 @@
                 reader.onload = function(e) {
                     try {
                         const parsedJson = JSON.parse(e.target.result);
-                        if (Array.isArray(parsedJson) && parsedJson.every(a => a.box_2d && Array.isArray(a.box_2d) && a.box_2d.length === 4)) {
-                            annotations = parsedJson;
+                        if (!Array.isArray(parsedJson)) {
+                            throw new Error("Invalid JSON format. Root element must be an array.");
+                        }
+
+                        const allCanonical = parsedJson.every((a) => isValidBbox2d(a?.bbox_2d));
+                        const allLegacy = parsedJson.every((a) => isValidBbox2d(a?.box_2d));
+
+                        if (allCanonical) {
+                            annotations = parsedJson.map(normalizeAnnotationForEditor);
+                            pendingLegacyAnnotations = [];
                             recenterCanvas();
                             updateAnnotationList();
                             showToast("Annotations loaded successfully!", 'success');
+                        } else if (allLegacy) {
+                            pendingLegacyAnnotations = parsedJson;
+                            showToast("Legacy box_2d detected. Click 'Convert Legacy box_2d JSON' to migrate.", 'info', 5000);
                         } else {
-                            throw new Error("Invalid JSON format.");
+                            throw new Error("Invalid JSON format. Expected bbox_2d: [x_min, y_min, x_max, y_max].");
                         }
                     } catch (error) {
                         showToast("Error parsing JSON file: " + error.message, 'error');
                         annotations = [];
+                        pendingLegacyAnnotations = [];
                         drawAnnotations();
                         updateAnnotationList();
                     } finally {
@@ -741,6 +775,26 @@
                 };
                 reader.readAsText(file);
             }
+        });
+
+        convertLegacyJsonBtn.addEventListener('click', () => {
+            if (!Array.isArray(pendingLegacyAnnotations) || pendingLegacyAnnotations.length === 0) {
+                showToast("No legacy box_2d payload pending conversion.", 'error');
+                return;
+            }
+
+            annotations = pendingLegacyAnnotations.map((item) => {
+                const [y1, x1, y2, x2] = item.box_2d.map(Number);
+                return {
+                    label: String(item.label ?? 'Unlabeled'),
+                    type: String(item.type ?? 'free_text'),
+                    bbox_2d: normalizeBbox2d([x1, y1, x2, y2])
+                };
+            });
+            pendingLegacyAnnotations = [];
+            recenterCanvas();
+            updateAnnotationList();
+            showToast("Legacy box_2d converted to bbox_2d.", 'success');
         });
 
         saveApiKeyBtn.addEventListener('click', () => {
@@ -808,8 +862,11 @@
                 
                 const jsonString = match[0];
                 const parsedAnnotations = JSON.parse(jsonString);
-                
-                annotations = parsedAnnotations;
+                if (!Array.isArray(parsedAnnotations) || !parsedAnnotations.every((a) => isValidBbox2d(a?.bbox_2d))) {
+                    throw new Error("AI response must use bbox_2d: [x_min, y_min, x_max, y_max].");
+                }
+
+                annotations = parsedAnnotations.map(normalizeAnnotationForEditor);
                 
                 // AUTOMATED CONVERSION:
                 // 1. Set coordinate system to 1000x1000, as requested in the prompt.
@@ -867,12 +924,12 @@
             jsonSourceWidthInput.value = currentImageWidth;
             jsonSourceHeightInput.value = currentImageHeight;
             annotations.forEach(annotation => {
-                const [y1, x1, y2, x2] = annotation.box_2d;
+                const [x1, y1, x2, y2] = annotation.bbox_2d;
                 const normX1 = x1 / oldJsonSourceWidth;
                 const normY1 = y1 / oldJsonSourceHeight;
                 const normX2 = x2 / oldJsonSourceWidth;
                 const normY2 = y2 / oldJsonSourceHeight;
-                annotation.box_2d = [Math.round(normY1 * currentImageHeight), Math.round(normX1 * currentImageWidth), Math.round(normY2 * currentImageHeight), Math.round(normX2 * currentImageWidth)];
+                annotation.bbox_2d = [Math.round(normX1 * currentImageWidth), Math.round(normY1 * currentImageHeight), Math.round(normX2 * currentImageWidth), Math.round(normY2 * currentImageHeight)];
             });
             drawAnnotations();
             updateAnnotationList();
@@ -942,14 +999,14 @@
             }
             selectedAnnotationIndices.forEach(index => {
                 const annotation = annotations[index];
-                const [y1, x1, y2, x2] = annotation.box_2d;
+                const [x1, y1, x2, y2] = annotation.bbox_2d;
                 const centerX = x1 + (x2 - x1) / 2;
                 const centerY = y1 + (y2 - y1) / 2;
-                annotation.box_2d = [
-                    Math.round(centerY - newHeight / 2),
+                annotation.bbox_2d = [
                     Math.round(centerX - newWidth / 2),
-                    Math.round(centerY + newHeight / 2),
-                    Math.round(centerX + newWidth / 2)
+                    Math.round(centerY - newHeight / 2),
+                    Math.round(centerX + newWidth / 2),
+                    Math.round(centerY + newHeight / 2)
                 ];
             });
             drawAnnotations();
@@ -971,7 +1028,7 @@
             if (isDrawingNewAnnotation) {
                 startDrawX = worldMouseX;
                 startDrawY = worldMouseY;
-                newAnnotationPreview = [startDrawY, startDrawX, startDrawY, startDrawX];
+                newAnnotationPreview = [startDrawX, startDrawY, startDrawX, startDrawY];
                 return;
             }
 
@@ -990,7 +1047,7 @@
             
             let clickedIndex = -1;
             for (let i = annotations.length - 1; i >= 0; i--) {
-                const [y1, x1, y2, x2] = toCanvasCoords(annotations[i].box_2d);
+                const [x1, y1, x2, y2] = toCanvasCoords(annotations[i].bbox_2d);
                 if (worldMouseX >= x1 && worldMouseX <= x2 && worldMouseY >= y1 && worldMouseY <= y2) {
                     clickedIndex = i;
                     break;
@@ -1044,17 +1101,17 @@
                 const annotation = annotations[selectedAnnotationIndices[0]];
                 const deltaJsonX = deltaWorldX * (jsonSourceWidth / canvasWidth);
                 const deltaJsonY = deltaWorldY * (jsonSourceHeight / canvasHeight);
-                annotation.box_2d = [annotation.box_2d[0] + deltaJsonY, annotation.box_2d[1] + deltaJsonX, annotation.box_2d[2] + deltaJsonY, annotation.box_2d[3] + deltaJsonX];
+                annotation.bbox_2d = [annotation.bbox_2d[0] + deltaJsonX, annotation.bbox_2d[1] + deltaJsonY, annotation.bbox_2d[2] + deltaJsonX, annotation.bbox_2d[3] + deltaJsonY];
                 populateEditForm();
                 drawAnnotations();
             } else if (isResizingAnnotation && selectedAnnotationIndices.length === 1) {
                 const annotation = annotations[selectedAnnotationIndices[0]];
                 const deltaJsonX = deltaWorldX * (jsonSourceWidth / canvasWidth);
                 const deltaJsonY = deltaWorldY * (jsonSourceHeight / canvasHeight);
-                annotation.box_2d[2] += deltaJsonY;
-                annotation.box_2d[3] += deltaJsonX;
-                if (annotation.box_2d[2] < annotation.box_2d[0]) annotation.box_2d[2] = annotation.box_2d[0] + 1;
-                if (annotation.box_2d[3] < annotation.box_2d[1]) annotation.box_2d[3] = annotation.box_2d[1] + 1;
+                annotation.bbox_2d[2] += deltaJsonX;
+                annotation.bbox_2d[3] += deltaJsonY;
+                if (annotation.bbox_2d[2] < annotation.bbox_2d[0]) annotation.bbox_2d[2] = annotation.bbox_2d[0] + 1;
+                if (annotation.bbox_2d[3] < annotation.bbox_2d[1]) annotation.bbox_2d[3] = annotation.bbox_2d[1] + 1;
                 populateEditForm();
                 drawAnnotations();
             } else if (isDraggingCanvas) {
@@ -1077,7 +1134,7 @@
                     selectedAnnotationIndices = [];
                 }
                 annotations.forEach((ann, index) => {
-                    const [annY1, annX1, annY2, annX2] = toCanvasCoords(ann.box_2d);
+                    const [annX1, annY1, annX2, annY2] = toCanvasCoords(ann.bbox_2d);
                     if (annX1 < selX2 && annX2 > selX1 && annY1 < selY2 && annY2 > selY1) {
                         if (!selectedAnnotationIndices.includes(index)) {
                             selectedAnnotationIndices.push(index);
@@ -1090,14 +1147,14 @@
                 updateAnnotationList();
                 drawAnnotations();
             } else if (isDrawingNewAnnotation && newAnnotationPreview) {
-                const [y1, x1, y2, x2] = newAnnotationPreview;
+                const [x1, y1, x2, y2] = newAnnotationPreview;
                 const finalX1 = Math.min(x1, x2);
                 const finalY1 = Math.min(y1, y2);
                 const finalX2 = Math.max(x1, x2);
                 const finalY2 = Math.max(y1, y2);
                 if (Math.abs(finalX2 - finalX1) > 5 && Math.abs(finalY2 - finalY1) > 5) {
                     annotations.push({
-                        box_2d: toJsonCoords([finalY1, finalX1, finalY2, finalX2]),
+                        bbox_2d: toJsonCoords([finalX1, finalY1, finalX2, finalY2]),
                         label: "New Annotation",
                         type: "free_text"
                     });
@@ -1154,7 +1211,7 @@
                 if (event.key === 'ArrowRight') dx = 1;
                 selectedAnnotationIndices.forEach(index => {
                     const ann = annotations[index];
-                    ann.box_2d = [ann.box_2d[0] + dy, ann.box_2d[1] + dx, ann.box_2d[2] + dy, ann.box_2d[3] + dx];
+                    ann.bbox_2d = [ann.bbox_2d[0] + dx, ann.bbox_2d[1] + dy, ann.bbox_2d[2] + dx, ann.bbox_2d[3] + dy];
                 });
                 drawAnnotations();
                 updateAnnotationList();
@@ -1241,11 +1298,11 @@
                     showToast("Please fill all fields with valid values.", 'error');
                     return;
                 }
-                if (updatedY1 >= updatedY2 || updatedX1 >= updatedX2) {
-                    showToast("Y1 must be < Y2 and X1 must be < X2.", 'error');
+                if (updatedX1 >= updatedX2 || updatedY1 >= updatedY2) {
+                    showToast("X1 must be < X2 and Y1 must be < Y2.", 'error');
                     return;
                 }
-                annotations[index] = { label: updatedLabel, type: updatedType, box_2d: [updatedY1, updatedX1, updatedY2, updatedX2] };
+                annotations[index] = { label: updatedLabel, type: updatedType, bbox_2d: [updatedX1, updatedY1, updatedX2, updatedY2] };
                 drawAnnotations();
                 updateAnnotationList();
                 showToast("Annotation updated!", 'success');
