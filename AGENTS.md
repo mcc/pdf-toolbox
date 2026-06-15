@@ -20,8 +20,8 @@
 - Deploy via Cloudflare Pages connected to this repo.
 
 ## Automated workflow
-- `.github/workflows/main.yml` runs daily (and on manual dispatch) to fetch JSON from `https://www.1823.gov.hk/common/ical/en.json` and auto-commit `data.json` at repo root via `.github/scripts/update_json.py`.
-- `data.json` may not exist locally; it is created/updated by the Action.
+- `.github/workflows/main.yml` runs daily (and on manual dispatch) to fetch `https://www.1823.gov.hk/common/ical/tc.json` and merge the events into `public/tools/js/holiday.js` via `.github/scripts/update_holiday.py`.
+- The script merges by `uid` (so historical events are preserved) and only writes the file when something actually changed. When a change is published, the workflow also bumps the `?YYYYMMDD` cache-bust on the `holiday.js` `<script>` tag in `public/tools/other-working-days.html` so browsers re-fetch the new file.
 
 ## Tech notes
 - Most tools are vanilla HTML/CSS/JS.
