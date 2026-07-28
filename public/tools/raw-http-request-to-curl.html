@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HTTP Request Converter</title>
+    <style>
+        body {
+            font-family: system-ui, -apple-system, sans-serif;
+            background-color: #f4f4f9;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 { font-size: 1.5rem; margin-bottom: 1rem; }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+        @media (max-width: 768px) {
+            .grid { grid-template-columns: 1fr; }
+        }
+        textarea {
+            width: 100%;
+            height: 300px;
+            padding: 10px;
+            font-family: monospace;
+            font-size: 14px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+            box-sizing: border-box;
+        }
+        .controls {
+            margin: 15px 0;
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #0066cc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        button:hover { background-color: #0052a3; }
+        select {
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+        }
+        .error { color: #cc0000; font-weight: bold; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>Raw HTTP to Fetch / cURL Converter</h1>
+
+    <div class="grid">
+        <div>
+            <label for="rawInput"><strong>Raw HTTP Request:</strong></label>
+            <textarea id="rawInput" spellcheck="false">POST https://api.example.com/v1/auth/register HTTP/1.1
+Host: api.example.com
+User-Agent: Mozilla/5.0
+Accept: application/json
+Content-Type: application/json
+Connection: close
+
+{"token":"example-token","password":"securePassword123"}</textarea>
+        </div>
+        <div>
+            <label for="output"><strong>Generated Code:</strong></label>
+            <textarea id="output" readonly spellcheck="false"></textarea>
+        </div>
+    </div>
+
+    <div class="controls">
+        <select id="outputType">
+            <option value="fetch">Fetch API</option>
+            <option value="curl">cURL Command</option>
+        </select>
+        <button onclick="convertRequest()">Convert</button>
+        <span id="errorMsg" class="error"></span>
+    </div>
+
+    <script>
+        function parseRawRequest(rawText) {
+            // Split headers and body based on double newline
+            const parts = rawText.split(/\r?\n\r?\n/);
+            const headerPart = parts[0];
+            const body = parts.length > 1 ? parts.slice(1).join('\n\n') : '';
+
+            const lines = headerPart.split(/\r?\n/);
+            if (lines.length === 0) throw new Error("Empty request");
+
+            // Parse request line (e.g., POST https://example.com HTTP/1.1)
+            const requestLine = lines[0].trim().split(/\s+/);
+            if (requestLine.length < 2) throw new Error("Invalid request line");
+            
+            const method = requestLine[0];
+            let url = requestLine[1];
+
+            // Parse headers
+            const headers = {};
+            for (let i = 1; i < lines.length; i++) {
+                const line = lines[i];
+                const colonIdx = line.indexOf(':');
+                if (colonIdx > 0) {
+                    const key = line.substring(0, colonIdx).trim();
+                    const value = line.substring(colonIdx + 1).trim();
+                    headers[key] = value;
+                }
+            }
+
+            // Fix relative URLs if Host header is present
+            if (!url.startsWith('http')) {
+                const host = headers['Host'] || headers['host'];
+                if (host) {
+                    url = 'https://' + host + (url.startsWith('/') ? url : '/' + url);
+                }
+            }
+
+            return { method, url, headers, body };
+        }
+
+        function generateFetch(parsed) {
+            const options = {
+                method: parsed.method,
+                headers: parsed.headers
+            };
+            if (parsed.body) {
+                options.body = parsed.body;
+            }
+
+            const fetchStr = `fetch("${parsed.url}", {\n` +
+                `  "headers": ${JSON.stringify(parsed.headers, null, 4).replace(/\n/g, '\n  ')},\n` +
+                (parsed.body ? `  "body": ${JSON.stringify(parsed.body)},\n` : '') +
+                `  "method": "${parsed.method}"\n` +
+                `});`;
+            
+            return fetchStr;
+        }
+
+        function generateCurl(parsed) {
+            let curlStr = `curl -X ${parsed.method} "${parsed.url}"`;
+            
+            for (const [key, value] of Object.entries(parsed.headers)) {
+                // Ignore auto-generated fetch/curl headers to keep it clean if desired, 
+                // but we will include all provided headers here.
+                curlStr += ` \\\n  -H "${key}: ${value}"`;
+            }
+
+            if (parsed.body) {
+                // Escape single quotes for bash
+                const escapedBody = parsed.body.replace(/'/g, "'\\''");
+                curlStr += ` \\\n  -d '${escapedBody}'`;
+            }
+
+            return curlStr;
+        }
+
+        function convertRequest() {
+            const rawText = document.getElementById('rawInput').value.trim();
+            const outputType = document.getElementById('outputType').value;
+            const errorMsg = document.getElementById('errorMsg');
+            const outputArea = document.getElementById('output');
+
+            errorMsg.textContent = '';
+            outputArea.value = '';
+
+            if (!rawText) return;
+
+            try {
+                const parsed = parseRawRequest(rawText);
+                let result = '';
+                
+                if (outputType === 'fetch') {
+                    result = generateFetch(parsed);
+                } else if (outputType === 'curl') {
+                    result = generateCurl(parsed);
+                }
+
+                outputArea.value = result;
+            } catch (err) {
+                errorMsg.textContent = 'Error parsing request: ' + err.message;
+            }
+        }
+
+        // Run once on load
+        convertRequest();
+    </script>
+</body>
+</html>

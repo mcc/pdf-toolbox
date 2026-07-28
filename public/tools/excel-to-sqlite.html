@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SQLite Excel Data Explorer</title>
+    <!-- Tailwind CSS for rapid UI styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- SheetJS for reading XLSX files -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- SQL.js for client-side SQLite -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
+    <!-- Chart.js for interactive dashboards -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        /* Custom scrollbar for grid */
+        .table-container { max-height: 500px; overflow-y: auto; }
+        thead th { position: sticky; top: 0; background: #f3f4f6; z-index: 10; }
+        /* Spinner */
+        .loader { border-top-color: #3b82f6; -webkit-animation: spinner 1.5s linear infinite; animation: spinner 1.5s linear infinite; }
+        @keyframes spinner { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 font-sans h-screen flex flex-col">
+
+    <!-- Navbar -->
+    <nav class="bg-blue-600 text-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold">In-Browser Big Data SQLite Explorer</h1>
+        <div class="flex items-center gap-4">
+            <input type="file" id="fileInput" accept=".xlsx, .xls, .csv" class="hidden">
+            <label for="fileInput" class="bg-white text-blue-600 px-4 py-2 rounded cursor-pointer font-semibold hover:bg-gray-100 transition">
+                Load Excel File
+            </label>
+        </div>
+    </nav>
+
+    <!-- Main Content -->
+    <div class="flex-1 p-4 flex flex-col gap-4 overflow-hidden">
+        
+        <!-- Tab Navigation -->
+        <div class="flex border-b border-gray-300">
+            <button onclick="switchTab('sqlTab')" class="tab-btn px-4 py-2 font-semibold text-blue-600 border-b-2 border-blue-600" id="btn-sqlTab">SQL Editor</button>
+            <button onclick="switchTab('dashTab')" class="tab-btn px-4 py-2 font-semibold text-gray-500 hover:text-blue-600" id="btn-dashTab">Dashboard</button>
+        </div>
+
+        <!-- SQL Editor Tab -->
+        <div id="sqlTab" class="flex-1 flex flex-col gap-4 h-full">
+            <div class="flex flex-col bg-white p-4 rounded shadow">
+                <label class="font-semibold mb-2">SQL Query Editor</label>
+                <textarea id="sqlQuery" rows="3" class="w-full border p-2 rounded font-mono text-sm" placeholder="SELECT * FROM dataset LIMIT 100"></textarea>
+                <div class="mt-2 flex gap-2">
+                    <button onclick="executeSQL()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Run Query</button>
+                    <span id="queryStatus" class="text-sm text-gray-500 self-center"></span>
+                </div>
+            </div>
+            
+            <div class="flex-1 bg-white p-4 rounded shadow overflow-hidden flex flex-col">
+                <h3 class="font-semibold mb-2">Results Grid (Max 500 rows displayed for memory)</h3>
+                <div class="table-container border rounded flex-1 w-full overflow-x-auto">
+                    <table class="w-full text-left border-collapse" id="resultsTable">
+                        <thead id="resultsHead"></thead>
+                        <tbody id="resultsBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Tab -->
+        <div id="dashTab" class="hidden flex-1 flex flex-col gap-4 h-full overflow-y-auto">
+            <div class="bg-white p-4 rounded shadow flex flex-wrap gap-4 items-end">
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Group By (Category)</label>
+                    <select id="dashGroupCol" class="border p-2 rounded min-w-[200px]"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Metric</label>
+                    <select id="dashMetricCol" class="border p-2 rounded min-w-[200px]"></select>
+                </div>
+                <div>
+                    <label class="block text-sm font-semibold mb-1">Aggregation</label>
+                    <select id="dashAgg" class="border p-2 rounded">
+                        <option value="COUNT">Count</option>
+                        <option value="SUM">Sum</option>
+                        <option value="AVG">Average</option>
+                    </select>
+                </div>
+                <button onclick="buildDashboard()" class="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700">Update Dashboard</button>
+                <button onclick="clearFilter()" class="bg-gray-500 text-white px-4 py-2 rounded hover:bg-gray-600 hidden" id="clearFilterBtn">Clear Filter</button>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <!-- Metric Card -->
+                <div class="bg-white p-4 rounded shadow flex flex-col justify-center items-center">
+                    <h3 class="text-lg font-semibold text-gray-500">Total Records</h3>
+                    <p class="text-4xl font-bold text-blue-600" id="dashTotalMetric">0</p>
+                    <p class="text-sm text-gray-400 mt-2" id="filterStatus">No active filters</p>
+                </div>
+                <!-- Pie Chart -->
+                <div class="bg-white p-4 rounded shadow col-span-1 md:col-span-1">
+                    <canvas id="pieChart"></canvas>
+                </div>
+                <!-- Bar Chart -->
+                <div class="bg-white p-4 rounded shadow col-span-1 md:col-span-1">
+                    <canvas id="barChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Import Dialog Modal -->
+    <div id="importModal" class="fixed inset-0 bg-black bg-opacity-50 hidden flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg p-6 w-96 shadow-xl">
+            <h2 class="text-xl font-bold mb-4">Import Settings</h2>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-semibold mb-1">Select Sheet</label>
+                <select id="sheetSelect" class="w-full border p-2 rounded"></select>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-semibold mb-1">Has Header Row?</label>
+                <select id="hasHeader" class="w-full border p-2 rounded" onchange="toggleHeaderRowInput()">
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                </select>
+            </div>
+
+            <div class="mb-4" id="headerRowDiv">
+                <label class="block text-sm font-semibold mb-1">Header Row Index (0-based)</label>
+                <input type="number" id="headerRowIdx" value="0" min="0" class="w-full border p-2 rounded">
+            </div>
+
+            <div class="mb-6">
+                <label class="block text-sm font-semibold mb-1">Data Start Row Index (0-based)</label>
+                <input type="number" id="dataRowIdx" value="1" min="0" class="w-full border p-2 rounded">
+            </div>
+
+            <div class="flex justify-end gap-2">
+                <button onclick="closeModal()" class="px-4 py-2 bg-gray-300 rounded hover:bg-gray-400">Cancel</button>
+                <button onclick="startImport()" class="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700">Load Data</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-white bg-opacity-80 hidden flex flex-col items-center justify-center z-50">
+        <div class="loader ease-linear rounded-full border-8 border-t-8 border-gray-200 h-16 w-16 mb-4"></div>
+        <h2 class="text-xl font-semibold text-gray-700" id="loadingText">Processing...</h2>
+        <p class="text-sm text-gray-500 mt-2">This may take a moment for large files to keep memory usage low.</p>
+    </div>
+
+    <script>
+        let db = null;
+        let workbook = null;
+        let parsedRows = [];
+        let columns = [];
+        let currentActiveFilter = null;
+        let pieChartInstance = null;
+        let barChartInstance = null;
+
+        // Initialize SQL.js
+        async function initDB() {
+            const SQL = await initSqlJs({
+                locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+            });
+            db = new SQL.Database();
+            console.log("SQLite DB Initialized");
+        }
+        initDB();
+
+        // UI Helpers
+        function switchTab(tabId) {
+            document.getElementById('sqlTab').classList.add('hidden');
+            document.getElementById('dashTab').classList.add('hidden');
+            document.getElementById(tabId).classList.remove('hidden');
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('text-blue-600', 'border-b-2', 'border-blue-600');
+                btn.classList.add('text-gray-500');
+            });
+            
+            const activeBtn = document.getElementById(`btn-${tabId}`);
+            activeBtn.classList.remove('text-gray-500');
+            activeBtn.classList.add('text-blue-600', 'border-b-2', 'border-blue-600');
+        }
+
+        function showLoading(text) {
+            document.getElementById('loadingText').innerText = text;
+            document.getElementById('loadingOverlay').classList.remove('hidden');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.add('hidden');
+        }
+
+        function toggleHeaderRowInput() {
+            const hasHeader = document.getElementById('hasHeader').value;
+            const headerDiv = document.getElementById('headerRowDiv');
+            const dataRowInput = document.getElementById('dataRowIdx');
+            if (hasHeader === 'yes') {
+                headerDiv.classList.remove('hidden');
+                dataRowInput.value = parseInt(document.getElementById('headerRowIdx').value) + 1;
+            } else {
+                headerDiv.classList.add('hidden');
+                dataRowInput.value = 0;
+            }
+        }
+
+        // 1. File Selection & Parsing Workbook
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            showLoading("Reading Excel File...");
+            
+            try {
+                const arrayBuffer = await file.arrayBuffer();
+                // We use setTimeout to allow UI to render the loading screen before blocking thread
+                setTimeout(() => {
+                    // Read file - using dense layout to reduce memory footprint
+                    workbook = XLSX.read(arrayBuffer, { type: 'array', dense: true });
+                    
+                    const sheetSelect = document.getElementById('sheetSelect');
+                    sheetSelect.innerHTML = '';
+                    workbook.SheetNames.forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.innerText = name;
+                        sheetSelect.appendChild(opt);
+                    });
+
+                    hideLoading();
+                    document.getElementById('importModal').classList.remove('hidden');
+                }, 50);
+            } catch (err) {
+                alert("Error reading file: " + err.message);
+                hideLoading();
+            }
+        });
+
+        function closeModal() {
+            document.getElementById('importModal').classList.add('hidden');
+            document.getElementById('fileInput').value = '';
+        }
+
+        // Normalizes header names for SQL compatibility
+        function normalizeColumnName(name, index) {
+            if (!name) return `col_${index}`;
+            let cleaned = name.toString().trim()
+                .replace(/[^a-zA-Z0-9_]/g, '_') // Replace non-alphanumeric with underscore
+                .replace(/^(\d)/, '_$1')        // Prefix with underscore if starts with number
+                .toLowerCase();
+            return cleaned || `col_${index}`;
+        }
+
+        // 2. Data Import Process
+        async function startImport() {
+            const sheetName = document.getElementById('sheetSelect').value;
+            const hasHeader = document.getElementById('hasHeader').value === 'yes';
+            const headerIdx = parseInt(document.getElementById('headerRowIdx').value);
+            const dataIdx = parseInt(document.getElementById('dataRowIdx').value);
+
+            closeModal();
+            showLoading("Parsing Sheet Data...");
+
+            // Allow UI to update before heavy lifting
+            await new Promise(resolve => setTimeout(resolve, 50));
+
+            const worksheet = workbook.Sheets[sheetName];
+            
+            // Extract to array of arrays
+            const rawData = XLSX.utils.sheet_to_json(worksheet, { header: 1, defval: null });
+            
+            // Free the workbook from memory early
+            workbook = null; 
+
+            if (rawData.length === 0 || dataIdx >= rawData.length) {
+                alert("No data found at specified starting row.");
+                hideLoading();
+                return;
+            }
+
+            // Determine columns
+            let rawHeaders = [];
+            const colCount = rawData.reduce((max, row) => Math.max(max, row.length), 0);
+            
+            if (hasHeader && rawData[headerIdx]) {
+                rawHeaders = rawData[headerIdx];
+                // Fill missing headers
+                for (let i = 0; i < colCount; i++) {
+                    if (!rawHeaders[i]) rawHeaders[i] = `col_${i}`;
+                }
+            } else {
+                for (let i = 0; i < colCount; i++) {
+                    rawHeaders.push(`col_${i}`);
+                }
+            }
+
+            // Deduplicate and normalize headers
+            let seen = new Set();
+            columns = rawHeaders.map((h, i) => {
+                let norm = normalizeColumnName(h, i);
+                let finalName = norm;
+                let counter = 1;
+                while (seen.has(finalName)) {
+                    finalName = `${norm}_${counter++}`;
+                }
+                seen.add(finalName);
+                return finalName;
+            });
+
+            const rowsToInsert = rawData.slice(dataIdx);
+            
+            // Load into SQLite via Chunking to prevent memory/UI freezes
+            showLoading("Inserting into Database...");
+            await loadIntoSQLite(columns, rowsToInsert);
+        }
+
+        async function loadIntoSQLite(cols, rows) {
+            // Drop existing table if exists
+            db.run("DROP TABLE IF EXISTS dataset");
+            
+            // Create Table
+            const colDefs = cols.map(c => `"${c}" TEXT`).join(", ");
+            db.run(`CREATE TABLE dataset (${colDefs})`);
+
+            // Prepare Insert Statement
+            const placeholders = cols.map(() => "?").join(", ");
+            const insertStmt = `INSERT INTO dataset VALUES (${placeholders})`;
+            
+            const batchSize = 10000;
+            const total = rows.length;
+            
+            // Chunked insertion
+            for (let i = 0; i < total; i += batchSize) {
+                const batch = rows.slice(i, i + batchSize);
+                
+                db.exec("BEGIN TRANSACTION");
+                const stmt = db.prepare(insertStmt);
+                
+                for (const row of batch) {
+                    // Ensure row length matches columns
+                    const alignedRow = cols.map((_, idx) => {
+                        let val = row[idx];
+                        // Convert objects/dates to strings to avoid sqlite errors
+                        if (val instanceof Date) return val.toISOString();
+                        if (typeof val === 'object' && val !== null) return JSON.stringify(val);
+                        return val !== undefined ? val : null;
+                    });
+                    stmt.run(alignedRow);
+                }
+                
+                stmt.free();
+                db.exec("COMMIT");
+
+                // Update UI progress
+                document.getElementById('loadingText').innerText = `Inserting ${Math.min(i + batchSize, total)} / ${total} rows...`;
+                await new Promise(resolve => setTimeout(resolve, 0)); // Yield to event loop
+            }
+
+            // Populate Dashboard Dropdowns
+            populateDashboardOptions(cols);
+            
+            hideLoading();
+            document.getElementById('sqlQuery').value = "SELECT * FROM dataset LIMIT 100";
+            executeSQL();
+            switchTab('sqlTab');
+        }
+
+        // 3. SQL Editor Execution
+        function executeSQL() {
+            const query = document.getElementById('sqlQuery').value;
+            const statusLabel = document.getElementById('queryStatus');
+            const thead = document.getElementById('resultsHead');
+            const tbody = document.getElementById('resultsBody');
+
+            thead.innerHTML = '';
+            tbody.innerHTML = '';
+            statusLabel.innerText = "Executing...";
+
+            try {
+                const startTime = performance.now();
+                // Execute query
+                const result = db.exec(query);
+                const endTime = performance.now();
+
+                if (result.length === 0) {
+                    statusLabel.innerText = "Success (0 rows returned)";
+                    return;
+                }
+
+                const columns = result[0].columns;
+                const values = result[0].values;
+                
+                statusLabel.innerText = `Returned ${values.length} rows in ${(endTime - startTime).toFixed(2)}ms`;
+
+                // Render Header
+                const trHead = document.createElement('tr');
+                columns.forEach(col => {
+                    const th = document.createElement('th');
+                    th.className = "border-b p-2 font-semibold text-gray-700 bg-gray-50 whitespace-nowrap";
+                    th.innerText = col;
+                    trHead.appendChild(th);
+                });
+                thead.appendChild(trHead);
+
+                // Render Body (limit display to 500 to prevent DOM explosion)
+                const displayLimit = Math.min(values.length, 500);
+                for (let i = 0; i < displayLimit; i++) {
+                    const tr = document.createElement('tr');
+                    tr.className = i % 2 === 0 ? "bg-white" : "bg-gray-50";
+                    
+                    values[i].forEach(val => {
+                        const td = document.createElement('td');
+                        td.className = "border-b p-2 text-sm text-gray-600 whitespace-nowrap";
+                        td.innerText = val !== null ? val : 'NULL';
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                }
+                
+                if (values.length > 500) {
+                    statusLabel.innerText += ` (Showing top 500 rows to optimize memory)`;
+                }
+
+            } catch (err) {
+                statusLabel.innerText = "Error: " + err.message;
+                statusLabel.classList.add("text-red-600");
+            }
+        }
+
+        // 4. Dashboard Logic
+        function populateDashboardOptions(cols) {
+            const groupSelect = document.getElementById('dashGroupCol');
+            const metricSelect = document.getElementById('dashMetricCol');
+            
+            groupSelect.innerHTML = '';
+            metricSelect.innerHTML = '<option value="*">All Rows (*)</option>';
+            
+            cols.forEach(col => {
+                const opt1 = document.createElement('option');
+                opt1.value = col;
+                opt1.innerText = col;
+                groupSelect.appendChild(opt1);
+
+                const opt2 = document.createElement('option');
+                opt2.value = col;
+                opt2.innerText = col;
+                metricSelect.appendChild(opt2);
+            });
+            
+            // Build initial dashboard
+            setTimeout(buildDashboard, 100);
+        }
+
+        function buildDashboard() {
+            const groupCol = document.getElementById('dashGroupCol').value;
+            let metricCol = document.getElementById('dashMetricCol').value;
+            const agg = document.getElementById('dashAgg').value;
+
+            if (!groupCol) return;
+
+            // Handle Metric Column logic
+            let selectMetric = "";
+            if (metricCol === '*') {
+                selectMetric = `COUNT(*) as val`;
+            } else {
+                selectMetric = `${agg}("${metricCol}") as val`;
+            }
+
+            // Base WHERE clause for cross-filtering
+            let whereClause = "";
+            if (currentActiveFilter && currentActiveFilter.col === groupCol) {
+                // If filtering on the same column, show all to allow changing filter
+                whereClause = "";
+            } else if (currentActiveFilter) {
+                // Apply active filter from another dimension (though currently we only have one group by active at a time)
+                whereClause = `WHERE "${currentActiveFilter.col}" = '${currentActiveFilter.val.replace(/'/g, "''")}'`;
+            }
+
+            // Total Metric Query
+            let totalQuery = `SELECT ${metricCol === '*' ? 'COUNT(*)' : agg + '("' + metricCol + '")'} FROM dataset ${whereClause}`;
+            try {
+                const totalRes = db.exec(totalQuery);
+                let totalVal = totalRes[0].values[0][0];
+                document.getElementById('dashTotalMetric').innerText = totalVal !== null ? Number(totalVal).toLocaleString() : '0';
+            } catch (e) {
+                console.error("Total metric error:", e);
+            }
+
+            // Group By Query (limit to top 20 for charts)
+            const query = `
+                SELECT "${groupCol}" as label, ${selectMetric} 
+                FROM dataset 
+                ${whereClause}
+                GROUP BY "${groupCol}" 
+                ORDER BY val DESC 
+                LIMIT 20
+            `;
+
+            try {
+                const res = db.exec(query);
+                if (res.length === 0) return;
+                
+                const labels = res[0].values.map(r => r[0] !== null ? r[0].toString() : 'Unknown');
+                const data = res[0].values.map(r => r[1]);
+
+                updateCharts(labels, data, groupCol);
+            } catch (e) {
+                console.error("Dashboard query error:", e);
+            }
+        }
+
+        function updateCharts(labels, data, groupCol) {
+            const bgColors = [
+                '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6',
+                '#ec4899', '#06b6d4', '#84cc16', '#f97316', '#6366f1'
+            ];
+
+            // Setup Chart config factory to handle clicks
+            const getChartConfig = (type) => ({
+                type: type,
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: `Metric by ${groupCol}`,
+                        data: data,
+                        backgroundColor: bgColors.slice(0, data.length),
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    onClick: (event, elements) => {
+                        if (elements.length > 0) {
+                            const index = elements[0].index;
+                            applyFilter(groupCol, labels[index]);
+                        }
+                    }
+                }
+            });
+
+            // Update Pie Chart
+            const ctxPie = document.getElementById('pieChart').getContext('2d');
+            if (pieChartInstance) pieChartInstance.destroy();
+            pieChartInstance = new Chart(ctxPie, getChartConfig('pie'));
+
+            // Update Bar Chart
+            const ctxBar = document.getElementById('barChart').getContext('2d');
+            if (barChartInstance) barChartInstance.destroy();
+            barChartInstance = new Chart(ctxBar, getChartConfig('bar'));
+        }
+
+        function applyFilter(column, value) {
+            currentActiveFilter = { col: column, val: value };
+            document.getElementById('filterStatus').innerText = `Filtered by: ${column} = ${value}`;
+            document.getElementById('clearFilterBtn').classList.remove('hidden');
+            
+            // Rebuild dashboard to reflect filtered totals
+            buildDashboard();
+
+            // Update SQL editor grid with filter for context
+            document.getElementById('sqlQuery').value = `SELECT * FROM dataset WHERE "${column}" = '${value.replace(/'/g, "''")}' LIMIT 100`;
+            executeSQL();
+        }
+
+        function clearFilter() {
+            currentActiveFilter = null;
+            document.getElementById('filterStatus').innerText = 'No active filters';
+            document.getElementById('clearFilterBtn').classList.add('hidden');
+            buildDashboard();
+        }
+    </script>
+</body>
+</html>
