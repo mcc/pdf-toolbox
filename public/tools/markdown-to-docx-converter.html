@@ -1,0 +1,536 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Markdown to Word Converter</title>
+    
+    <!-- Load Markdown parser -->
+    <script src="https://cdn.jsdelivr.net/npm/marked@4.3.0/marked.min.js"></script>
+    
+    <!-- Load DOCX library (v7.3.0 - natively supports standard browser runtime) -->
+    <script src="https://unpkg.com/docx@7.3.0/build/index.js"></script>
+
+    <style>
+        :root {
+            --primary: #2563eb;
+            --bg: #f8fafc;
+            --border: #cbd5e1;
+            --panel-bg: #ffffff;
+        }
+        
+        /* Apply box-sizing globally to prevent overflow issues */
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: var(--bg);
+            color: #333;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1.2fr;
+            gap: 20px;
+        }
+
+        /* Responsive Breakpoint: Stack panels vertically on smaller screens */
+        @media (max-width: 1024px) {
+            .container {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        .panel {
+            background: var(--panel-bg);
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+            border: 1px solid var(--border);
+            width: 100%;
+        }
+        
+        h2 {
+            margin-top: 0;
+            font-size: 1.2rem;
+            color: #1e293b;
+            border-bottom: 2px solid var(--border);
+            padding-bottom: 10px;
+        }
+        
+        .settings-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 20px;
+            background: #f1f5f9;
+            padding: 15px;
+            border-radius: 6px;
+        }
+        
+        .input-group {
+            display: flex;
+            flex-direction: column;
+        }
+        
+        .input-group label {
+            font-size: 0.85rem;
+            font-weight: bold;
+            margin-bottom: 5px;
+            color: #475569;
+        }
+        
+        textarea {
+            width: 100%;
+            height: 600px;
+            padding: 15px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            font-family: Consolas, Monaco, monospace;
+            font-size: 14px;
+            line-height: 1.5;
+            resize: vertical;
+            background: #f8fafc;
+        }
+        
+        /* Table styling */
+        .table-container {
+            overflow-x: auto;
+            margin-bottom: 20px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        th {
+            background: #f1f5f9;
+            color: #334155;
+            white-space: nowrap;
+        }
+        
+        select, input[type="number"] {
+            padding: 6px;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            width: 100%;
+        }
+        
+        button {
+            background-color: var(--primary);
+            color: white;
+            border: none;
+            padding: 14px 20px;
+            font-size: 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            font-weight: bold;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background-color: #1d4ed8;
+        }
+        
+        .header-full {
+            grid-column: 1 / -1;
+            text-align: center;
+        }
+        
+        #error-message {
+            color: #dc2626;
+            font-weight: bold;
+            margin-top: 10px;
+            display: none;
+            padding: 10px;
+            background: #fee2e2;
+            border-radius: 4px;
+        }
+        
+        .md-tag {
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            color: #334155;
+            font-family: monospace;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="header-full">
+        <h1>Advanced Markdown to Word (DOCX)</h1>
+        <p>Supports inline formatting (bold, italic, code), tables, blockquotes, and granular spacing controls.</p>
+    </div>
+
+    <!-- Markdown Input Panel -->
+    <div class="panel">
+        <h2>1. Enter Markdown</h2>
+        <textarea id="markdown-input"># Main Title
+Here is a paragraph with **bold text**, *italic text*, and ***both***. You can also use ~~strikethrough~~ or `inline code`.
+
+## Introduction
+This section explores formatting.
+> This is a blockquote.
+> It can span multiple lines.
+
+### Code Example
+Here is a code block:
+```javascript
+function helloWorld() {
+    console.log("Hello, World!");
+}
+```
+
+## Lists and Tables
+* Bullet list item 1
+* Bullet list item 2
+  * Nested item
+
+1. Numbered item 1
+2. Numbered item 2
+
+| Feature | Supported | Notes |
+|---------|-----------|-------|
+| Tables | Yes | Auto-sizes to 100% |
+| Bold | Yes | Uses standard strong tags |
+</textarea>
+    </div>
+
+    <!-- Configuration Panel -->
+    <div class="panel">
+        <h2>2. Document & Header Settings</h2>
+        
+        <div class="settings-grid">
+            <div class="input-group">
+                <label>Default Line Spacing</label>
+                <select id="doc-line-spacing">
+                    <option value="1.0">Single (1.0)</option>
+                    <option value="1.15" selected>1.15</option>
+                    <option value="1.5">1.5</option>
+                    <option value="2.0">Double (2.0)</option>
+                </select>
+            </div>
+            <div class="input-group">
+                <label>Paragraph Space After (pt)</label>
+                <input type="number" id="doc-space-after" value="10" min="0" max="72">
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Markdown</th>
+                        <th>Word Lvl</th>
+                        <th>Numbering</th>
+                        <th>Size(pt)</th>
+                        <th>Spc Before(pt)</th>
+                        <th>Spc After(pt)</th>
+                    </tr>
+                </thead>
+                <tbody id="config-table-body">
+                    <!-- Rows injected via JS -->
+                </tbody>
+            </table>
+        </div>
+        
+        <button id="download-btn" onclick="generateWord()">Download Word Document</button>
+        <div id="error-message"></div>
+    </div>
+</div>
+
+<script>
+    // Default configs mapping MD levels to Word levels
+    const defaultConfigs = [
+        { mdLevel: 1, wordLevel: 1, style: 'normal', size: 24, before: 24, after: 12 },
+        { mdLevel: 2, wordLevel: 2, style: 'dot-numbered', size: 18, before: 18, after: 10 },
+        { mdLevel: 3, wordLevel: 3, style: 'dot-numbered', size: 14, before: 14, after: 8 },
+        { mdLevel: 4, wordLevel: 4, style: 'normal', size: 12, before: 12, after: 6 },
+        { mdLevel: 5, wordLevel: 5, style: 'normal', size: 11, before: 12, after: 6 },
+        { mdLevel: 6, wordLevel: 6, style: 'normal', size: 11, before: 12, after: 6 },
+    ];
+
+    // Initialize UI Table
+    const tbody = document.getElementById('config-table-body');
+    defaultConfigs.forEach(conf => {
+        const tr = document.createElement('tr');
+        const wordLevelOptions = [1, 2, 3, 4, 5, 6].map(lvl => 
+            `<option value="${lvl}" ${conf.wordLevel === lvl ? 'selected' : ''}>H${lvl}</option>`
+        ).join('');
+
+        tr.innerHTML = `
+            <td><span class="md-tag">${'#'.repeat(conf.mdLevel)}</span></td>
+            <td><select id="word-level-h${conf.mdLevel}">${wordLevelOptions}</select></td>
+            <td>
+                <select id="style-h${conf.mdLevel}">
+                    <option value="normal" ${conf.style === 'normal' ? 'selected' : ''}>Normal</option>
+                    <option value="numbered" ${conf.style === 'numbered' ? 'selected' : ''}>1, 2, 3</option>
+                    <option value="dot-numbered" ${conf.style === 'dot-numbered' ? 'selected' : ''}>1.1.1</option>
+                </select>
+            </td>
+            <td><input type="number" id="size-h${conf.mdLevel}" value="${conf.size}" min="8" max="72"></td>
+            <td><input type="number" id="before-h${conf.mdLevel}" value="${conf.before}" min="0" max="72"></td>
+            <td><input type="number" id="after-h${conf.mdLevel}" value="${conf.after}" min="0" max="72"></td>
+        `;
+        tbody.appendChild(tr);
+    });
+
+    // Extract UI configurations
+    function getConfigurations() {
+        const configs = {};
+        for (let i = 1; i <= 6; i++) {
+            configs[i] = {
+                wordLevel: parseInt(document.getElementById(`word-level-h${i}`).value, 10),
+                style: document.getElementById(`style-h${i}`).value,
+                size: parseInt(document.getElementById(`size-h${i}`).value, 10),
+                before: parseInt(document.getElementById(`before-h${i}`).value, 10),
+                after: parseInt(document.getElementById(`after-h${i}`).value, 10)
+            };
+        }
+        return configs;
+    }
+
+    async function generateWord() {
+        const errorDiv = document.getElementById('error-message');
+        errorDiv.style.display = 'none';
+
+        if (typeof docx === 'undefined') {
+            errorDiv.innerHTML = "Error: The DOCX library failed to load. Check your internet connection.";
+            errorDiv.style.display = 'block'; return;
+        }
+
+        try {
+            const mdText = document.getElementById('markdown-input').value;
+            const configs = getConfigurations();
+            
+            // Global Spacing (1 pt = 20 twips. Single line spacing in docx = 240 twips)
+            const docSpacingMult = parseFloat(document.getElementById('doc-line-spacing').value);
+            const globalSpacing = {
+                line: docSpacingMult * 240, 
+                after: parseInt(document.getElementById('doc-space-after').value, 10) * 20
+            };
+
+            const tokens = marked.lexer(mdText);
+            const { Document, Packer, Paragraph, TextRun, HeadingLevel, AlignmentType, Table, TableRow, TableCell, WidthType } = docx;
+
+            // --- AST PARSER HELPERS ---
+
+            function parseInline(inlineTokens, currentStyles = {}) {
+                let runs = [];
+                if (!inlineTokens) return runs;
+                
+                inlineTokens.forEach(t => {
+                    const styles = { ...currentStyles };
+                    if (t.type === 'strong') styles.bold = true;
+                    if (t.type === 'em') styles.italics = true;
+                    if (t.type === 'del') styles.strike = true;
+                    if (t.type === 'codespan') {
+                        styles.font = "Courier New";
+                        styles.shading = { type: "clear", color: "auto", fill: "F1F5F9" };
+                    }
+                    if (t.type === 'link') {
+                        styles.color = "0563C1"; // Standard link blue
+                        styles.underline = {};
+                    }
+
+                    if (t.tokens) {
+                        runs = runs.concat(parseInline(t.tokens, styles));
+                    } else {
+                        let textContent = t.text || t.raw || "";
+                        if (textContent) {
+                            runs.push(new TextRun({ text: textContent, ...styles }));
+                        }
+                    }
+                });
+                return runs;
+            }
+
+            function parseBlocks(blockTokens, context = {}) {
+                let elements = [];
+                
+                blockTokens.forEach(token => {
+                    switch (token.type) {
+                        case 'paragraph':
+                            elements.push(new Paragraph({
+                                children: parseInline(token.tokens || [{text: token.text}]),
+                                spacing: globalSpacing,
+                                indent: context.indent || undefined
+                            }));
+                            break;
+
+                        case 'heading':
+                            const mdDepth = token.depth;
+                            const hConf = configs[mdDepth] || configs[6];
+                            const pOptions = {
+                                children: parseInline(token.tokens),
+                                heading: HeadingLevel[`HEADING_${hConf.wordLevel}`],
+                                spacing: { before: hConf.before * 20, after: hConf.after * 20 }
+                            };
+                            if (hConf.style === 'dot-numbered') {
+                                pOptions.numbering = { reference: "dot-numbered", level: hConf.wordLevel - 1 };
+                            } else if (hConf.style === 'numbered') {
+                                pOptions.numbering = { reference: "numbered", level: hConf.wordLevel - 1 };
+                            }
+                            elements.push(new Paragraph(pOptions));
+                            break;
+
+                        case 'blockquote':
+                            const bqElements = parseBlocks(token.tokens, { 
+                                indent: { left: 720 }, // Indent 0.5 inches
+                            });
+                            elements.push(...bqElements);
+                            break;
+
+                        case 'code':
+                            const lines = (token.text || "").split('\n');
+                            lines.forEach((line, index) => {
+                                elements.push(new Paragraph({
+                                    children: [new TextRun({ text: line, font: "Courier New" })],
+                                    spacing: { after: index === lines.length -1 ? globalSpacing.after : 0, line: 240 },
+                                    shading: { type: "clear", color: "auto", fill: "F1F5F9" },
+                                    indent: context.indent || { left: 200 }
+                                }));
+                            });
+                            break;
+
+                        case 'list':
+                            const isOrdered = token.ordered;
+                            token.items.forEach((item, index) => {
+                                let listChildren = parseInline(item.tokens[0]?.type === 'text' ? item.tokens[0].tokens : [{text: item.text}]);
+                                
+                                elements.push(new Paragraph({
+                                    children: listChildren,
+                                    spacing: globalSpacing,
+                                    numbering: {
+                                        reference: isOrdered ? "default-ordered" : "default-bullet",
+                                        level: context.listLevel || 0
+                                    }
+                                }));
+                            });
+                            break;
+
+                        case 'table':
+                            const tableRows = [];
+                            
+                            // Parse Header
+                            tableRows.push(new TableRow({
+                                children: token.header.map(cell => new TableCell({
+                                    children: [new Paragraph({ children: parseInline(cell.tokens), alignment: AlignmentType.CENTER })],
+                                    shading: { fill: "E2E8F0" },
+                                    margins: { top: 100, bottom: 100, left: 100, right: 100 }
+                                }))
+                            }));
+
+                            // Parse Data Rows
+                            token.rows.forEach(row => {
+                                tableRows.push(new TableRow({
+                                    children: row.map(cell => new TableCell({
+                                        children: [new Paragraph({ children: parseInline(cell.tokens) })],
+                                        margins: { top: 100, bottom: 100, left: 100, right: 100 }
+                                    }))
+                                }));
+                            });
+
+                            elements.push(new Table({
+                                rows: tableRows,
+                                width: { size: 100, type: WidthType.PERCENTAGE }
+                            }));
+                            
+                            elements.push(new Paragraph({ spacing: globalSpacing }));
+                            break;
+
+                        case 'space':
+                            break;
+
+                        default:
+                            if (token.text) {
+                                elements.push(new Paragraph({ children: [new TextRun(token.text)], spacing: globalSpacing }));
+                            }
+                    }
+                });
+                return elements;
+            }
+
+            // --- DOCX GENERATION ---
+
+            const paragraphStyles = [];
+            for (let wordLvl = 1; wordLvl <= 6; wordLvl++) {
+                const mappedConf = Object.values(configs).find(c => c.wordLevel === wordLvl);
+                const fontSizePt = mappedConf ? mappedConf.size : (24 - (wordLvl * 2));
+                paragraphStyles.push({
+                    id: `Heading${wordLvl}`, name: `Heading ${wordLvl}`, basedOn: "Normal", next: "Normal", quickFormat: true,
+                    run: { size: fontSizePt * 2, bold: true, color: "000000" }
+                });
+            }
+
+            const numbering = {
+                config: [
+                    {
+                        reference: "dot-numbered",
+                        levels: [0,1,2,3,4,5].map(lvl => ({
+                            level: lvl, format: "decimal",
+                            text: Array.from({length: lvl+1}, (_, i) => `%${i+1}`).join('.') + ".",
+                            alignment: AlignmentType.LEFT
+                        }))
+                    },
+                    {
+                        reference: "numbered",
+                        levels: [0,1,2,3,4,5].map(lvl => ({
+                            level: lvl, format: "decimal", text: `%${lvl+1}.`, alignment: AlignmentType.LEFT
+                        }))
+                    },
+                    {
+                        reference: "default-bullet",
+                        levels: [{ level: 0, format: "bullet", text: "•", alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }]
+                    },
+                    {
+                        reference: "default-ordered",
+                        levels: [{ level: 0, format: "decimal", text: "%1.", alignment: AlignmentType.LEFT, style: { paragraph: { indent: { left: 720, hanging: 360 } } } }]
+                    }
+                ]
+            };
+
+            const docChildren = parseBlocks(tokens);
+
+            const doc = new Document({
+                styles: { paragraphStyles },
+                numbering: numbering,
+                sections: [{ children: docChildren }]
+            });
+
+            const blob = await Packer.toBlob(doc);
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.style.display = "none";
+            a.href = url;
+            a.download = "Advanced-Generated-Document.docx";
+            document.body.appendChild(a);
+            a.click();
+            
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+
+        } catch (err) {
+            console.error("Document Generation Error:", err);
+            errorDiv.innerHTML = "An internal error occurred. See browser console for details.";
+            errorDiv.style.display = 'block';
+        }
+    }
+</script>
+
+</body>
+</html>
